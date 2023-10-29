@@ -19,6 +19,7 @@ pub struct EngineState {
     pub valid_entity_set: Mutex<SparseSet>,
 
     /// The storage for all the bricks (id, src, tgt, component, data) tuples that define one brick
+    /// (note: bricks have ownership of the information they hold)
     pub entity_brick_storage: Mutex<HashMap<EntityId, Brick>>,
     
     // Compound book-keeping (join by component, source, target, both endpoints, etc.)
