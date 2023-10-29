@@ -1,0 +1,14 @@
+[package]
+name = "grasp"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", features = [ "derive" ] }
+fstr = "^0.2.9"
+pest = "2.7.0"
+pest_derive = "2.7.0"
+bit-set = "0.5.3"
