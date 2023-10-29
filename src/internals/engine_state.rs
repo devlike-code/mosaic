@@ -1,21 +1,30 @@
 use std::{sync::{Mutex, MutexGuard}, collections::HashMap};
 
-use super::{datatypes::{S32, ComponentType, EntityId}, sparse_set::SparseSet};
+use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick};
 
 #[derive(Default)]
 /// The full state of the engine, with fields that keep the run-time of the full platform.
 pub struct EngineState {
+    // Type-level index of components
+
     /// The component type index that holds a mapping of all the registered types by their name
-    pub component_type_index: Mutex<HashMap<S32, ComponentType>>,    
+    pub component_type_index: Mutex<HashMap<ComponentName, ComponentType>>,    
     
+    // Entity-level book-keeping
+
     /// The current entity count for this engine - grows by one every time a new entity is created
     pub entity_counter: Mutex<usize>,
     
     /// The set of all valid entities (those that are alive, undeleted)
     pub valid_entity_set: Mutex<SparseSet>,
 
+    /// The storage for all the bricks (id, src, tgt, component, data) tuples that define one brick
+    pub entity_brick_storage: Mutex<HashMap<EntityId, Brick>>,
+    
+    // Compound book-keeping (join by component, source, target, both endpoints, etc.)
+
     /// The index of all entities that have a certain component
-    pub entities_by_component_index: Mutex<HashMap<S32, SparseSet>>,
+    pub entities_by_component_index: Mutex<HashMap<ComponentName, SparseSet>>,
 
     /// The index of all entities that have a specific entity as their source
     pub entities_by_source_index: Mutex<HashMap<EntityId, SparseSet>>,
@@ -29,18 +38,26 @@ pub struct EngineState {
 
 /// Private implementations for engine state
 impl EngineState {
-    fn get_component_type_index(&self) -> MutexGuard<'_, HashMap<S32, ComponentType>> {
+    fn get_component_type_index(&self) -> MutexGuard<'_, HashMap<ComponentName, ComponentType>> {
         self.component_type_index.lock().unwrap()
+    }
+
+    fn get_next_entity_id(&self) -> EntityId {
+        let mut counter = self.entity_counter.lock().unwrap();
+        *counter += 1;
+        *counter
     }
 }
 
 /// Public implementations for engine state
 impl EngineState {
+    /// Register a new component type with the engine
     pub fn add_component_type(&self, definition: ComponentType) {
         self.component_type_index.lock().unwrap().insert(definition.name().into(), definition);
     }
 
-    pub fn get_component_type(&self, name: S32) -> Option<ComponentType> {
+    /// Get a component type by name from the engine
+    pub fn get_component_type(&self, name: ComponentName) -> Option<ComponentType> {
         self.component_type_index.lock().unwrap().get(&name).cloned()
     }
 }
@@ -54,6 +71,14 @@ mod engine_state_testing {
     use crate::internals::datatypes::Datatype;
 
     use super::{ComponentType, EngineState};
+
+    #[test]
+    fn test_engine_state_get_next_entity_id() {
+        let engine_state = EngineState::default();
+        assert_eq!(1, engine_state.get_next_entity_id());
+        assert_eq!(2, engine_state.get_next_entity_id());
+        assert_eq!(3, engine_state.get_next_entity_id());
+    }
 
     #[test]
     fn test_engine_state_add_component_type() {
