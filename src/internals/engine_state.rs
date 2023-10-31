@@ -103,7 +103,7 @@ impl EngineState {
 
     fn index_entity_by_target_and_component(&self, brick: &Brick) {
         let mut index = self.entities_by_target_and_component_index.lock().unwrap();
-        let key = (brick.source, brick.component);
+        let key = (brick.target, brick.component);
         if !index.contains_key(&key) {
             index.insert(key, SparseSet::default());
         }
@@ -160,7 +160,7 @@ impl EngineState {
 
     fn unindex_entity_by_target_and_component(&self, brick: &Brick) {
         let mut index = self.entities_by_target_and_component_index.lock().unwrap();
-        let key = (brick.source, brick.component);
+        let key = (brick.target, brick.component);
         if index.contains_key(&key) {
             index.get_mut(&key).unwrap().remove(brick.id);
         }
@@ -269,10 +269,10 @@ impl EngineState {
     }
 }
 
-// Deeper integrations
 impl EngineState {
-    // relations etc.
+    
 }
+
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */
@@ -322,7 +322,7 @@ mod engine_state_testing {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
 
-        let brick = Brick{ id: 1, source: 1, target: 1, component: "Foo".into(), data: vec![] };
+        let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
 
         assert!(engine_state.entity_brick_storage.lock().unwrap().contains_key(&brick.id));
@@ -348,7 +348,7 @@ mod engine_state_testing {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
 
-        let brick = Brick{ id: 1, source: 1, target: 1, component: "Foo".into(), data: vec![] };
+        let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
         engine_state.remove_entity(brick.id);
         

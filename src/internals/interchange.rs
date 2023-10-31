@@ -1,6 +1,7 @@
 use super::datatypes::{S32, EntityId};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug)]
 /// Bricks are the essential building blocks and hold a single component.
 /// Every brick contains a single morphism and associated data
 pub struct Brick {
