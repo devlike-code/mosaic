@@ -43,9 +43,10 @@ impl Family for EngineState {
     }
 
     fn get_children(&self, parent: EntityId) -> Vec<EntityId> {
+        let storage = self.entity_brick_storage.lock().unwrap();
         let parent_index = self.entities_by_source_and_component_index.lock().unwrap();
         if let Some(parents) = parent_index.get(&(parent, "Parent".into())) {
-            parents.into_iter().cloned().collect()
+            parents.into_iter().map(|e| &storage.get(e).unwrap().target).cloned().collect()
         } else {
             vec![]
         }
@@ -114,4 +115,24 @@ mod family_testing {
         storage_vector.sort_by_key(|&(key, _)| *key);
         assert_eq!(2, storage.len());
     }
+
+    #[test]
+    fn test_family_get_children() {
+        let engine_state = EngineState::default();
+        let a = engine_state.create_object();
+        let b = engine_state.create_object();
+        let c = engine_state.create_object();
+        let d = engine_state.create_object();
+        let e = engine_state.create_object();
+        for it in &[b, c, d, e] {
+            engine_state.set_parent(*it, a);
+        }
+        
+        let children = engine_state.get_children(a);
+        assert_eq!(4, children.len());
+        for it in &[b, c, d, e] {
+            assert!(children.contains(it));
+        }
+    }
+    
 }
