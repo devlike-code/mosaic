@@ -2,8 +2,6 @@ use array_tool::vec::Intersect;
 
 use crate::internals::EntityId;
 
-use super::querying::Querying;
-
 pub struct QueryIterator {
     elements: Vec<EntityId>,
 }
@@ -34,7 +32,7 @@ impl QueryIterator {
     pub fn len(&self) -> usize {
         self.elements.len()
     }
-    
+
     pub fn sort(&mut self) {
         self.elements.sort();
     }
