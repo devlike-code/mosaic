@@ -176,7 +176,7 @@ mod component_grammar_testing {
     use super::ComponentParser;
 
     #[test]
-    fn test_component_grammar_parse_basic_alias() {
+    fn test_parse_basic_alias() {
         let input = "Float : f32";
         let expected = ComponentType::Alias{ name: "Float".into(), aliased: Datatype::F32 };
 
@@ -184,7 +184,7 @@ mod component_grammar_testing {
     }
 
     #[test]
-    fn test_component_grammar_parse_comp_alias() {
+    fn test_parse_comp_alias() {
         let input = "Position : Point";
         let expected = ComponentType::Alias{ name: "Position".into(), aliased: Datatype::COMP("Point".into()) };
 
@@ -192,7 +192,7 @@ mod component_grammar_testing {
     }
 
     #[test]
-    fn test_component_grammar_parse_product_type() {
+    fn test_parse_product_type() {
         let input = "Position : product { x: i32, y: i32 }";
         let expected = ComponentType::Product{ name: "Position".into(), fields: vec![ 
             ComponentField{ name: "x".into(), datatype: Datatype::I32 }, 
@@ -203,7 +203,7 @@ mod component_grammar_testing {
     }
 
     #[test]
-    fn test_component_grammar_parse_sum_type() {
+    fn test_parse_sum_type() {
         let input = "Position : sum { x: i32, y: i32 }";
         let expected = ComponentType::Sum{ name: "Position".into(), fields: vec![ 
             ComponentField{ name: "x".into(), datatype: Datatype::I32 }, 

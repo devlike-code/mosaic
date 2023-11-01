@@ -9,5 +9,7 @@ mod byte_utilities;
 mod datatypes;
 mod interchange;
 
+pub use sparse_set::*;
 pub use datatypes::*;
 pub use engine_state::*;
+pub use interchange::*;

@@ -152,7 +152,7 @@ mod datatypes_testing {
     use super::{ComponentType, S32, Datatype, try_read_component_type};
 
     #[test]
-    fn test_component_type_try_read_alias() {
+    fn test_try_read_alias() {
         let engine_state = EngineState::default();
         let component_type = ComponentType::Alias { name: "foo".into(), aliased: Datatype::EID };
         engine_state.add_component_type(component_type.clone());
@@ -169,7 +169,7 @@ mod datatypes_testing {
     }
 
     #[test]
-    fn test_component_type_try_read_product() {
+    fn test_try_read_product() {
         let engine_state = EngineState::default();
         let component_type = ComponentType::Product { name: "foo".into(),
             fields: vec![

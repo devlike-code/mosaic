@@ -21,7 +21,16 @@ pub struct EngineState {
     /// The storage for all the bricks (id, src, tgt, component, data) tuples that define one brick
     /// (note: bricks have ownership of the information they hold)
     pub entity_brick_storage: Mutex<HashMap<EntityId, Brick>>,
-    
+
+    /// Object index holding a sparseset in which are all entity ids that are of the form (n, n, n)
+    pub entity_object_index: Mutex<SparseSet>,
+
+    /// Arrow index holding a sparseset in which are all entity ids that are of the form (n, m, p)
+    pub entity_arrow_index: Mutex<SparseSet>,
+
+    /// Arrow index holding a sparseset in which are all entity ids that are of the form (n, m, p)
+    pub entity_property_index: Mutex<SparseSet>,
+
     // Compound book-keeping (join by component, source, target, both endpoints, etc.)
 
     /// The index of all entities that have a certain component
@@ -61,6 +70,24 @@ impl EngineState {
         }
         
         index.get_mut(&brick.component).unwrap().add(brick.id);
+    }
+
+    fn index_entity_as_object(&self, brick: &Brick) {
+        if brick.id == brick.source && brick.source == brick.target {
+            self.entity_object_index.lock().unwrap().add(brick.id);
+        }
+    }
+
+    fn index_entity_as_arrow(&self, brick: &Brick) {
+        if brick.id != brick.source && brick.id != brick.target {
+            self.entity_arrow_index.lock().unwrap().add(brick.id);
+        }
+    }
+
+    fn index_entity_as_property(&self, brick: &Brick) {
+        if brick.source != brick.target && (brick.id == brick.source || brick.id == brick.target) {
+            self.entity_property_index.lock().unwrap().add(brick.id);
+        }
     }
 
     fn index_entity_by_source(&self, brick: &Brick) {
@@ -121,6 +148,21 @@ impl EngineState {
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
+    fn unindex_entity_as_object(&self, brick: &Brick) {
+        let mut index = self.entity_object_index.lock().unwrap();
+        index.remove(brick.id);
+    }
+
+    fn unindex_entity_as_arrow(&self, brick: &Brick) {
+        let mut index = self.entity_arrow_index.lock().unwrap();
+        index.remove(brick.id);
+    }
+
+    fn unindex_entity_as_property(&self, brick: &Brick) {
+        let mut index = self.entity_property_index.lock().unwrap();
+        index.remove(brick.id);
+    }
+
     fn unindex_entity_by_component(&self, brick: &Brick) {
         let mut index = self.entities_by_component_index.lock().unwrap();
         if index.contains_key(&brick.component) {
@@ -175,6 +217,9 @@ impl EngineState {
     }
         
     fn add_entity(&self, brick: Brick) {
+        self.index_entity_as_object(&brick);
+        self.index_entity_as_arrow(&brick);
+        self.index_entity_as_property(&brick);
         self.index_entity_by_component(&brick);
         self.index_entity_by_source(&brick);
         self.index_entity_by_target(&brick);
@@ -187,6 +232,9 @@ impl EngineState {
 
     fn remove_entity(&self, id: EntityId) {
         if let Some(brick) = self.entity_brick_storage.lock().unwrap().remove(&id) {
+            self.unindex_entity_as_object(&brick);
+            self.unindex_entity_as_arrow(&brick);
+            self.unindex_entity_as_property(&brick);
             self.unindex_entity_by_component(&brick);
             self.unindex_entity_by_source(&brick);
             self.unindex_entity_by_target(&brick);
@@ -284,7 +332,7 @@ mod engine_state_testing {
     use super::{ComponentType, EngineState};
 
     #[test]
-    fn test_engine_state_get_next_entity_id() {
+    fn test_get_next_entity_id() {
         let engine_state = EngineState::default();
         assert_eq!(1, engine_state.get_next_entity_id());
         assert_eq!(2, engine_state.get_next_entity_id());
@@ -292,7 +340,7 @@ mod engine_state_testing {
     }
 
     #[test]
-    fn test_engine_state_add_component_type() {
+    fn test_add_component_type() {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
 
@@ -305,7 +353,7 @@ mod engine_state_testing {
     }
 
     #[test]
-    fn test_engine_state_get_component_type() {
+    fn test_get_component_type() {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
 
@@ -318,7 +366,7 @@ mod engine_state_testing {
 
     // Testing that insertion creates the needed index storages
     #[test]
-    fn test_engine_state_add_entity() {
+    fn test_add_entity() {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
 
@@ -344,7 +392,7 @@ mod engine_state_testing {
 
     // Testing that, after removal, any index storages remain but the content is correctly freed
     #[test]
-    fn test_engine_state_remove_entity() {
+    fn test_remove_entity() {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
 
@@ -370,7 +418,7 @@ mod engine_state_testing {
     }
 
     #[test]
-    fn test_engine_state_create_object() {
+    fn test_create_object() {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Object".into(), aliased: Datatype::VOID });
 
@@ -383,10 +431,23 @@ mod engine_state_testing {
             assert_eq!(object_id, stored_object.source);
             assert_eq!(object_id, stored_object.target);
         }
+
+        assert!(engine_state.entity_object_index.lock().unwrap().is_member(object_id));
     }
 
     #[test]
-    fn test_engine_state_create_arrow() {
+    fn test_destroy_object() {
+        let engine_state = EngineState::default();
+        engine_state.add_component_type(ComponentType::Alias { name: "Object".into(), aliased: Datatype::VOID });
+
+        let object_id = engine_state.create_object();
+        assert!(engine_state.entity_object_index.lock().unwrap().is_member(object_id));
+        engine_state.destroy_object(object_id);
+        assert!(!engine_state.entity_object_index.lock().unwrap().is_member(object_id));
+    }
+
+    #[test]
+    fn test_create_arrow() {
         let engine_state = EngineState::default();
         engine_state.add_component_type(ComponentType::Alias { name: "Object".into(), aliased: Datatype::VOID });
         engine_state.add_component_type(ComponentType::Alias { name: "Arrow".into(), aliased: Datatype::VOID });

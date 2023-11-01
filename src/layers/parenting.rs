@@ -27,7 +27,7 @@ impl Parenting for EngineState {
         if let Some(parents) = parent_index.get(&(child, "Parent".into())) {
             if parents.len() > 0 {
                 assert_eq!(1, parents.len());
-                parents.elements().get(0).cloned()
+                parents.elements().first().cloned()
             } else {
                 None
             }
@@ -50,6 +50,10 @@ impl Parenting for EngineState {
     }
 
     fn get_children(&self, parent: EntityId) -> Vec<EntityId> {
+        // self.query()
+        //  .get_targets()
+        //  .with_source(parent)
+        //  .with_component("Parent".into())
         let index = self.entities_by_source_and_component_index.lock().unwrap();
         if let Some(parent_relation) = index.get(&(parent, "Parent".into())) {
             parent_relation.into_iter().map(|e| self.get_target(*e).unwrap()).collect()
@@ -77,7 +81,7 @@ mod family_testing {
     use super::Parenting;
 
     #[test]
-    fn test_parenting_set_parent() {
+    fn test_set_parent() {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
@@ -96,7 +100,7 @@ mod family_testing {
     }
 
     #[test]
-    fn test_parenting_get_parenting_property() {
+    fn test_get_parenting_property() {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
@@ -107,7 +111,7 @@ mod family_testing {
     }
 
     #[test]
-    fn test_parenting_unparent() {
+    fn test_unparent() {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
@@ -123,7 +127,7 @@ mod family_testing {
     }
 
     #[test]
-    fn test_parenting_get_children() {
+    fn test_get_children() {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
@@ -142,7 +146,7 @@ mod family_testing {
     }
 
     #[test]
-    fn test_parenting_multiple_parents() {
+    fn test_multiple_parents() {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
@@ -152,7 +156,7 @@ mod family_testing {
     }
     
     #[test]
-    fn test_parenting_get_parent() {
+    fn test_get_parent() {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
