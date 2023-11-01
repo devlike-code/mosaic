@@ -5,7 +5,7 @@ use array_tool::vec::{Uniq, Intersect};
 
 use crate::internals::{EntityId, EngineState, S32};
 
-use super::querying::{Querying, QueryEntities, QueryIterator};
+use super::{querying::{Querying, QueryEntities}, query_iterator::QueryIterator};
 
 #[derive(Clone)]
 pub struct QueryIndirect<'a> {
@@ -49,7 +49,7 @@ impl<'a> QueryIndirect<'a> {
 
     #[allow(dead_code)]
     pub fn get(self) -> QueryIterator {
-        let mut included = self.query.get();
+        let mut included = self.query.get().as_vec();
         for incl in self.include_components {
             let comp = self.query.engine.get_with_property(incl);
             included = included.intersect(comp);
@@ -70,6 +70,16 @@ impl<'a> QueryIndirect<'a> {
             result.into_iter().cloned().collect()
         }
     }
+
+    #[allow(dead_code)]
+    pub fn get_sources(self) -> QueryIterator {
+        self.query.engine.get_sources(self.get())
+    }
+
+    #[allow(dead_code)]
+    pub fn get_targets(self) -> QueryIterator {
+        self.query.engine.get_targets(self.get())
+    }
 }
 
 /// This is an indirection layer that is built on top of the internals.
@@ -78,6 +88,10 @@ pub trait Indirection : Querying {
     fn get_source(&self, id: EntityId) -> Option<EntityId>;
     /// Gets the target of a bricked entity
     fn get_target(&self, id: EntityId) -> Option<EntityId>;
+    /// Gets an iterator to the sources of an input iterator
+    fn get_sources(&self, iter: QueryIterator) -> QueryIterator;
+    /// Gets an iterator to the targets of an input iterator
+    fn get_targets(&self, iter: QueryIterator) -> QueryIterator;
     /// Returns whether this arrow is an incoming property (defined by X: X -> Y)
     fn is_incoming_property(&self, id: EntityId) -> bool;
     /// Returns whether this arrow is an outgoing property (defined by X: Y -> X)
@@ -140,9 +154,17 @@ impl Indirection for EngineState {
         }
     }
 
+    fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
+        iter.into_iter().flat_map(|&e| self.get_source(e)).collect()
+    }
+    
+    fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
+        iter.into_iter().flat_map(|&e| self.get_target(e)).collect()
+    }
+
     fn get_with_property(&self, component: S32) -> Vec<EntityId> {
         self.query_entities().with_component(component).get()
-            .iter().map(|&e| { 
+            .into_iter().map(|&e| { 
                 if self.is_incoming_property(e) {
                     self.get_target(e).unwrap()
                 } else if self.is_outgoing_property(e) {
@@ -164,7 +186,7 @@ impl Indirection for EngineState {
 
 #[cfg(test)]
 mod indirection_testing {
-    use crate::{internals::EngineState, layers::indirection::Indirection};
+    use crate::{internals::{EngineState, EntityId}, layers::indirection::Indirection};
 
     #[test]
     fn test_get_source() {
@@ -204,8 +226,7 @@ mod indirection_testing {
         assert!(data.contains(&e));
     }
 
-    #[test]
-    fn test_query() {
+    fn setup_query_tests() -> ([EntityId; 7], EngineState) {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
@@ -219,39 +240,74 @@ mod indirection_testing {
         let f = engine_state.add_incoming_property(a, "Data".into(), vec![]);
         // G : E ---Data----> C
         let g = engine_state.create_arrow(e, c, "Data".into(), vec![]);
-        
+        ([ a, b, c, d, e, f, g ], engine_state)
+    }
+
+    #[test]
+    fn test_query_with_source() {
+        let ([ a, _b, c, _d, e, _f, _g ], engine_state) = setup_query_tests();
         let mut all_with_source_a = engine_state.query().with_source(a).get();
         all_with_source_a.sort();
-        assert_eq!(vec![a, c, e], all_with_source_a);
+        assert_eq!(&[a, c, e], all_with_source_a.as_slice());
+    }
 
+    #[test]
+    fn test_query_with_component() {
+        let ([ a, _b, c, _d, e, _f, g ], engine_state) = setup_query_tests();
         let mut all_with_comp_data = engine_state.query().with_component("Data".into()).get();
         all_with_comp_data.sort();
-        assert_eq!(vec![a, c, e, g], all_with_comp_data);
+        assert_eq!(&[a, c, e, g], all_with_comp_data.as_slice());
 
+    }
+
+    #[test]
+    fn test_query_without_component() {
+        let ([ a, b, _c, d, e, f, g ], engine_state) = setup_query_tests();
         let mut all_without_comp_arrow = engine_state.query().without_component("Arrow".into()).get();
         all_without_comp_arrow.sort();
-        assert_eq!(vec![a, b, d, e, f, g], all_without_comp_arrow);
+        assert_eq!(&[a, b, d, e, f, g], all_without_comp_arrow.as_slice());
+    }
 
+    #[test]
+    fn test_query_with_two_components() {
+        let ([ _a, _b, c, _d, _e, _f, _g ], engine_state) = setup_query_tests();
         let mut all_with_comp_arrow_and_data = 
             engine_state.query()
                 .with_component("Arrow".into())
                 .with_component("Data".into())
                 .get();
         all_with_comp_arrow_and_data.sort();
-        assert_eq!(vec![c], all_with_comp_arrow_and_data);
+        assert_eq!(&[c], all_with_comp_arrow_and_data.as_slice());
+    }
 
+    #[test]
+    fn test_query_without_component_and_no_properties() {
+        let ([ a, b, _c, _d, e, _f, g ], engine_state) = setup_query_tests();
         let mut all_without_comp_arrow_no_prop = engine_state.query().without_component("Arrow".into()).no_properties().get();
         all_without_comp_arrow_no_prop.sort();
-        assert_eq!(vec![a, b, e, g], all_without_comp_arrow_no_prop);
+        assert_eq!(&[a, b, e, g], all_without_comp_arrow_no_prop.as_slice());
 
+    }
+
+    #[test]
+    fn test_query_with_component_and_source() {
+        let ([ a, _b, c, _d, e, _f, _g ], engine_state) = setup_query_tests();
         let mut all_with_source_a_and_data = engine_state.query().with_source(a).with_component("Data".into()).get();
         all_with_source_a_and_data.sort();
-        assert_eq!(vec![a, c, e], all_with_source_a_and_data);
+        assert_eq!(&[a, c, e], all_with_source_a_and_data.as_slice());
+    }
 
+    #[test]
+    fn test_query_with_source_without_component() {
+        let ([ a, _b, _c, _d, e, _f, _g ], engine_state) = setup_query_tests();
         let mut all_with_source_a_without_arrow = engine_state.query().with_source(a).without_component("Arrow".into()).get();
         all_with_source_a_without_arrow.sort();
-        assert_eq!(vec![a, e], all_with_source_a_without_arrow);
+        assert_eq!(&[a, e], all_with_source_a_without_arrow.as_slice());
+    }
 
+    #[test]
+    fn test_query_with_source_with_one_component_without_another() {
+        let ([ a, _b, _c, _d, e, _f, _g ], engine_state) = setup_query_tests();
         let mut all_with_source_a_and_data_without_arrow = 
             engine_state.query()
                 .with_source(a)
@@ -259,6 +315,38 @@ mod indirection_testing {
                 .without_component("Arrow".into())
                 .get();
         all_with_source_a_and_data_without_arrow.sort();
-        assert_eq!(vec![a, e], all_with_source_a_and_data_without_arrow);
+        assert_eq!(&[a, e], all_with_source_a_and_data_without_arrow.as_slice());
+    }
+
+    #[test]
+    fn test_query_join() {
+        let engine_state = EngineState::default();
+
+        let a = engine_state.create_object();
+        let b = engine_state.create_object();
+        let c = engine_state.create_object();
+        let d = engine_state.create_object();
+        let e = engine_state.create_object();
+
+        let _ab = engine_state.create_arrow(a, b, "Parent".into(), vec![]);
+        let _bc = engine_state.create_arrow(b, c, "Path".into(), vec![]);
+        let _ad = engine_state.create_arrow(a, d, "Parent".into(), vec![]);
+        let _cd = engine_state.create_arrow(c, d, "Path".into(), vec![]);
+        let _de = engine_state.create_arrow(d, e, "Parent".into(), vec![]);
+
+        let query_from_a = engine_state
+            .query()
+            .with_source(a)
+            .with_component("Parent".into())
+            .get_targets();
+
+        let query_to_c = engine_state
+            .query()
+            .with_target(c)
+            .get_sources();
+        
+        let join = query_from_a.intersect(query_to_c);
+        assert_eq!(1, join.len());
+        assert_eq!(b, join.as_slice()[0]);
     }
 }

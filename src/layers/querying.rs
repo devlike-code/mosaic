@@ -1,7 +1,7 @@
 
 use crate::internals::{EntityId, S32, Brick, EngineState};
 
-pub type QueryIterator = Vec<EntityId>;
+use super::query_iterator::QueryIterator;
 
 #[derive(Clone)]
 pub struct QueryEntities<'a> {
@@ -104,7 +104,7 @@ mod querying_testing {
             .with_source(a)
             .get();
 
-        assert_eq!(2, iter.len());
+        assert_eq!(2, iter.as_vec().len());
     }
 
     #[test]
@@ -118,7 +118,7 @@ mod querying_testing {
             .with_target(b)
             .get();
 
-        assert_eq!(2, iter.len());
+        assert_eq!(2, iter.as_vec().len());
     }
 
     #[test]
@@ -132,6 +132,6 @@ mod querying_testing {
             .with_component("Arrow".into())
             .get();
 
-        assert_eq!(1, iter.len());
+        assert_eq!(1, iter.as_vec().len());
     }
 }
