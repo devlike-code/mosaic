@@ -1,38 +1,14 @@
-use std::slice::Iter;
 
 use crate::internals::{EntityId, S32, Brick, EngineState};
 
+pub type QueryIterator = Vec<EntityId>;
+
+#[derive(Clone)]
 pub struct QueryEntities<'a> {
-    engine: &'a EngineState,
+    pub(crate) engine: &'a EngineState,
     source: Option<EntityId>,
     target: Option<EntityId>,
     component: Option<S32>,
-}
-
-pub struct QueryIterator {
-    iter: Vec<EntityId>,
-}
-
-impl QueryIterator {
-    pub fn elements(&self) -> Vec<EntityId> {
-        self.iter.clone()
-    }
-}
-
-impl<'a> IntoIterator for &'a QueryIterator {
-    type Item = &'a EntityId;
-
-    type IntoIter = Iter<'a, EntityId>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter.iter()
-    }
-}
-
-impl Into<QueryIterator> for Vec<EntityId> {
-    fn into(self) -> QueryIterator {
-        QueryIterator { iter: self }
-    }
 }
 
 impl<'a> QueryEntities<'a> {
@@ -128,7 +104,7 @@ mod querying_testing {
             .with_source(a)
             .get();
 
-        assert_eq!(2, iter.iter.len());
+        assert_eq!(2, iter.len());
     }
 
     #[test]
@@ -142,7 +118,7 @@ mod querying_testing {
             .with_target(b)
             .get();
 
-        assert_eq!(2, iter.iter.len());
+        assert_eq!(2, iter.len());
     }
 
     #[test]
@@ -156,6 +132,6 @@ mod querying_testing {
             .with_component("Arrow".into())
             .get();
 
-        assert_eq!(1, iter.iter.len());
+        assert_eq!(1, iter.len());
     }
 }
