@@ -232,6 +232,14 @@ mod indirection_testing {
         all_without_comp_arrow.sort();
         assert_eq!(vec![a, b, d, e, f, g], all_without_comp_arrow);
 
+        let mut all_with_comp_arrow_and_data = 
+            engine_state.query()
+                .with_component("Arrow".into())
+                .with_component("Data".into())
+                .get();
+        all_with_comp_arrow_and_data.sort();
+        assert_eq!(vec![c], all_with_comp_arrow_and_data);
+
         let mut all_without_comp_arrow_no_prop = engine_state.query().without_component("Arrow".into()).no_properties().get();
         all_without_comp_arrow_no_prop.sort();
         assert_eq!(vec![a, b, e, g], all_without_comp_arrow_no_prop);
