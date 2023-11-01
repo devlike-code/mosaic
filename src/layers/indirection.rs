@@ -215,7 +215,7 @@ mod indirection_testing {
         let engine_state = EngineState::default();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let c = engine_state.create_arrow(a, b, "Foo".into(), vec![]);
         let _d = engine_state.add_incoming_property(c, "Data".into(), vec![]);    // c
         let e = engine_state.create_arrow(a, b, "Data".into(), vec![]);   // e
         let _f = engine_state.add_incoming_property(a, "Data".into(), vec![]);   // a
@@ -334,12 +334,16 @@ mod indirection_testing {
         let _cd = engine_state.create_arrow(c, d, "Path".into(), vec![]);
         let _de = engine_state.create_arrow(d, e, "Parent".into(), vec![]);
 
+        // A ---Parent----> ? -------> C
+        
+        // A ---Parent----> ?
         let query_from_a = engine_state
             .query()
             .with_source(a)
             .with_component("Parent".into())
             .get_targets();
 
+        // ? -------> C
         let query_to_c = engine_state
             .query()
             .with_target(c)

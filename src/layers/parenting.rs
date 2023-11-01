@@ -8,7 +8,12 @@ use super::indirection::Indirection;
 /// between two entities `P` (the parent) and `C` (the child). Gives ways to add, query, and
 /// remove the `Parent` relation.
 pub trait Parenting {
-    /// Returns the id of the parenting relation entity (useful for internal bookkeeping)
+    /** Returns the id of the parenting relation entity (useful for internal bookkeeping)
+    /// As a picture, it's like this:
+    /// 
+    ///     parent -parenting relation-> child
+    /// 
+    /// */
     fn get_parenting_relation(&self, child: EntityId) -> Option<EntityId>;
     /// Sets the parent to some child entity returning `Ok(parent)` if the child doesn't already have one,
     /// or `Err(old_parent)` if it does (without changing it)
@@ -23,17 +28,9 @@ pub trait Parenting {
 
 impl Parenting for EngineState {
     fn get_parenting_relation(&self, child: EntityId) -> Option<EntityId> {
-        let parent_index = self.entities_by_target_and_component_index.lock().unwrap();
-        if let Some(parents) = parent_index.get(&(child, "Parent".into())) {
-            if parents.len() > 0 {
-                assert_eq!(1, parents.len());
-                parents.elements().first().cloned()
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        let it = self.query().with_target(child).with_component("Parent".into()).get();
+        assert!(it.len() <= 1);
+        it.as_slice().first().cloned()
     }
 
     fn set_parent(&self, child: EntityId, parent: EntityId) -> Result<EntityId, EntityId> {
@@ -50,16 +47,7 @@ impl Parenting for EngineState {
     }
 
     fn get_children(&self, parent: EntityId) -> Vec<EntityId> {
-        // self.query()
-        //  .get_targets()
-        //  .with_source(parent)
-        //  .with_component("Parent".into())
-        let index = self.entities_by_source_and_component_index.lock().unwrap();
-        if let Some(parent_relation) = index.get(&(parent, "Parent".into())) {
-            parent_relation.into_iter().map(|e| self.get_target(*e).unwrap()).collect()
-        } else {
-            vec![]
-        }
+        self.query().with_source(parent).with_component("Parent".into()).get_targets().as_vec()
     }
 
     fn unparent(&self, child: EntityId) {

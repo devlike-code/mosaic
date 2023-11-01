@@ -23,5 +23,20 @@ pub struct Brick {
 
 #[cfg(test)]
 mod interchange_testing {
+    use std::{hash::{Hash, Hasher}, collections::hash_map::DefaultHasher};
 
+    #[derive(Hash)]
+    struct A {
+        a: u8,
+        b: u8,
+        c: String,
+    }
+
+    #[test]
+    fn hash_of_a() {
+        let mut hasher = DefaultHasher::new();
+        let a = A{ a: b'c', b: b'a', c: format!("qweqweijwqeiofjwioefjwoeifjoiwefjewf") };
+        a.hash(&mut hasher);
+        println!("{:?}", hasher.finish());
+    }
 }
