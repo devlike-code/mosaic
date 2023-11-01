@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use array_tool::vec::{Uniq, Intersect};
 
-use crate::internals::{EntityId, EngineState, S32};
+use crate::internals::{EntityId, EngineState, S32, Brick};
 
 use super::{querying::{Querying, QueryEntities}, query_iterator::QueryIterator};
 
@@ -99,6 +99,8 @@ pub trait Indirection : Querying {
     /// Gets all the entities that either directly have a component, or have it passed through
     /// a property (both incoming and outgoing)
     fn get_with_property(&self, component: S32) -> Vec<EntityId>;
+    /// Gets a map of all the components that endorse the component directly or indirectly
+    fn get_entity_archetype(&self, entity: EntityId) -> Vec<Brick>;
     /// Query one or multiple components in inclusion or exclusion
     fn query(&self) -> QueryIndirect;
 
@@ -175,6 +177,23 @@ impl Indirection for EngineState {
             }).collect::<Vec<_>>().unique()
     }
 
+    fn get_entity_archetype(&self, entity: EntityId) -> Vec<Brick> {
+        let mut result = vec![];
+        if let Some(brick) = self.get(entity) {
+            result.push(brick);
+
+            let incoming: Vec<Brick> = self.query_entities().with_target(entity).get()
+                .into_iter().filter(|&e| self.is_property(*e)).flat_map(|&e| self.get(e)).collect();
+            result.extend(incoming);
+
+            let outgoing: Vec<Brick> = self.query_entities().with_source(entity).get()
+                .into_iter().filter(|&e| self.is_property(*e)).flat_map(|&e| self.get(e)).collect();            
+            result.extend(outgoing);
+        }
+
+        result
+    }
+
     fn query(&self) -> QueryIndirect {
         QueryIndirect { no_properties: false, query: self.query_entities(), include_components: vec![], exclude_components: vec![] }
     }
@@ -186,7 +205,7 @@ impl Indirection for EngineState {
 
 #[cfg(test)]
 mod indirection_testing {
-    use crate::{internals::{EngineState, EntityId}, layers::indirection::Indirection};
+    use crate::{internals::{EngineState, EntityId}, layers::{indirection::Indirection, querying::Querying}};
 
     #[test]
     fn test_get_source() {
@@ -352,5 +371,20 @@ mod indirection_testing {
         let join = query_from_a.intersect(query_to_c);
         assert_eq!(1, join.len());
         assert_eq!(b, join.as_slice()[0]);
+    }
+
+    #[test]
+    fn test_get_entity_archetype() {
+        let engine_state = EngineState::default();
+
+        let a = engine_state.create_object();
+        engine_state.add_incoming_property(a, "Foo".into(), vec![]);
+        engine_state.add_incoming_property(a, "Bar".into(), vec![]);
+        engine_state.add_outgoing_property(a, "Baz".into(), vec![]);
+        let b = engine_state.create_arrow(a, a, "Arrow".into(), vec![]);
+        let arch = engine_state.get_entity_archetype(a);
+        
+        assert_eq!(4, arch.len());
+        assert!(!arch.contains(&engine_state.get(b).unwrap()));
     }
 }
