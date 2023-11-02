@@ -383,7 +383,7 @@ mod indirection_testing {
         engine_state.add_outgoing_property(a, "Baz".into(), vec![]);
         let b = engine_state.create_arrow(a, a, "Arrow".into(), vec![]);
         let arch = engine_state.get_entity_archetype(a);
-        
+        println!("ARCH {:?}", arch);
         assert_eq!(4, arch.len());
         assert!(!arch.contains(&engine_state.get(b).unwrap()));
     }

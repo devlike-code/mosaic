@@ -1,7 +1,12 @@
-use super::datatypes::{S32, EntityId};
+use std::path::Component;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[derive(Debug)]
+use super::{
+    byte_utilities::Bytesize,
+    datatypes::{EntityId, S32},
+    ComponentField, ComponentType, EngineState,
+};
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 /// Bricks are the essential building blocks and hold a single component.
 /// Every brick contains a single morphism and associated data
 pub struct Brick {
@@ -23,7 +28,10 @@ pub struct Brick {
 
 #[cfg(test)]
 mod interchange_testing {
-    use std::{hash::{Hash, Hasher}, collections::hash_map::DefaultHasher};
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+    };
 
     #[derive(Hash)]
     struct A {
@@ -35,7 +43,11 @@ mod interchange_testing {
     #[test]
     fn hash_of_a() {
         let mut hasher = DefaultHasher::new();
-        let a = A{ a: b'c', b: b'a', c: format!("qweqweijwqeiofjwioefjwoeifjoiwefjewf") };
+        let a = A {
+            a: b'c',
+            b: b'a',
+            c: format!("qweqweijwqeiofjwioefjwoeifjoiwefjewf"),
+        };
         a.hash(&mut hasher);
         println!("{:?}", hasher.finish());
     }

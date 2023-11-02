@@ -4,10 +4,10 @@
     [x] `get_property_map` returns all components and their data
         - called `get_entity_archetype`, returns a vector of bricks that adorn the entity directly or not
 [N] memory-work with getters/setters for data
-    [ ] rename empty field (for alias) into "self"
-    [ ] working with bricks through a `BrickEditor` interface with a `get_field` and `set_field` structure
+    [x] rename empty field (for alias) into "self"
+    [...] working with bricks through a `BrickEditor` interface with a `get_field` and `set_field` structure
     [ ] the `BrickEditor` should send update events to the system either directly or through a `.commit(self)`
-    [ ] create a method in brick to get a builder: `Brick::edit(&mut self) -> BrickEditor`
+    [x] create a method in brick to get a builder: `Brick::edit(&mut self) -> BrickEditor`
 [M] string allocation and retrieval
     [x] change `string` type in datatypes to `blob` (256-byte blob)
         - renamed `str` to `b256` and changed bytesize to 32
