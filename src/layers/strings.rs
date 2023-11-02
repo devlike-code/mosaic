@@ -10,6 +10,7 @@ use super::querying::Querying;
 /// with a specific identifier equal to the hash of the given string, and in so doing,
 /// we intern it.
 pub trait Strings {
+    /// Hash a string into an entity identifier (basic hash string helper function)
     fn hash_string(str: &str) -> EntityId;
     /// Creates a string object and attached outgoing properties returning the same id
     /// if called multiple times, without creating new morphisms
