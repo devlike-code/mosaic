@@ -63,7 +63,7 @@ impl Parenting for EngineState {
 /* /////////////////////////////////////////////////////////////////////////////////// */
 
 #[cfg(test)]
-mod family_testing {
+mod parenting_testing {
     use crate::internals::EngineState;
 
     use super::Parenting;

@@ -182,8 +182,8 @@ impl Bytesize for Datatype {
             Datatype::I64 |
             Datatype::U64 |
             Datatype::F64 |
-            Datatype::EID |
-            Datatype::STR => 8usize,
+            Datatype::EID => 8usize,
+            Datatype::B256 => 32usize,
             Datatype::COMP(component_name) => {
                 engine.get_component_type(*component_name)
                     .map(|t| t.bytesize(engine))

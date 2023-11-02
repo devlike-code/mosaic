@@ -28,6 +28,6 @@ datatype_expr = {
     | "f64"
     | "id"
     | "s32"
-    | "str"
+    | "b256"
     | identifier
 }

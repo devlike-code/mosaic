@@ -8,6 +8,7 @@ use crate::internals::{EntityId, EngineState, S32, Brick};
 use super::{querying::{Querying, QueryEntities}, query_iterator::QueryIterator};
 
 #[derive(Clone)]
+/// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect<'a> {
     query: QueryEntities<'a>,
     no_properties: bool,
@@ -16,7 +17,6 @@ pub struct QueryIndirect<'a> {
 }
 
 impl<'a> QueryIndirect<'a> {
-    
     #[allow(dead_code)]
     pub fn with_source(mut self, source: EntityId) -> Self {
         self.query = self.query.with_source(source);

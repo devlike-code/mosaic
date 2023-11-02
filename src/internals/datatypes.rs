@@ -59,7 +59,7 @@ pub enum Datatype {
     /// A 32-bit bound-size string
     S32,
     /// An interned unbound string
-    STR,
+    B256,
     /// A component name and layout - allows for composition
     COMP(S32)
 }
@@ -175,7 +175,7 @@ mod datatypes_testing {
             fields: vec![
                 ComponentField { name: "a".into(), datatype: Datatype::EID },
                 ComponentField { name: "b".into(), datatype: Datatype::U32 },
-            ] 
+            ]
         };
 
         engine_state.add_component_type(component_type.clone());

@@ -58,8 +58,14 @@ pub struct EngineState {
 /// Private implementations for engine state
 impl EngineState {
     fn get_next_entity_id(&self) -> EntityId {
+        let storage = self.entity_brick_storage.lock().unwrap();
         let mut counter = self.entity_counter.lock().unwrap();
+        
         *counter += 1;
+        while storage.contains_key(&*counter) {
+            *counter += 1;
+        }
+
         *counter
     }
 
@@ -215,7 +221,7 @@ impl EngineState {
             index.get_mut(&key).unwrap().remove(brick.id);
         }
     }
-        
+    
     fn add_entity(&self, brick: Brick) {
         self.index_entity_as_object(&brick);
         self.index_entity_as_arrow(&brick);
@@ -257,6 +263,21 @@ impl EngineState {
     pub fn get_component_type(&self, name: ComponentName) -> Option<ComponentType> {
         self.component_type_index.lock().unwrap().get(&name).cloned()
     }
+
+    /// Create a specific object under an identifier and return None if it already exists
+    pub fn create_specific_object(&self, id: EntityId) -> Option<EntityId> {
+        if self.entity_exists(id) { return None; }
+
+        let brick = Brick{ id, source: id, target: id, component: "Object".into(), data: vec![] };
+        self.add_entity(brick);
+
+        Some(id)
+    }
+
+    /// Check whether entity exists
+    pub fn entity_exists(&self, id: EntityId) -> bool {
+        self.entity_brick_storage.lock().unwrap().contains_key(&id)
+    } 
 
     /// Creates a new entity that is categorized as an object (a self-loop from itself to itself)
     /// POST-CONDITION (object-definition): brick.id == brick.source && brick.source == brick.target

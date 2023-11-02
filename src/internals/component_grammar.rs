@@ -28,7 +28,7 @@ impl ComponentParser {
             "f64" => Some(Datatype::F64),
             "id" => Some(Datatype::EID),
             "s32" => Some(Datatype::S32),
-            "str" => Some(Datatype::STR),
+            "b256" => Some(Datatype::B256),
             _ => None,
         }
     }
