@@ -2,7 +2,7 @@ use std::{sync::Mutex, collections::HashMap};
 
 use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 /// The full state of the engine, with fields that keep the run-time of the full platform.
 pub struct EngineState {
     // Type-level index of components
@@ -348,7 +348,7 @@ impl EngineState {
 
 #[cfg(test)]
 mod engine_state_testing {
-    use crate::internals::{datatypes::Datatype, interchange::Brick};
+    use crate::internals::{datatypes::Datatype, interchange::Brick, ComponentField};
 
     use super::{ComponentType, EngineState};
 
@@ -363,7 +363,7 @@ mod engine_state_testing {
     #[test]
     fn test_add_component_type() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
+        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let component_type_index = engine_state.component_type_index.lock().unwrap();
 
@@ -376,7 +376,7 @@ mod engine_state_testing {
     #[test]
     fn test_get_component_type() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
+        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let output = engine_state.get_component_type("Foo".into());
         assert!(output.is_some());
@@ -389,7 +389,7 @@ mod engine_state_testing {
     #[test]
     fn test_add_entity() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
+        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
@@ -415,7 +415,7 @@ mod engine_state_testing {
     #[test]
     fn test_remove_entity() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Foo".into(), aliased: Datatype::EID });
+        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
@@ -441,7 +441,7 @@ mod engine_state_testing {
     #[test]
     fn test_create_object() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Object".into(), aliased: Datatype::VOID });
+        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
         let object_id = engine_state.create_object();
         let brick_storage = engine_state.entity_brick_storage.lock().unwrap();
@@ -459,7 +459,7 @@ mod engine_state_testing {
     #[test]
     fn test_destroy_object() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Object".into(), aliased: Datatype::VOID });
+        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
         let object_id = engine_state.create_object();
         assert!(engine_state.entity_object_index.lock().unwrap().is_member(object_id));
@@ -470,8 +470,8 @@ mod engine_state_testing {
     #[test]
     fn test_create_arrow() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias { name: "Object".into(), aliased: Datatype::VOID });
-        engine_state.add_component_type(ComponentType::Alias { name: "Arrow".into(), aliased: Datatype::VOID });
+        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
+        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
 
         let one_id = engine_state.create_object();
         let two_id = engine_state.create_object();

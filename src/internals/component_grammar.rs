@@ -1,8 +1,7 @@
-
 use pest::iterators::Pair;
 use pest_derive::*;
 
-use super::datatypes::{ComponentType, Datatype, ComponentField};
+use super::datatypes::{ComponentField, ComponentType, Datatype};
 use crate::pest::Parser;
 
 #[derive(Parser)]
@@ -87,15 +86,19 @@ impl ComponentParser {
             let v = val.as_str();
             let typ = Self::parse_base_type(v);
             if typ.is_some() {
-                Ok(ComponentType::Alias{
-                    name: name.into(),
-                    aliased: typ.unwrap(),
-                })
+                Ok(ComponentType::Alias ({
+                    ComponentField {
+                        name: v.into(),
+                        datatype: typ.unwrap(),                    
+                    }}),
+                )
             } else {
-                Ok(ComponentType::Alias{
-                    name: name.into(),
-                    aliased: Datatype::COMP(v.into()),
-                })
+                Ok(ComponentType::Alias ({                   
+                    ComponentField  {
+                        name: v.into(),
+                        datatype: Datatype::COMP(v.into()),
+                    }})
+                )
             }
         } else {
             let mut subs = val.into_inner();
@@ -110,9 +113,15 @@ impl ComponentParser {
             }
 
             if kind == ComponentTypeKindNames::Product {
-                Ok(ComponentType::Product{ name: name.into(), fields, })
+                Ok(ComponentType::Product {
+                    name: name.into(),
+                    fields,
+                })
             } else {
-                Ok(ComponentType::Sum{ name: name.into(), fields, })
+                Ok(ComponentType::Sum {
+                    name: name.into(),
+                    fields,
+                })
             }
         };
     }
@@ -123,7 +132,12 @@ impl ComponentParser {
                 let pair = pairs.into_iter().next().unwrap();
                 match pair.as_rule() {
                     Rule::struct_expr => Self::parse_product(pair),
-                    _ => return Err("[Error][component_grammar.rs][parse_type] Wrong structure found!".to_string()),
+                    _ => {
+                        return Err(
+                            "[Error][component_grammar.rs][parse_type] Wrong structure found!"
+                                .to_string(),
+                        )
+                    }
                 }
             }
             Err(err) => Err(err.to_string()),
@@ -140,7 +154,10 @@ impl ComponentParser {
                         Ok(typ)
                     }
 
-                    e => Err(format!("[Error][component_grammar.rs][parse_types] Wrong structure found: {:?}!", e)),
+                    e => Err(format!(
+                        "[Error][component_grammar.rs][parse_types] Wrong structure found: {:?}!",
+                        e
+                    )),
                 })
                 .collect(),
 
@@ -164,21 +181,24 @@ impl ComponentParser {
     }
 }
 
-
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */
 
 #[cfg(test)]
 mod component_grammar_testing {
-    use crate::internals::datatypes::{Datatype, ComponentType, ComponentField};
+    use crate::internals::datatypes::{ComponentField, ComponentType, Datatype};
 
     use super::ComponentParser;
 
     #[test]
     fn test_parse_basic_alias() {
         let input = "Float : f32";
-        let expected = ComponentType::Alias{ name: "Float".into(), aliased: Datatype::F32 };
+        let expected = ComponentType::Alias ({
+            ComponentField {
+                name: "Float".into(),
+                datatype: Datatype::F32,
+            }});
 
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
@@ -186,7 +206,11 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_comp_alias() {
         let input = "Position : Point";
-        let expected = ComponentType::Alias{ name: "Position".into(), aliased: Datatype::COMP("Point".into()) };
+        let expected = ComponentType::Alias ({           
+           ComponentField {
+                name: "Position".into(),
+                datatype: Datatype::COMP("Point".into()),
+            }});
 
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
@@ -194,10 +218,19 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_product_type() {
         let input = "Position : product { x: i32, y: i32 }";
-        let expected = ComponentType::Product{ name: "Position".into(), fields: vec![ 
-            ComponentField{ name: "x".into(), datatype: Datatype::I32 }, 
-            ComponentField{ name: "y".into(), datatype: Datatype::I32 },
-        ] };
+        let expected = ComponentType::Product {
+            name: "Position".into(),
+            fields: vec![
+                ComponentField {
+                    name: "x".into(),
+                    datatype: Datatype::I32,
+                },
+                ComponentField {
+                    name: "y".into(),
+                    datatype: Datatype::I32,
+                },
+            ],
+        };
 
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
@@ -205,10 +238,19 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_sum_type() {
         let input = "Position : sum { x: i32, y: i32 }";
-        let expected = ComponentType::Sum{ name: "Position".into(), fields: vec![ 
-            ComponentField{ name: "x".into(), datatype: Datatype::I32 }, 
-            ComponentField{ name: "y".into(), datatype: Datatype::I32 },
-        ] };
+        let expected = ComponentType::Sum {
+            name: "Position".into(),
+            fields: vec![
+                ComponentField {
+                    name: "x".into(),
+                    datatype: Datatype::I32,
+                },
+                ComponentField {
+                    name: "y".into(),
+                    datatype: Datatype::I32,
+                },
+            ],
+        };
 
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }

@@ -1,7 +1,7 @@
-use std::convert::AsMut;
 use fstr::FStr;
+use std::convert::AsMut;
 
-use super::datatypes::{S32, Str, ComponentType, Datatype, ComponentField};
+use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
 use super::engine_state::EngineState;
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
@@ -161,11 +161,17 @@ impl ToByteArray for Str {
 impl Bytesize for ComponentType {
     fn bytesize(self: &Self, engine: &EngineState) -> usize {
         match self {
-            ComponentType::Alias { aliased, .. } => aliased.bytesize(engine),
-            ComponentType::Sum{ fields, .. } => 
-                fields.iter().fold(0usize, |old, ComponentField { datatype, .. }| old + datatype.bytesize(engine)),
-            ComponentType::Product{ fields, .. } => 
-                fields.iter().fold(0usize, |old, ComponentField { datatype, .. }| old + datatype.bytesize(engine)),
+            ComponentType::Alias(field) => field.datatype.bytesize(engine),
+            ComponentType::Sum { fields, .. } => fields
+                .iter()
+                .fold(0usize, |old, ComponentField { datatype, .. }| {
+                    old + datatype.bytesize(engine)
+                }),
+            ComponentType::Product { fields, .. } => fields
+                .iter()
+                .fold(0usize, |old, ComponentField { datatype, .. }| {
+                    old + datatype.bytesize(engine)
+                }),
         }
     }
 }
@@ -175,20 +181,13 @@ impl Bytesize for Datatype {
     fn bytesize(self: &Self, engine: &EngineState) -> usize {
         match self {
             Datatype::VOID => 0usize,
-            Datatype::I32 |
-            Datatype::U32 |
-            Datatype::F32 |
-            Datatype::S32 => 4usize,
-            Datatype::I64 |
-            Datatype::U64 |
-            Datatype::F64 |
-            Datatype::EID => 8usize,
+            Datatype::I32 | Datatype::U32 | Datatype::F32 | Datatype::S32 => 4usize,
+            Datatype::I64 | Datatype::U64 | Datatype::F64 | Datatype::EID => 8usize,
             Datatype::B256 => 32usize,
-            Datatype::COMP(component_name) => {
-                engine.get_component_type(*component_name)
-                    .map(|t| t.bytesize(engine))
-                    .unwrap_or(0usize)
-            }
+            Datatype::COMP(component_name) => engine
+                .get_component_type(*component_name)
+                .map(|t| t.bytesize(engine))
+                .unwrap_or(0usize),
         }
     }
 }
