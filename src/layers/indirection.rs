@@ -179,7 +179,7 @@ impl Indirection for EngineState {
 
     fn get_entity_archetype(&self, entity: EntityId) -> Vec<Brick> {
         let mut result = vec![];
-        if let Some(brick) = self.get(entity) {
+        if let Ok(brick) = self.get(entity) {
             result.push(brick);
 
             let incoming: Vec<Brick> = self.query_entities().with_target(entity).get()

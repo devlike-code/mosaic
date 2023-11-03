@@ -1,6 +1,6 @@
 use std::{sync::Mutex, collections::HashMap};
 
-use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick};
+use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick, component_grammar::ComponentParser, Datatype, ComponentField};
 
 #[derive(Default, Debug)]
 /// The full state of the engine, with fields that keep the run-time of the full platform.
@@ -254,14 +254,49 @@ impl EngineState {
 
 /// Public implementations for engine state
 impl EngineState {
-    /// Register a new component type with the engine
-    pub fn add_component_type(&self, definition: ComponentType) {
+    /// Flatten any notion of a nested component type (`Datatype::COMP`) from the defined type
+    fn flatten_component_type(&self, definition: ComponentType) -> Result<ComponentType, String> {
+        use ComponentType::*;
+        match &definition {
+            Alias(ComponentField{ name: _, datatype: Datatype::COMP(other) }) => {
+                let other_type = self.get_component_type(other.clone())?;
+                Ok(other_type.duplicate_as(definition.name().into()))
+            },
+            _ => Ok(definition)
+        }
+    }
+
+    /// Register a new component type with the engine from a component type structure directly (without parsing)
+    pub(crate) fn add_raw_component_type(&self, definition: ComponentType) {
         self.component_type_index.lock().unwrap().insert(definition.name().into(), definition);
+    }
+    
+    /// Register a new component type with the engine
+    /// Example:
+    ///     A: void
+    ///     B: void
+    ///     C: eid
+    ///     D: A
+    pub fn add_component_type(&self, definition: &str) -> Result<(), String> {
+        let types = ComponentParser::parse_all(definition)?;
+        for component_type in types {
+            self.add_raw_component_type(self.flatten_component_type(component_type)?);
+        }
+        Ok(())
+    }
+
+    pub fn has_component_type(&self, name: &ComponentName) -> bool {
+        self.component_type_index.lock().unwrap().contains_key(name)
     }
 
     /// Get a component type by name from the engine
-    pub fn get_component_type(&self, name: ComponentName) -> Option<ComponentType> {
-        self.component_type_index.lock().unwrap().get(&name).cloned()
+    pub fn get_component_type(&self, name: ComponentName) -> Result<ComponentType, String> {
+        if self.has_component_type(&name) {
+            self.component_type_index.lock().unwrap().get(&name).cloned()
+                .ok_or(format!("[Error][engine_state.rs][get_component_type] Component with name '{}' not found", name))
+        } else {
+            Err(format!("[Error][engine_state.rs][get_component_type] Component with name '{}' not found", name))
+        }
     }
 
     /// Create a specific object under an identifier and return None if it already exists
@@ -361,9 +396,29 @@ mod engine_state_testing {
     }
 
     #[test]
+    fn test_flatten_simple_alias_component() {
+        let engine_state = EngineState::default();
+        engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Bar".into(), datatype: Datatype::VOID }));
+        let foo = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
+        let flat_foo = engine_state.flatten_component_type(foo);
+        assert!(flat_foo.is_ok());
+        assert_eq!(Ok(ComponentType::Alias( ComponentField { name: "Foo".into(), datatype: Datatype::VOID })), flat_foo);
+    }
+
+    #[test]
+    fn test_flatten_complex_alias_component() {
+        let engine_state = EngineState::default();
+        engine_state.add_raw_component_type(ComponentType::Product { name: "Bar".into(), fields: vec![] });
+        let foo = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
+        let flat_foo = engine_state.flatten_component_type(foo);
+        assert!(flat_foo.is_ok());
+        assert_eq!(Ok(ComponentType::Product { name: "Foo".into(), fields: vec![] }), flat_foo);
+    }
+
+    #[test]
     fn test_add_component_type() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
+        engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let component_type_index = engine_state.component_type_index.lock().unwrap();
 
@@ -376,10 +431,10 @@ mod engine_state_testing {
     #[test]
     fn test_get_component_type() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
+        engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let output = engine_state.get_component_type("Foo".into());
-        assert!(output.is_some());
+        assert!(output.is_ok());
         let output = output.unwrap();
         assert!(output.is_alias());
         assert_eq!("Foo", output.name());
@@ -389,7 +444,7 @@ mod engine_state_testing {
     #[test]
     fn test_add_entity() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
+        engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
@@ -415,7 +470,7 @@ mod engine_state_testing {
     #[test]
     fn test_remove_entity() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
+        engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
@@ -441,7 +496,7 @@ mod engine_state_testing {
     #[test]
     fn test_create_object() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
+        engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
         let object_id = engine_state.create_object();
         let brick_storage = engine_state.entity_brick_storage.lock().unwrap();
@@ -459,7 +514,7 @@ mod engine_state_testing {
     #[test]
     fn test_destroy_object() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
+        engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
         let object_id = engine_state.create_object();
         assert!(engine_state.entity_object_index.lock().unwrap().is_member(object_id));
@@ -470,8 +525,8 @@ mod engine_state_testing {
     #[test]
     fn test_create_arrow() {
         let engine_state = EngineState::default();
-        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
-        engine_state.add_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
+        engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
+        engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
 
         let one_id = engine_state.create_object();
         let two_id = engine_state.create_object();

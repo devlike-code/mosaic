@@ -39,10 +39,10 @@ impl ComponentParser {
 
         val = subs.next().unwrap();
         match val.as_rule() {
-            Rule::datatype_expr => {
+            Rule::datatype_expr | Rule::field_datatype_expr => {
                 let v = val.as_str();
                 let typ = Self::parse_base_type(v);
-
+                
                 if typ.is_some() {
                     Ok(ComponentField {
                         name,
@@ -67,6 +67,16 @@ impl ComponentParser {
         }
     }
 
+    fn check_keywords(name: &str) -> Result<(), String> {
+        if name == "product" {
+            Err(format!("[Error][component_grammar.rs][check_keywords] Keyword 'product' can't be used as an identifier."))
+        } else if name == "sum" {
+            Err(format!("[Error][component_grammar.rs][check_keywords] Keyword 'sum' can't be used as an identifier."))
+        } else {
+            Ok(())
+        }
+    }
+
     fn parse_product(pair: Pair<'_, Rule>) -> Result<ComponentType, String> {
         let mut pairs = pair.into_inner();
         let mut val = pairs.next().unwrap();
@@ -84,6 +94,7 @@ impl ComponentParser {
 
         return if kind == ComponentTypeKindNames::Alias {
             let v = val.as_str();
+            Self::check_keywords(v)?;
             let typ = Self::parse_base_type(v);
             if typ.is_some() {
                 Ok(ComponentType::Alias ({
@@ -193,7 +204,7 @@ mod component_grammar_testing {
 
     #[test]
     fn test_parse_basic_alias() {
-        let input = "Float : f32";
+        let input = "Float : f32;";
         let expected = ComponentType::Alias ({
             ComponentField {
                 name: "Float".into(),
@@ -205,7 +216,7 @@ mod component_grammar_testing {
 
     #[test]
     fn test_parse_comp_alias() {
-        let input = "Position : Point";
+        let input = "Position : Point;";
         let expected = ComponentType::Alias ({           
            ComponentField {
                 name: "Position".into(),
@@ -217,7 +228,7 @@ mod component_grammar_testing {
 
     #[test]
     fn test_parse_product_type() {
-        let input = "Position : product { x: i32, y: i32 }";
+        let input = "Position : product { x: i32, y: i32 };";
         let expected = ComponentType::Product {
             name: "Position".into(),
             fields: vec![
@@ -235,9 +246,17 @@ mod component_grammar_testing {
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
 
+    
+    #[test]
+    fn test_parse_product_type_with_comp_field() {
+        let input = "Position : product { x: i32, y: Foo };";
+        // println!("{}", ComponentParser::parse_type(input).unwrap_err());
+        assert!(ComponentParser::parse_type(input).is_err());
+    }
+
     #[test]
     fn test_parse_sum_type() {
-        let input = "Position : sum { x: i32, y: i32 }";
+        let input = "Position : sum { x: i32, y: i32 };";
         let expected = ComponentType::Sum {
             name: "Position".into(),
             fields: vec![

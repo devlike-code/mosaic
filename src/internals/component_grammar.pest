@@ -4,19 +4,31 @@ keyword_product = _{ "product" }
 keyword_sum = _{ "sum" }
 
 structures_expr = _{ structure_decl_expr }
-structure_comma_expr = _{ ";" ~ struct_expr }
-structure_decl_expr = _{ struct_expr ~ structure_comma_expr* ~ ";"? }
+structure_decl_expr = _{ struct_expr ~ struct_expr* ~ ";"? }
 
 product_type_expr = { keyword_product ~ "{" ~ field_expr* ~ "}" }
 sum_type_expr = { keyword_sum ~ "{" ~ field_expr* ~ "}" }
-struct_expr = { identifier ~ ":" ~ (product_type_expr | sum_type_expr | datatype_expr) }
+struct_expr = { identifier ~ ":" ~ (datatype_expr ~ ";" | product_type_expr ~ ";" | sum_type_expr ~ ";") }
 
-field_expr = { identifier ~ ":" ~ datatype_expr ~ ","? }
+field_expr = { identifier ~ ":" ~ field_datatype_expr ~ ","? }
 
 identifier = { ASCII_ALPHANUMERIC ~ ("." | "/" | "-" | "_" | ASCII_ALPHANUMERIC)* }
 
 string_expr = _{ "\"" ~ string ~ "\"" }
 string = { (!"\"" ~ ANY)+ }
+
+field_datatype_expr = { 
+      "void" 
+    | "i32"
+    | "i64"
+    | "u32"
+    | "u64"
+    | "f32"
+    | "f64"
+    | "id"
+    | "s32"
+    | "b256"
+}
 
 datatype_expr = { 
       "void" 

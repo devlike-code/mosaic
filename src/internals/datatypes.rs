@@ -102,6 +102,14 @@ impl ComponentType {
         matches!(self, ComponentType::Product { .. })
     }
 
+    pub fn duplicate_as(&self, new_name: S32) -> ComponentType {
+        match self {
+            ComponentType::Alias(ComponentField { name: _, datatype }) => ComponentType::Alias(ComponentField { name: new_name, datatype: datatype.clone() }),
+            ComponentType::Sum { name: _, fields } => ComponentType::Sum { name: new_name, fields: fields.clone() },
+            ComponentType::Product { name: _, fields } => ComponentType::Product { name: new_name, fields: fields.clone() },
+        }
+    }
+
     pub fn name(&self) -> String {
         let s = match self {
             ComponentType::Alias(ComponentField { name, .. }) => name.0.to_string(),
@@ -156,17 +164,14 @@ pub fn try_read_component_type(
     let utf8_name = std::str::from_utf8(message_type).map_err(|e| e.to_string())?;
     let component_name: S32 = utf8_name.into();
 
-    if let Some(component_type) = engine.get_component_type(component_name) {
-        let bytesize = component_type.bytesize(engine);
-        if 8 * bytesize != message_length {
-            return Err(format!("[Error][datatypes.rs][try_read_component_type] Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
-                component_name, bytesize, message_length, input));
-        }
-
-        return Ok(component_type);
-    } else {
-        return Err(format!("[Error][datatypes.rs][try_read_component_type] Component '{}' not found in component type index.", component_name));
+    let component_type = engine.get_component_type(component_name)?;
+    let bytesize = component_type.bytesize(engine);
+    if 8 * bytesize != message_length {
+        return Err(format!("[Error][datatypes.rs][try_read_component_type] Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
+            component_name, bytesize, message_length, input));
     }
+
+    return Ok(component_type);
 }
 
 /* /////////////////////////////////////////////////////////////////////////////////// */
@@ -188,7 +193,7 @@ mod datatypes_testing {
                 datatype: Datatype::EID,
             }
         });
-        engine_state.add_component_type(component_type.clone());
+        engine_state.add_raw_component_type(component_type.clone());
 
         let input = {
             let mut buffer: Vec<u8> = vec![];
@@ -221,7 +226,7 @@ mod datatypes_testing {
             ],
         };
 
-        engine_state.add_component_type(component_type.clone());
+        engine_state.add_raw_component_type(component_type.clone());
 
         let input = {
             let mut buffer: Vec<u8> = vec![];

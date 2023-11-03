@@ -72,14 +72,15 @@ impl<'a> QueryEntities<'a> {
 /// Querying is a layer for simple query operations, mostly used in layers higher up
 pub trait Querying {
     /// Gets a brick back from an entity identifier, if existing
-    fn get(&self, id: EntityId) -> Option<Brick>;
+    fn get(&self, id: EntityId) -> Result<Brick, String>;
     /// Creates a query and passes the engine over to it
     fn query_entities(&self) -> QueryEntities;
 }
 
 impl Querying for EngineState {
-    fn get(&self, id: EntityId) -> Option<Brick> {
+    fn get(&self, id: EntityId) -> Result<Brick, String> {
         self.entity_brick_storage.lock().unwrap().get(&id).cloned()
+            .ok_or(format!("[Error][querying.rs][get] Cannot get brick for entity id {}", id))
     }
 
     fn query_entities(&self) -> QueryEntities {

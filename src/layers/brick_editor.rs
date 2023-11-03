@@ -59,73 +59,71 @@ pub enum DatatypeValue {
 }
 
 impl<'a> BrickEditor<'a> {
-    pub fn get_field_editor(&self, field_name: S32) -> Option<FieldEditor> {
-        if let Some(brick) = self.engine.get(self.brick_id) {
-            if let Some(component_type) = self.engine.get_component_type(brick.component) {
-                if let Some(field) = component_type.get_field(field_name) {
-                    if let Some(offset) = self.get_field_offset(&component_type, field_name){
-                        let offset_bytesize = field.datatype.bytesize(self.engine) + offset;
-                        let field_data_raw = &brick.data[offset..offset_bytesize];
-                        let value: DatatypeValue = match field.datatype {
-                            Datatype::VOID => DatatypeValue::VOID,
-                            Datatype::I32 => DatatypeValue::I32(i32::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::U32 => DatatypeValue::U32(u32::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::F32 => DatatypeValue::F32(f32::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::S32 => DatatypeValue::S32(field_data_raw.into()),
-                            Datatype::I64 => DatatypeValue::I64(i64::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::U64 => DatatypeValue::U64(u64::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::F64 => DatatypeValue::F64(f64::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::EID => DatatypeValue::EID(usize::from_ne_bytes(copy_into_array(field_data_raw))),
-                            Datatype::B256 => DatatypeValue::B256(FStr::<256>::from_str_lossy(std::str::from_utf8(field_data_raw).unwrap(), b'\0')),
-                            Datatype::COMP(component_name) => DatatypeValue::COMP,
-                        };
-                    
-                        return Some(FieldEditor {
-                            brick_editor: &self,
-                            data: value,
-                        });
-                    }
-                }            
+    pub fn get_field_editor(&self, field_name: S32) -> Result<FieldEditor, String> {
+        let brick = self.engine.get(self.brick_id)?;
+        let component_type = self.engine.get_component_type(brick.component)?;
+        if let Some(field) = component_type.get_field(field_name) {
+            if let Some(offset) = self.get_field_offset(&component_type, field_name){
+                let offset_bytesize = field.datatype.bytesize(self.engine) + offset;
+                let field_data_raw = &brick.data[offset..offset_bytesize];
+                let value: DatatypeValue = match field.datatype {
+                    Datatype::VOID => DatatypeValue::VOID,
+                    // COMP fields will disappear when the component is added to the engine state,
+                    // so this situation should never arise. However, we'll leave a log here just in case.
+                    Datatype::COMP(name) => {
+                        return Err(format!("[Error][brick_editor.rs][get_field_editor] Datatype::COMP({}) passed even though it should have been elided.", name));
+                    },
+                    Datatype::I32 => DatatypeValue::I32(i32::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::U32 => DatatypeValue::U32(u32::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::F32 => DatatypeValue::F32(f32::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::S32 => DatatypeValue::S32(field_data_raw.into()),
+                    Datatype::I64 => DatatypeValue::I64(i64::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::U64 => DatatypeValue::U64(u64::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::F64 => DatatypeValue::F64(f64::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::EID => DatatypeValue::EID(usize::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::B256 => DatatypeValue::B256(FStr::<256>::from_str_lossy(std::str::from_utf8(field_data_raw).unwrap(), b'\0')),
+                };
+            
+                return Ok(FieldEditor {
+                    brick_editor: &self,
+                    data: value,
+                });
             }
         }
-        None
+        
+        Err(format!("[Error][brick_editor.rs][get_field_editor] Couldn't construct field editor for field '{}'", field_name))
     }
 
     pub fn set_field(&self, field: ComponentField, field_data: DatatypeValue) -> Result<(), String> {
-        if let Some(field_editor) = self.get_field_editor(field.name) {
-            if let Some(mut brick) = self.engine.get(self.brick_id) {
-                let mut flag = false;
-                let value: Vec<u8> = match (field.datatype.clone(), field_data) {
-                    (Datatype::VOID, DatatypeValue::VOID) => vec![],
-                    (Datatype::I32, DatatypeValue::I32(x)) => x.to_ne_bytes().to_vec(),
-                    (Datatype::U32, DatatypeValue::U32(x)) => x.to_ne_bytes().to_vec(),
-                    (Datatype::F32, DatatypeValue::F32(x)) => x.to_ne_bytes().to_vec(),
-                    (Datatype::S32, DatatypeValue::S32(x)) => x.0.as_bytes().to_vec(),
-                    (Datatype::I64, DatatypeValue::I64(x)) =>x.to_ne_bytes().to_vec(),
-                    (Datatype::U64, DatatypeValue::U64(x)) =>x.to_ne_bytes().to_vec(),
-                    (Datatype::F64, DatatypeValue::F64(x)) =>x.to_ne_bytes().to_vec(),
-                    (Datatype::EID, DatatypeValue::EID(x)) =>x.to_ne_bytes().to_vec(),
-                    (Datatype::B256, DatatypeValue::B256(x)) => x.as_bytes().to_vec(),
-                    (Datatype::COMP(_), DatatypeValue::COMP) => vec![],
-                    _ => {flag = true; vec![]}
-                };
-                if flag {return Err("[Error][brick_editor.rs][set_field] Field datatype doesn't match with given datatype.".to_string()); }
-               
-                if let Some(component_type) = self.engine.get_component_type(brick.component) {
-                    let offset = field_editor.brick_editor.get_field_offset(&component_type, field.name).unwrap();
-                    let offset_bytesize = offset + field.datatype.bytesize(self.engine);
-                    println!("Brick data 1 = {:?}", brick.data);
-                    brick.data.drain(offset..offset_bytesize); 
-                    println!("Brick data 2 = {:?}", brick.data);
-                    brick.data.splice(offset..offset, value);
-                    self.engine.entity_brick_storage.lock().unwrap().insert(self.brick_id, brick);
-                    return Ok(());
-                }
-            }
-            return  Err(format!("[Error][brick_editor.rs][set_field] brick_id {} not found in engine.", self.brick_id));
-        }
-        return  Err(format!("[Error][brick_editor.rs][set_field] Cannot create brick editor for '{}' field name.", field.name));
-   
+        let field_editor = self.get_field_editor(field.name)?;
+        let mut brick = self.engine.get(self.brick_id)?;
+        let mut flag = false;
+        
+        let value: Vec<u8> = match (field.datatype.clone(), field_data) {
+            (Datatype::VOID, DatatypeValue::VOID) => vec![],
+            (Datatype::I32, DatatypeValue::I32(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::U32, DatatypeValue::U32(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::F32, DatatypeValue::F32(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::S32, DatatypeValue::S32(x)) => x.0.as_bytes().to_vec(),
+            (Datatype::I64, DatatypeValue::I64(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::U64, DatatypeValue::U64(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::F64, DatatypeValue::F64(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::EID, DatatypeValue::EID(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::B256, DatatypeValue::B256(x)) => x.as_bytes().to_vec(),
+            (Datatype::COMP(_), DatatypeValue::COMP) => vec![],
+            _ => { flag = true; vec![] }
+        };
+
+        if flag { return Err("[Error][brick_editor.rs][set_field] Field datatype doesn't match with given datatype.".to_string()); }
+        
+        let component_type = self.engine.get_component_type(brick.component)?;
+        let offset = field_editor.brick_editor.get_field_offset(&component_type, field.name).unwrap();
+        let offset_bytesize = offset + field.datatype.bytesize(self.engine);
+        brick.data.drain(offset..offset_bytesize); 
+        brick.data.splice(offset..offset, value);
+        self.engine.entity_brick_storage.lock().unwrap().insert(self.brick_id, brick);
+
+        return Ok(());   
     }
 
     fn get_field_offset(&self, component_type: &ComponentType, field_name: S32) -> Option<usize> {
@@ -210,7 +208,7 @@ mod brick_editor_testing {
                 },
             ],
         };
-        engine_state.add_component_type(component_type.clone());
+        engine_state.add_raw_component_type(component_type.clone());
         let a = engine_state.create_object();
         let input = {
             let mut buffer: Vec<u8> = vec![];
@@ -266,7 +264,7 @@ mod brick_editor_testing {
                 },
             ],
         };
-        engine_state.add_component_type(component_type.clone());
+        engine_state.add_raw_component_type(component_type.clone());
         let a = engine_state.create_object();
         let input = {
             let mut buffer: Vec<u8> = vec![];
