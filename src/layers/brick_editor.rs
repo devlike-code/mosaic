@@ -1,7 +1,5 @@
-use std::{default, arch::x86_64};
 
 use fstr::FStr;
-use serde::de::IntoDeserializer;
 
 use crate::internals::{
     Bytesize, ComponentField, ComponentType, Datatype, EngineState, EntityId, S32,
@@ -24,6 +22,7 @@ pub struct BrickEditor<'a> {
     pub(crate) engine: &'a EngineState,
     brick_id: EntityId,
 }
+
 #[derive(Debug)]
 pub struct FieldEditor<'f, 'e: 'f> {
     brick_editor: &'f BrickEditor<'e>,
@@ -188,8 +187,8 @@ impl BrickEditing for EngineState {
 mod brick_editor_testing {
 
     use crate::{
-        internals::{ComponentField, ComponentType, Datatype, EngineState, EntityId},
-        layers::{indirection::Indirection, querying::Querying, brick_editor::DatatypeValue},
+        internals::{ComponentField, ComponentType, Datatype, EngineState},
+        layers::{querying::Querying, brick_editor::DatatypeValue},
     };
 
     use super::BrickEditing;

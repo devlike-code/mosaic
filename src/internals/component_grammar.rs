@@ -88,14 +88,14 @@ impl ComponentParser {
             if typ.is_some() {
                 Ok(ComponentType::Alias ({
                     ComponentField {
-                        name: v.into(),
+                        name: name.into(),
                         datatype: typ.unwrap(),                    
                     }}),
                 )
             } else {
                 Ok(ComponentType::Alias ({                   
                     ComponentField  {
-                        name: v.into(),
+                        name: name.into(),
                         datatype: Datatype::COMP(v.into()),
                     }})
                 )

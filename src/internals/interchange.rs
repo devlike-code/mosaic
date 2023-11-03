@@ -1,10 +1,4 @@
-use std::path::Component;
-
-use super::{
-    byte_utilities::Bytesize,
-    datatypes::{EntityId, S32},
-    ComponentField, ComponentType, EngineState,
-};
+use super::datatypes::{EntityId, S32};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 /// Bricks are the essential building blocks and hold a single component.
