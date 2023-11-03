@@ -1,6 +1,7 @@
-use std::default;
+use std::{default, arch::x86_64};
 
 use fstr::FStr;
+use serde::de::IntoDeserializer;
 
 use crate::internals::{
     Bytesize, ComponentField, ComponentType, Datatype, EngineState, EntityId, S32,
@@ -91,7 +92,42 @@ impl<'a> BrickEditor<'a> {
         None
     }
 
-    pub fn set_field(field: ComponentField, data: Vec<u8>) {}
+    pub fn set_field(&self, field: ComponentField, field_data: DatatypeValue) -> Result<(), String> {
+        if let Some(field_editor) = self.get_field_editor(field.name) {
+            if let Some(mut brick) = self.engine.get(self.brick_id) {
+                let mut flag = false;
+                let value: Vec<u8> = match (field.datatype.clone(), field_data) {
+                    (Datatype::VOID, DatatypeValue::VOID) => vec![],
+                    (Datatype::I32, DatatypeValue::I32(x)) => x.to_ne_bytes().to_vec(),
+                    (Datatype::U32, DatatypeValue::U32(x)) => x.to_ne_bytes().to_vec(),
+                    (Datatype::F32, DatatypeValue::F32(x)) => x.to_ne_bytes().to_vec(),
+                    (Datatype::S32, DatatypeValue::S32(x)) => x.0.as_bytes().to_vec(),
+                    (Datatype::I64, DatatypeValue::I64(x)) =>x.to_ne_bytes().to_vec(),
+                    (Datatype::U64, DatatypeValue::U64(x)) =>x.to_ne_bytes().to_vec(),
+                    (Datatype::F64, DatatypeValue::F64(x)) =>x.to_ne_bytes().to_vec(),
+                    (Datatype::EID, DatatypeValue::EID(x)) =>x.to_ne_bytes().to_vec(),
+                    (Datatype::B256, DatatypeValue::B256(x)) => x.as_bytes().to_vec(),
+                    (Datatype::COMP(_), DatatypeValue::COMP) => vec![],
+                    _ => {flag = true; vec![]}
+                };
+                if flag {return Err("[Error][brick_editor.rs][set_field] Field datatype doesn't match with given datatype.".to_string()); }
+               
+                if let Some(component_type) = self.engine.get_component_type(brick.component) {
+                    let offset = field_editor.brick_editor.get_field_offset(&component_type, field.name).unwrap();
+                    let offset_bytesize = offset + field.datatype.bytesize(self.engine);
+                    println!("Brick data 1 = {:?}", brick.data);
+                    brick.data.drain(offset..offset_bytesize); 
+                    println!("Brick data 2 = {:?}", brick.data);
+                    brick.data.splice(offset..offset, value);
+                    self.engine.entity_brick_storage.lock().unwrap().insert(self.brick_id, brick);
+                    return Ok(());
+                }
+            }
+            return  Err(format!("[Error][brick_editor.rs][set_field] brick_id {} not found in engine.", self.brick_id));
+        }
+        return  Err(format!("[Error][brick_editor.rs][set_field] Cannot create brick editor for '{}' field name.", field.name));
+   
+    }
 
     fn get_field_offset(&self, component_type: &ComponentType, field_name: S32) -> Option<usize> {
         fn calculate(
@@ -150,7 +186,6 @@ impl BrickEditing for EngineState {
 
 #[cfg(test)]
 mod brick_editor_testing {
-    use serde::de::IntoDeserializer;
 
     use crate::{
         internals::{ComponentField, ComponentType, Datatype, EngineState, EntityId},
@@ -160,7 +195,7 @@ mod brick_editor_testing {
     use super::BrickEditing;
 
     #[test]
-    fn test_complex_type_data() {
+    fn test_read_complex_type_field_data() {
         let engine_state = EngineState::default();
 
         let component_type = ComponentType::Product {
@@ -168,7 +203,7 @@ mod brick_editor_testing {
             fields: vec![
                 ComponentField {
                     name: "x".into(),
-                    datatype: Datatype::F32,
+                    datatype:  Datatype::F32,
                 },
                 ComponentField {
                     name: "y".into(),
@@ -210,6 +245,62 @@ mod brick_editor_testing {
                 let field_value = &field_editor.data;
                 println!("y field value {:?}", field_value);
                 assert_eq!(&DatatypeValue::F64(66.3), field_value);
+              
+            }
+            
+        }
+    }
+    #[test]
+    fn test_write_complex_type_field_data() {
+        let engine_state = EngineState::default();
+
+        let component_type = ComponentType::Product {
+            name: "Position".into(),
+            fields: vec![
+                ComponentField {
+                    name: "x".into(),
+                    datatype: Datatype::F32,
+                },
+                ComponentField {
+                    name: "y".into(),
+                    datatype: Datatype::F64,
+                },
+            ],
+        };
+        engine_state.add_component_type(component_type.clone());
+        let a = engine_state.create_object();
+        let input = {
+            let mut buffer: Vec<u8> = vec![];
+            buffer.extend(7.5f32.to_ne_bytes());
+            buffer.extend(66.3f64.to_ne_bytes());
+            buffer
+        };
+        engine_state.add_incoming_property(a, "Position".into(), input);
+        let query = engine_state
+            .query_entities()
+            .with_target(a)
+            .with_component("Position".into())
+            .get();
+
+        if let Some(&brick_id) = query.as_slice().first() {
+            let brick_editor = engine_state.get_brick_editor(brick_id).unwrap();
+            {
+                let comp_field = ComponentField {
+                    name: "y".into(),
+                    datatype: Datatype::F64,
+                };
+                let field_data = DatatypeValue::F64(777.5);
+                println!("buffer field_data {:?}", field_data);
+         
+                let res = brick_editor.set_field(comp_field, field_data); 
+                assert!(res.is_ok());
+            }
+            {
+                let field_editor = brick_editor.get_field_editor("y".into()).unwrap();            
+             
+                let new_field_value = &field_editor.data;
+                println!("'y' field value {:?}", new_field_value);
+                assert_eq!(&DatatypeValue::F64(777.5), new_field_value);
               
             }
             
