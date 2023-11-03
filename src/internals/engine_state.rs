@@ -277,7 +277,7 @@ impl EngineState {
     ///     B: void
     ///     C: eid
     ///     D: A
-    pub fn add_component_type(&self, definition: &str) -> Result<(), String> {
+    pub fn add_component_types(&self, definition: &str) -> Result<(), String> {
         let types = ComponentParser::parse_all(definition)?;
         for component_type in types {
             self.add_raw_component_type(self.flatten_component_type(component_type)?);

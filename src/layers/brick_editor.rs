@@ -98,7 +98,7 @@ impl<'a> BrickEditor<'a> {
         let field_editor = self.get_field_editor(field.name)?;
         let mut brick = self.engine.get(self.brick_id)?;
         let mut flag = false;
-        
+
         let value: Vec<u8> = match (field.datatype.clone(), field_data) {
             (Datatype::VOID, DatatypeValue::VOID) => vec![],
             (Datatype::I32, DatatypeValue::I32(x)) => x.to_ne_bytes().to_vec(),
@@ -194,21 +194,9 @@ mod brick_editor_testing {
     #[test]
     fn test_read_complex_type_field_data() {
         let engine_state = EngineState::default();
+        let _ = engine_state.add_component_types("Position: product { x: f32, y: f64 };").unwrap();
+        let component_type = engine_state.get_component_type("Position".into()).unwrap();
 
-        let component_type = ComponentType::Product {
-            name: "Position".into(),
-            fields: vec![
-                ComponentField {
-                    name: "x".into(),
-                    datatype:  Datatype::F32,
-                },
-                ComponentField {
-                    name: "y".into(),
-                    datatype: Datatype::F64,
-                },
-            ],
-        };
-        engine_state.add_raw_component_type(component_type.clone());
         let a = engine_state.create_object();
         let input = {
             let mut buffer: Vec<u8> = vec![];
