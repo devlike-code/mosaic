@@ -238,9 +238,9 @@ mod indirection_testing {
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let c = engine_state.create_arrow(a, b, "Foo".into(), vec![]).unwrap();
-        let _d = engine_state.add_incoming_property(c, "Data".into(), vec![]);    // c
+        let _d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]);    // c
         let e = engine_state.create_arrow(a, b, "Data".into(), vec![]).unwrap();   // e
-        let _f = engine_state.add_incoming_property(a, "Data".into(), vec![]);   // a
+        let _f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]);   // a
         let data = engine_state.get_with_property("Data".into());
         assert_eq!(3, data.len());
         assert!(data.contains(&a));
@@ -256,11 +256,11 @@ mod indirection_testing {
         // C : A ---Arrow---> B
         let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         // D : D ---Data----> C
-        let d = engine_state.add_incoming_property(c, "Data".into(), vec![]);
+        let d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]);
         // E : A ---Data----> B
         let e = engine_state.create_arrow(a, c, "Data".into(), vec![]).unwrap();
         // F : F ---Data----> A
-        let f = engine_state.add_incoming_property(a, "Data".into(), vec![]);
+        let f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]);
         // G : E ---Data----> C
         let g = engine_state.create_arrow(e, c, "Data".into(), vec![]).unwrap();
         ([ a, b, c, d, e, f, g ], engine_state)
@@ -382,9 +382,9 @@ mod indirection_testing {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void; Foo: void; Bar: void; Baz: void;");
         let a = engine_state.create_object();
-        engine_state.add_incoming_property(a, "Foo".into(), vec![]);
-        engine_state.add_incoming_property(a, "Bar".into(), vec![]);
-        engine_state.add_outgoing_property(a, "Baz".into(), vec![]);
+        engine_state.add_incoming_property_raw(a, "Foo".into(), vec![]);
+        engine_state.add_incoming_property_raw(a, "Bar".into(), vec![]);
+        engine_state.add_outgoing_property_raw(a, "Baz".into(), vec![]);
         let b = engine_state.create_arrow(a, a, "Arrow".into(), vec![]).unwrap();
         let arch = engine_state.get_entity_archetype(a);
         println!("ARCH {:?}", arch);

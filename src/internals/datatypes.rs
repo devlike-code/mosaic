@@ -177,7 +177,7 @@ pub fn try_read_component_type(
 
 pub type B256 = fstr::FStr<256>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DatatypeValue {
     /// A void type of size 0 used as markers and tags
     VOID,

@@ -165,7 +165,7 @@ mod brick_editor_testing {
             buffer.extend(66.3f64.to_ne_bytes());
             buffer
         };
-        engine_state.add_incoming_property(a, "Position".into(), input);
+        engine_state.add_incoming_property_raw(a, "Position".into(), input);
         let query = engine_state
             .query_access()
             .with_target(a)
@@ -222,7 +222,7 @@ mod brick_editor_testing {
             buffer.extend(66.3f64.to_ne_bytes());
             buffer
         };
-        engine_state.add_incoming_property(a, "Position".into(), input);
+        engine_state.add_incoming_property_raw(a, "Position".into(), input);
         let query = engine_state
             .query_access()
             .with_target(a)

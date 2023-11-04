@@ -41,7 +41,7 @@ impl Strings for EngineState {
 
         if let Some(_) = self.create_specific_object(str_hash) {
             for part in split_str_into_parts(str, 256) {
-                let _ = self.add_outgoing_property(str_hash, "String".into(), part.as_bytes().to_vec());
+                let _ = self.add_outgoing_property_raw(str_hash, "String".into(), part.as_bytes().to_vec());
             }
         }
 

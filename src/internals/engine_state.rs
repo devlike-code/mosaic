@@ -332,7 +332,7 @@ impl EngineState {
     /// Creates a new entity that is categorized as an arrow (including non-object self-loop arrows)
     /// Arrows are structural by design and carry a single defining property with them
     /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
-    fn create_arrow_raw(&self, source: EntityId, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
+    pub(crate) fn create_arrow_raw(&self, source: EntityId, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
         let index = self.get_next_entity_id();
         let brick = Brick{ id: index, source, target, component, data };
         self.add_entity(brick);
@@ -340,28 +340,39 @@ impl EngineState {
         index
     }
 
-    pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let mut data = vec![];
+    fn unify_fields_and_values(&self, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<Vec<Vec<u8>>, (ComponentField, DatatypeValue)> {
         let components = self.component_type_index.lock().unwrap();
-        let component_type = components.get(&component).ok_or(format!("Component {} not found", component))?;
-        let matching = &component_type.get_fields().into_iter().zip(fields)
+        let component_type = components.get(&component)
+            .ok_or((ComponentField { name: "Error".into(), datatype: Datatype::VOID }, DatatypeValue::VOID))?.clone();
+        let mut has_error = None;
+        let fields = component_type.get_fields().into_iter().zip(fields)
             .map(|(field, datatype_value)| {
                 if datatype_value.get_datatype() == field.datatype {
-                    Ok(data.extend(datatype_value.to_byte_array()))
+                    Ok(datatype_value.to_byte_array())
                 } else {
+                    has_error = Some((field.clone(), datatype_value.clone()));
                     Err((field, datatype_value))
                 }
-            }).filter(|r| r.is_err()).collect::<Vec<_>>();
-        if matching.len() > 0 {
-            match matching.first().unwrap() {
-                Err((c, d)) =>
-                    Err(format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
-                        c.name, c.datatype, d, source, target)),
-                Ok(()) => Err(format!("[Error][engine_state.rs][create_arrow] Reached an impossible state"))
-            }
+            }).collect::<Vec<_>>();
+        
+        if has_error.is_some() {
+            Err(has_error.unwrap())
         } else {
-            Ok(self.create_arrow_raw(source, target, component, data))
+            Ok(fields.iter().map(|e| e.clone().unwrap()).collect())
         }
+    }
+
+    /// Creates a new entity that is categorized as an arrow (includign non-object self-loop arrows)
+    /// Arrows are structural by design and carry a single defining property with them
+    /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
+    pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values(component, fields)
+            .map_err(|(cf, d)| 
+                format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
+                    cf.name, cf.datatype, d, source, target))?;
+        
+        let data = matching.concat();
+        Ok(self.create_arrow_raw(source, target, component, data))
     }
 
     /// Destroy an arrow entity
@@ -372,9 +383,33 @@ impl EngineState {
     /// Creates an entity that is categorized as an incoming property, one that has its own entity id as a source
     /// An incoming property `p` of a target `t` looks like this: `p : p -> t`, the property is incoming into the target
     /// POST-CONDITION (incoming-property-definition): brick.id == brick.source && brick.id != brick.target
-    pub fn add_incoming_property(&self, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
+    pub(crate) fn add_incoming_property_raw(&self, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
         let index = self.get_next_entity_id();
         let brick = Brick{ id: index, source: index, target, component, data };
+        self.add_entity(brick);
+        
+        index
+    }
+
+    /// Creates an entity that is categorized as an incoming property, one that has its own entity id as a source
+    /// An incoming property `p` of a target `t` looks like this: `p : p -> t`, the property is incoming into the target
+    /// POST-CONDITION (incoming-property-definition): brick.id == brick.source && brick.id != brick.target
+    pub fn add_incoming_property(&self, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values(component, fields)
+        .map_err(|(cf, d)| 
+            format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
+                cf.name, cf.datatype, d, target))?;
+    
+        let data = matching.concat();
+        Ok(self.add_incoming_property_raw(target, component, data))
+    }
+
+    /// Creates an entity that is categorized as an outgoing property, one that has its own entity id as a target
+    /// An outgoing property `p` of a target `t` looks like this: `p : t -> p`, the property is outgoing from the target
+    /// POST-CONDITION (outgoing-property-definition): brick.id == brick.target && brick.id != brick.source
+    pub(crate) fn add_outgoing_property_raw(&self, source: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
+        let index = self.get_next_entity_id();
+        let brick = Brick{ id: index, source, target: index, component, data };
         self.add_entity(brick);
         
         index
@@ -383,12 +418,14 @@ impl EngineState {
     /// Creates an entity that is categorized as an outgoing property, one that has its own entity id as a target
     /// An outgoing property `p` of a target `t` looks like this: `p : t -> p`, the property is outgoing from the target
     /// POST-CONDITION (outgoing-property-definition): brick.id == brick.target && brick.id != brick.source
-    pub fn add_outgoing_property(&self, source: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
-        let index = self.get_next_entity_id();
-        let brick = Brick{ id: index, source, target: index, component, data };
-        self.add_entity(brick);
-        
-        index
+    pub fn add_outgoing_property(&self, source: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values(component, fields)
+        .map_err(|(cf, d)| 
+            format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating outgoing property {} -> X",
+                cf.name, cf.datatype, d, source))?;
+    
+        let data = matching.concat();
+        Ok(self.add_outgoing_property_raw(source, component, data))
     }
 
     /// Deletes a property entity
