@@ -2,7 +2,7 @@ use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 
 use crate::internals::{EntityId, EngineState};
 
-use super::querying::Querying;
+use super::accessing::Accessing;
 
 /// A layer allowing for variable-width strings to exist within bricks by using
 /// outgoing properties as extensions. We map a single string of N bytes into N / 256
@@ -62,7 +62,7 @@ impl Strings for EngineState {
 
         if !self.entity_exists(id) { return None; }
 
-        let parts = self.query_entities()
+        let parts = self.query_access()
             .with_source(id)
             .with_component("String".into())
             .get().as_slice().into_iter()

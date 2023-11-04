@@ -1,9 +1,10 @@
 
 #![allow(dead_code)]
 
-mod brick_editor;
-mod indirection;
-mod parenting;
-mod query_iterator;
-mod querying;
-mod strings;
+pub mod brick_editor;
+pub mod indirection;
+pub mod parenting;
+pub mod query_iterator;
+pub mod accessing;
+pub mod strings;
+pub mod querying;

@@ -1,6 +1,6 @@
 use std::{sync::Mutex, collections::HashMap};
 
-use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick, component_grammar::ComponentParser, Datatype, ComponentField};
+use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick, component_grammar::ComponentParser, Datatype, ComponentField, DatatypeValue, ToByteArray};
 
 #[derive(Default, Debug)]
 /// The full state of the engine, with fields that keep the run-time of the full platform.
@@ -332,12 +332,36 @@ impl EngineState {
     /// Creates a new entity that is categorized as an arrow (including non-object self-loop arrows)
     /// Arrows are structural by design and carry a single defining property with them
     /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
-    pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
+    fn create_arrow_raw(&self, source: EntityId, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
         let index = self.get_next_entity_id();
         let brick = Brick{ id: index, source, target, component, data };
         self.add_entity(brick);
         
         index
+    }
+
+    pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
+        let mut data = vec![];
+        let components = self.component_type_index.lock().unwrap();
+        let component_type = components.get(&component).ok_or(format!("Component {} not found", component))?;
+        let matching = &component_type.get_fields().into_iter().zip(fields)
+            .map(|(field, datatype_value)| {
+                if datatype_value.get_datatype() == field.datatype {
+                    Ok(data.extend(datatype_value.to_byte_array()))
+                } else {
+                    Err((field, datatype_value))
+                }
+            }).filter(|r| r.is_err()).collect::<Vec<_>>();
+        if matching.len() > 0 {
+            match matching.first().unwrap() {
+                Err((c, d)) =>
+                    Err(format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
+                        c.name, c.datatype, d, source, target)),
+                Ok(()) => Err(format!("[Error][engine_state.rs][create_arrow] Reached an impossible state"))
+            }
+        } else {
+            Ok(self.create_arrow_raw(source, target, component, data))
+        }
     }
 
     /// Destroy an arrow entity
@@ -530,7 +554,7 @@ mod engine_state_testing {
 
         let one_id = engine_state.create_object();
         let two_id = engine_state.create_object();
-        let three_id = engine_state.create_arrow(one_id, two_id, "Arrow".into(), vec![]);
+        let three_id = engine_state.create_arrow_raw(one_id, two_id, "Arrow".into(), vec![]);
         let brick_storage = engine_state.entity_brick_storage.lock().unwrap();
 
         assert!(brick_storage.contains_key(&three_id));

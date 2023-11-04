@@ -1,6 +1,7 @@
 use fstr::FStr;
 use std::convert::AsMut;
 
+use super::{DatatypeValue, B256};
 use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
 use super::engine_state::EngineState;
 
@@ -53,6 +54,20 @@ impl FromByteArray for i32 {
 
 /// The `ToByteArray` implementation for `i32`
 impl ToByteArray for i32 {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+/// The `FromByteArray` implementation for `usize`
+impl FromByteArray for usize {
+    fn from_byte_array(data: &[u8]) -> Self {
+        usize::from_be_bytes(copy_into_array(data))
+    }
+}
+
+/// The `ToByteArray` implementation for `usize`
+impl ToByteArray for usize {
     fn to_byte_array(&self) -> Vec<u8> {
         self.to_be_bytes().to_vec()
     }
@@ -150,6 +165,21 @@ impl FromByteArray for Str {
     }
 }
 
+/// The `ToByteArray` implementation for `s32`
+impl ToByteArray for B256 {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
+/// The `FromByteArray` implementation for `str`
+impl FromByteArray for B256 {
+    fn from_byte_array(data: &[u8]) -> Self {
+        let str = std::str::from_utf8(data);
+        FStr::<256>::from_str_lossy(str.unwrap(), b'\0')
+    }
+}
+
 /// The `ToByteArray` implementation for `str`
 impl ToByteArray for Str {
     fn to_byte_array(&self) -> Vec<u8> {
@@ -188,6 +218,33 @@ impl Bytesize for Datatype {
                 .get_component_type(*component_name)
                 .map(|t| t.bytesize(engine))
                 .unwrap_or(0usize),
+        }
+    }
+}
+
+pub fn slice_into_array<A, T>(slice: &[T]) -> A
+where
+    A: Default + AsMut<[T]>,
+    T: Copy,
+{
+    let mut a = A::default();
+    <A as AsMut<[T]>>::as_mut(&mut a).copy_from_slice(slice);
+    a
+}
+
+impl ToByteArray for DatatypeValue {
+    fn to_byte_array(&self) -> Vec<u8> {
+        match self {
+            DatatypeValue::VOID => vec![],
+            DatatypeValue::EID(eid) => (*eid).to_byte_array(),
+            DatatypeValue::I32(i) => (*i).to_byte_array(),
+            DatatypeValue::I64(i) => (*i).to_byte_array(),
+            DatatypeValue::U32(u) => (*u).to_byte_array(),
+            DatatypeValue::U64(u) => (*u).to_byte_array(),
+            DatatypeValue::F32(f) => (*f).to_byte_array(),
+            DatatypeValue::F64(f) => (*f).to_byte_array(),
+            DatatypeValue::S32(s) => s.to_byte_array(),
+            DatatypeValue::B256(b) => b.to_byte_array(),
         }
     }
 }

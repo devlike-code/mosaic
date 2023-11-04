@@ -2,20 +2,10 @@
 use fstr::FStr;
 
 use crate::internals::{
-    Bytesize, ComponentField, ComponentType, Datatype, EngineState, EntityId, S32,
+    Bytesize, ComponentField, ComponentType, Datatype, EngineState, EntityId, S32, DatatypeValue, slice_into_array,
 };
 
-use super::querying::Querying;
-
-fn copy_into_array<A, T>(slice: &[T]) -> A
-where
-    A: Default + AsMut<[T]>,
-    T: Copy,
-{
-    let mut a = A::default();
-    <A as AsMut<[T]>>::as_mut(&mut a).copy_from_slice(slice);
-    a
-}
+use super::accessing::Accessing;
 
 #[derive(Debug)]
 pub struct BrickEditor<'a> {
@@ -27,35 +17,6 @@ pub struct BrickEditor<'a> {
 pub struct FieldEditor<'f, 'e: 'f> {
     brick_editor: &'f BrickEditor<'e>,
     data: DatatypeValue,
-}
-
-pub type B256 = fstr::FStr<256>;
-
-#[derive(Debug, PartialEq)]
-pub enum DatatypeValue {
-    /// A void type of size 0 used as markers and tags
-    VOID,
-    /// Entity ID - equal to U32 but will be affected by frame transitions
-    EID(EntityId),
-    /// A 64-bit signed integer number
-    I32(i32),
-    /// A 64-bit signed integer number
-    I64(i64),
-    /// A 32-bit unsigned integer number
-    U32(u32),
-    /// A 64-bit unsigned integer number
-    U64(u64),
-    /// A 32-bit floating-point number
-    F32(f32),
-    /// A 64-bit floating-point number
-    F64(f64),
-    /// A 32-bit bound-size string
-    S32(S32),
-    /// An interned unbound string
-    B256(B256), 
-    /// A component name and layout - allows for composition
-    COMP,
-   
 }
 
 impl<'a> BrickEditor<'a> {
@@ -73,14 +34,14 @@ impl<'a> BrickEditor<'a> {
                     Datatype::COMP(name) => {
                         return Err(format!("[Error][brick_editor.rs][get_field_editor] Datatype::COMP({}) passed even though it should have been elided.", name));
                     },
-                    Datatype::I32 => DatatypeValue::I32(i32::from_ne_bytes(copy_into_array(field_data_raw))),
-                    Datatype::U32 => DatatypeValue::U32(u32::from_ne_bytes(copy_into_array(field_data_raw))),
-                    Datatype::F32 => DatatypeValue::F32(f32::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::I32 => DatatypeValue::I32(i32::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::U32 => DatatypeValue::U32(u32::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::F32 => DatatypeValue::F32(f32::from_ne_bytes(slice_into_array(field_data_raw))),
                     Datatype::S32 => DatatypeValue::S32(field_data_raw.into()),
-                    Datatype::I64 => DatatypeValue::I64(i64::from_ne_bytes(copy_into_array(field_data_raw))),
-                    Datatype::U64 => DatatypeValue::U64(u64::from_ne_bytes(copy_into_array(field_data_raw))),
-                    Datatype::F64 => DatatypeValue::F64(f64::from_ne_bytes(copy_into_array(field_data_raw))),
-                    Datatype::EID => DatatypeValue::EID(usize::from_ne_bytes(copy_into_array(field_data_raw))),
+                    Datatype::I64 => DatatypeValue::I64(i64::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::U64 => DatatypeValue::U64(u64::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::F64 => DatatypeValue::F64(f64::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::EID => DatatypeValue::EID(usize::from_ne_bytes(slice_into_array(field_data_raw))),
                     Datatype::B256 => DatatypeValue::B256(FStr::<256>::from_str_lossy(std::str::from_utf8(field_data_raw).unwrap(), b'\0')),
                 };
             
@@ -110,7 +71,7 @@ impl<'a> BrickEditor<'a> {
             (Datatype::F64, DatatypeValue::F64(x)) => x.to_ne_bytes().to_vec(),
             (Datatype::EID, DatatypeValue::EID(x)) => x.to_ne_bytes().to_vec(),
             (Datatype::B256, DatatypeValue::B256(x)) => x.as_bytes().to_vec(),
-            (Datatype::COMP(_), DatatypeValue::COMP) => vec![],
+            (Datatype::COMP(_), _) => vec![],
             _ => { flag = true; vec![] }
         };
 
@@ -186,7 +147,7 @@ mod brick_editor_testing {
 
     use crate::{
         internals::{ComponentField, ComponentType, Datatype, EngineState},
-        layers::{querying::Querying, brick_editor::DatatypeValue},
+        layers::{accessing::Accessing, brick_editor::DatatypeValue},
     };
 
     use super::BrickEditing;
@@ -206,7 +167,7 @@ mod brick_editor_testing {
         };
         engine_state.add_incoming_property(a, "Position".into(), input);
         let query = engine_state
-            .query_entities()
+            .query_access()
             .with_target(a)
             .with_component("Position".into())
             .get();
@@ -235,6 +196,7 @@ mod brick_editor_testing {
             
         }
     }
+    
     #[test]
     fn test_write_complex_type_field_data() {
         let engine_state = EngineState::default();
@@ -262,7 +224,7 @@ mod brick_editor_testing {
         };
         engine_state.add_incoming_property(a, "Position".into(), input);
         let query = engine_state
-            .query_entities()
+            .query_access()
             .with_target(a)
             .with_component("Position".into())
             .get();

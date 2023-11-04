@@ -174,6 +174,49 @@ pub fn try_read_component_type(
     return Ok(component_type);
 }
 
+
+pub type B256 = fstr::FStr<256>;
+
+#[derive(Debug, PartialEq)]
+pub enum DatatypeValue {
+    /// A void type of size 0 used as markers and tags
+    VOID,
+    /// Entity ID - equal to U32 but will be affected by frame transitions
+    EID(EntityId),
+    /// A 64-bit signed integer number
+    I32(i32),
+    /// A 64-bit signed integer number
+    I64(i64),
+    /// A 32-bit unsigned integer number
+    U32(u32),
+    /// A 64-bit unsigned integer number
+    U64(u64),
+    /// A 32-bit floating-point number
+    F32(f32),
+    /// A 64-bit floating-point number
+    F64(f64),
+    /// A 32-bit bound-size string
+    S32(S32),
+    /// An interned unbound string
+    B256(B256),   
+}
+
+impl DatatypeValue {
+    pub fn get_datatype(&self) -> Datatype {
+        match self {
+            DatatypeValue::VOID => Datatype::VOID,
+            DatatypeValue::EID(_) => Datatype::EID,
+            DatatypeValue::I32(_) => Datatype::I32,
+            DatatypeValue::I64(_) => Datatype::I64,
+            DatatypeValue::U32(_) => Datatype::U32,
+            DatatypeValue::U64(_) => Datatype::U64,
+            DatatypeValue::F32(_) => Datatype::F32,
+            DatatypeValue::F64(_) => Datatype::F64,
+            DatatypeValue::S32(_) => Datatype::S32,
+            DatatypeValue::B256(_) => Datatype::B256,
+        }
+    }
+}
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */

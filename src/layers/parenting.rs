@@ -68,9 +68,15 @@ mod parenting_testing {
 
     use super::Parenting;
 
+    fn setup_parenting_engine_state() -> EngineState {
+        let engine_state = EngineState::default();
+        let _ = engine_state.add_component_types("Parent: void;");
+        engine_state
+    }
+
     #[test]
     fn test_set_parent() {
-        let engine_state = EngineState::default();
+        let engine_state = setup_parenting_engine_state();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let _ = engine_state.set_parent(a, b);
@@ -89,7 +95,7 @@ mod parenting_testing {
 
     #[test]
     fn test_get_parenting_property() {
-        let engine_state = EngineState::default();
+        let engine_state = setup_parenting_engine_state();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let _ = engine_state.set_parent(a, b);
@@ -100,7 +106,7 @@ mod parenting_testing {
 
     #[test]
     fn test_unparent() {
-        let engine_state = EngineState::default();
+        let engine_state = setup_parenting_engine_state();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let _ = engine_state.set_parent(a, b);
@@ -116,7 +122,7 @@ mod parenting_testing {
 
     #[test]
     fn test_get_children() {
-        let engine_state = EngineState::default();
+        let engine_state = setup_parenting_engine_state();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let c = engine_state.create_object();
@@ -135,7 +141,7 @@ mod parenting_testing {
 
     #[test]
     fn test_multiple_parents() {
-        let engine_state = EngineState::default();
+        let engine_state = setup_parenting_engine_state();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let c = engine_state.create_object();
@@ -145,7 +151,7 @@ mod parenting_testing {
     
     #[test]
     fn test_get_parent() {
-        let engine_state = EngineState::default();
+        let engine_state = setup_parenting_engine_state();
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let _ = engine_state.set_parent(a, b);

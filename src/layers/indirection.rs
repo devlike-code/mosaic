@@ -5,12 +5,12 @@ use array_tool::vec::{Uniq, Intersect};
 
 use crate::internals::{EntityId, EngineState, S32, Brick};
 
-use super::{querying::{Querying, QueryEntities}, query_iterator::QueryIterator};
+use super::{accessing::{Accessing, QueryAccess}, query_iterator::QueryIterator};
 
 #[derive(Clone)]
 /// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect<'a> {
-    query: QueryEntities<'a>,
+    query: QueryAccess<'a>,
     no_properties: bool,
     include_components: Vec<S32>,
     exclude_components: Vec<S32>,
@@ -83,7 +83,7 @@ impl<'a> QueryIndirect<'a> {
 }
 
 /// This is an indirection layer that is built on top of the internals.
-pub trait Indirection : Querying {
+pub trait Indirection : Accessing {
     /// Gets the source of a bricked entity
     fn get_source(&self, id: EntityId) -> Option<EntityId>;
     /// Gets the target of a bricked entity
@@ -165,7 +165,7 @@ impl Indirection for EngineState {
     }
 
     fn get_with_property(&self, component: S32) -> Vec<EntityId> {
-        self.query_entities().with_component(component).get()
+        self.query_access().with_component(component).get()
             .into_iter().map(|&e| { 
                 if self.is_incoming_property(e) {
                     self.get_target(e).unwrap()
@@ -182,11 +182,11 @@ impl Indirection for EngineState {
         if let Ok(brick) = self.get(entity) {
             result.push(brick);
 
-            let incoming: Vec<Brick> = self.query_entities().with_target(entity).get()
+            let incoming: Vec<Brick> = self.query_access().with_target(entity).get()
                 .into_iter().filter(|&e| self.is_property(*e)).flat_map(|&e| self.get(e)).collect();
             result.extend(incoming);
 
-            let outgoing: Vec<Brick> = self.query_entities().with_source(entity).get()
+            let outgoing: Vec<Brick> = self.query_access().with_source(entity).get()
                 .into_iter().filter(|&e| self.is_property(*e)).flat_map(|&e| self.get(e)).collect();            
             result.extend(outgoing);
         }
@@ -195,7 +195,7 @@ impl Indirection for EngineState {
     }
 
     fn query(&self) -> QueryIndirect {
-        QueryIndirect { no_properties: false, query: self.query_entities(), include_components: vec![], exclude_components: vec![] }
+        QueryIndirect { no_properties: false, query: self.query_access(), include_components: vec![], exclude_components: vec![] }
     }
 }
 
@@ -205,14 +205,15 @@ impl Indirection for EngineState {
 
 #[cfg(test)]
 mod indirection_testing {
-    use crate::{internals::{EngineState, EntityId}, layers::{indirection::Indirection, querying::Querying}};
+    use crate::{internals::{EngineState, EntityId}, layers::{indirection::Indirection, accessing::Accessing}};
 
     #[test]
     fn test_get_source() {
         let engine_state = EngineState::default();
+        let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object();
         let b = engine_state.create_object();
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         assert_eq!(Some(a), engine_state.get_source(a));
         assert_eq!(Some(b), engine_state.get_source(b));
         assert_eq!(Some(a), engine_state.get_source(c));
@@ -221,9 +222,10 @@ mod indirection_testing {
     #[test]
     fn test_get_target() {
         let engine_state = EngineState::default();
+        let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object();
         let b = engine_state.create_object();
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         assert_eq!(Some(a), engine_state.get_target(a));
         assert_eq!(Some(b), engine_state.get_target(b));
         assert_eq!(Some(b), engine_state.get_target(c));
@@ -232,11 +234,12 @@ mod indirection_testing {
     #[test]
     fn test_get_with_property() {
         let engine_state = EngineState::default();
+        let _ = engine_state.add_component_types("Foo: void; Data: void;");
         let a = engine_state.create_object();
         let b = engine_state.create_object();
-        let c = engine_state.create_arrow(a, b, "Foo".into(), vec![]);
+        let c = engine_state.create_arrow(a, b, "Foo".into(), vec![]).unwrap();
         let _d = engine_state.add_incoming_property(c, "Data".into(), vec![]);    // c
-        let e = engine_state.create_arrow(a, b, "Data".into(), vec![]);   // e
+        let e = engine_state.create_arrow(a, b, "Data".into(), vec![]).unwrap();   // e
         let _f = engine_state.add_incoming_property(a, "Data".into(), vec![]);   // a
         let data = engine_state.get_with_property("Data".into());
         assert_eq!(3, data.len());
@@ -247,18 +250,19 @@ mod indirection_testing {
 
     fn setup_query_tests() -> ([EntityId; 7], EngineState) {
         let engine_state = EngineState::default();
+        let _ = engine_state.add_component_types("Arrow: void; Data: void;");
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         // C : A ---Arrow---> B
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         // D : D ---Data----> C
         let d = engine_state.add_incoming_property(c, "Data".into(), vec![]);
         // E : A ---Data----> B
-        let e = engine_state.create_arrow(a, c, "Data".into(), vec![]);
+        let e = engine_state.create_arrow(a, c, "Data".into(), vec![]).unwrap();
         // F : F ---Data----> A
         let f = engine_state.add_incoming_property(a, "Data".into(), vec![]);
         // G : E ---Data----> C
-        let g = engine_state.create_arrow(e, c, "Data".into(), vec![]);
+        let g = engine_state.create_arrow(e, c, "Data".into(), vec![]).unwrap();
         ([ a, b, c, d, e, f, g ], engine_state)
     }
 
@@ -340,7 +344,7 @@ mod indirection_testing {
     #[test]
     fn test_query_join() {
         let engine_state = EngineState::default();
-
+        let _ = engine_state.add_component_types("Parent: void; Path: void;");
         let a = engine_state.create_object();
         let b = engine_state.create_object();
         let c = engine_state.create_object();
@@ -376,12 +380,12 @@ mod indirection_testing {
     #[test]
     fn test_get_entity_archetype() {
         let engine_state = EngineState::default();
-
+        let _ = engine_state.add_component_types("Arrow: void; Foo: void; Bar: void; Baz: void;");
         let a = engine_state.create_object();
         engine_state.add_incoming_property(a, "Foo".into(), vec![]);
         engine_state.add_incoming_property(a, "Bar".into(), vec![]);
         engine_state.add_outgoing_property(a, "Baz".into(), vec![]);
-        let b = engine_state.create_arrow(a, a, "Arrow".into(), vec![]);
+        let b = engine_state.create_arrow(a, a, "Arrow".into(), vec![]).unwrap();
         let arch = engine_state.get_entity_archetype(a);
         println!("ARCH {:?}", arch);
         assert_eq!(4, arch.len());
