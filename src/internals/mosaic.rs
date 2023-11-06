@@ -1,18 +1,14 @@
 use std::{
     collections::HashMap,
     ops::{Index, IndexMut, Range},
-    process::Output,
 };
 
 use array_tool::vec::Uniq;
 use fstr::FStr;
-use itertools::Itertools;
-
-use crate::layers::{accessing::Accessing, query_iterator::QueryIterator, querying::Querying};
 
 use super::{
     datatypes::{EntityId, S32},
-    engine_state, slice_into_array, ComponentType, Datatype, DatatypeValue, EngineState,
+    slice_into_array, ComponentType, Datatype, DatatypeValue, EngineState,
 };
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -89,13 +85,13 @@ pub enum Tile {
 impl Index<&str> for Tile {
     type Output = DatatypeValue;
     fn index<'a>(&'a self, i: &str) ->&'a DatatypeValue {
-        self.get_data().fields.get(&i.into()).unwrap()        
+        self.get_data().fields.get(&i.into()).unwrap()
     }
 }
 
 impl IndexMut<&str> for Tile {
     fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut DatatypeValue {
-         self.get_data_mut().fields.get_mut(&i.into()).unwrap()
+        self.get_data_mut().fields.get_mut(&i.into()).unwrap()
     }
 }
 
@@ -105,7 +101,6 @@ impl Tile {
     }
 
     pub fn commit(&self, engine_state: &EngineState) {
-        //get cloned brick
         let mut brick = engine_state.get_brick(self.id());
 
         brick.data =
@@ -126,7 +121,6 @@ impl Tile {
                         DatatypeValue::F64(x) => x.to_be_bytes().to_vec(),
                         DatatypeValue::EID(x) => x.to_be_bytes().to_vec(),
                         DatatypeValue::B256(x) => x.as_bytes().to_vec(),
-                        _ => vec![],
                     };
                     temp.extend(value_bytes);
                     temp

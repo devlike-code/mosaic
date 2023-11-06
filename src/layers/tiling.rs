@@ -80,23 +80,22 @@ impl Tiling for EngineState {
 
 #[cfg(test)]
 mod tiling_testing {
-    use std::{
-        collections::hash_map::DefaultHasher,
-        hash::{Hash, Hasher},
-    };
-
     use crate::{
         internals::{BrickEditing, DatatypeValue, EngineState, Tile},
         layers::tiling::Tiling,
     };
+    
     #[test]
     fn test_get_tiles() {
         let engine_state = EngineState::default();
         engine_state.add_component_types("Object: void; Arrow: void; Color: i32; Number: u32; Position: product { x: u32, y: u32 };").unwrap();
         let a = engine_state.create_object("Object".into(), vec![]).unwrap();
         let b = engine_state.create_object("Object".into(), vec![]).unwrap();
-        let _ab = engine_state
+        let ab = engine_state
             .create_arrow(a, b, "Arrow".into(), vec![])
+            .unwrap();
+        let _pab = engine_state
+            .add_incoming_property(ab, "Color".into(), vec![DatatypeValue::I32(0)])
             .unwrap();
         let _ba = engine_state
             .create_arrow(b, a, "Arrow".into(), vec![])
@@ -122,12 +121,10 @@ mod tiling_testing {
             )
             .unwrap();
         let tiles: std::collections::HashMap<usize, crate::internals::Block> = engine_state.get_blocks(None);
-        println!("{:?}", tiles);
      
-        //println!("{:?}", tiles.get(&a).unwrap());
-        //println!("{:?}", tiles.get(&b).unwrap());
-
-        //println!("{:#?}", engine_state.get_blocks(Some(vec![1].into())));
+        assert_eq!(5, tiles.get(&a).unwrap().tiles.len());
+        assert_eq!(5, tiles.get(&b).unwrap().tiles.len());
+        assert_eq!(2, tiles.get(&ab).unwrap().tiles.len());
     }
 
     #[test]
@@ -141,13 +138,18 @@ mod tiling_testing {
             )
             .unwrap();
         let mut tile: Tile = engine_state.get_tile(a);
-        //tile.set_field("x".into(), DatatypeValue::U32(7));
+
+        let old_brick = engine_state.get_brick(a);
+        println!("{:?}", old_brick.data);
+
         tile["x"] = DatatypeValue::U32(7);
         assert_eq!(DatatypeValue::U32(7), tile["x"]);
         tile.commit(&engine_state);
 
+                            //   /-- x ---/  /-- y ---/ ?
         let data: Vec<u8> = vec![0, 0, 0, 7, 0, 0, 0, 4];
-        let brick = engine_state.get_brick(a);
-        assert_eq!(data, brick.data);
+        let new_brick = engine_state.get_brick(a);
+        assert_eq!(data, new_brick.data);
+        println!("{:?}", new_brick.data);
     }
 }
