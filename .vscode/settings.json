@@ -1,3 +1,10 @@
 {
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "editor.codeActionsOnSave": {
+
+    },
+    "rust-analyzer.check.overrideCommand": null,
+    "rust-analyzer.checkOnSave": true,
+    "eslint.codeActionsOnSave.rules": null,
+    "editor.formatOnSave": true,
 }
