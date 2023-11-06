@@ -1,5 +1,5 @@
 
-use crate::internals::{EntityId, S32, Brick, EngineState};
+use crate::internals::{EntityId, S32, DataBrick, EngineState};
 
 use super::query_iterator::QueryIterator;
 
@@ -72,13 +72,13 @@ impl<'a> QueryAccess<'a> {
 /// Querying is a layer for simple query operations, mostly used in layers higher up
 pub trait Accessing {
     /// Gets a brick back from an entity identifier, if existing
-    fn get(&self, id: EntityId) -> Result<Brick, String>;
+    fn get(&self, id: EntityId) -> Result<DataBrick, String>;
     /// Creates a query and passes the engine over to it
     fn query_access(&self) -> QueryAccess;
 }
 
 impl Accessing for EngineState {
-    fn get(&self, id: EntityId) -> Result<Brick, String> {
+    fn get(&self, id: EntityId) -> Result<DataBrick, String> {
         self.entity_brick_storage.lock().unwrap().get(&id).cloned()
             .ok_or(format!("[Error][querying.rs][get] Cannot get brick for entity id {}", id))
     }
@@ -102,8 +102,8 @@ mod querying_testing {
     fn test_get_source() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
         
         let iter = engine_state.query_access()
@@ -117,8 +117,8 @@ mod querying_testing {
     fn test_get_target() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
         
         let iter = engine_state.query_access()
@@ -132,8 +132,8 @@ mod querying_testing {
     fn test_get_component() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
 
         let iter = engine_state.query_access()

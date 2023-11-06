@@ -1,16 +1,25 @@
-use std::{sync::Mutex, collections::HashMap};
+use std::{sync::Mutex, collections::HashMap, ops::Range};
 
-use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, interchange::Brick, component_grammar::ComponentParser, Datatype, ComponentField, DatatypeValue, ToByteArray};
+use itertools::Itertools;
+
+use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, mosaic::DataBrick, component_grammar::ComponentParser, Datatype, ComponentField, DatatypeValue, ToByteArray, Bytesize};
+
+type FieldName = ComponentName;
 
 #[derive(Default, Debug)]
 /// The full state of the engine, with fields that keep the run-time of the full platform.
 pub struct EngineState {
     // Type-level index of components
+    // ====================================================================================
 
     /// The component type index that holds a mapping of all the registered types by their name
     pub component_type_index: Mutex<HashMap<ComponentName, ComponentType>>,    
     
+    /// An index of all the component fields' offset and sizes
+    pub component_offset_size_index: Mutex<HashMap<(String, FieldName), Range<usize>>>,
+
     // Entity-level book-keeping
+    // ====================================================================================
 
     /// The current entity count for this engine - grows by one every time a new entity is created
     pub entity_counter: Mutex<usize>,
@@ -20,7 +29,7 @@ pub struct EngineState {
 
     /// The storage for all the bricks (id, src, tgt, component, data) tuples that define one brick
     /// (note: bricks have ownership of the information they hold)
-    pub entity_brick_storage: Mutex<HashMap<EntityId, Brick>>,
+    pub entity_brick_storage: Mutex<HashMap<EntityId, DataBrick>>,
 
     /// Object index holding a sparseset in which are all entity ids that are of the form (n, n, n)
     pub entity_object_index: Mutex<SparseSet>,
@@ -32,6 +41,7 @@ pub struct EngineState {
     pub entity_property_index: Mutex<SparseSet>,
 
     // Compound book-keeping (join by component, source, target, both endpoints, etc.)
+    // ====================================================================================
 
     /// The index of all entities that have a certain component
     pub entities_by_component_index: Mutex<HashMap<ComponentName, SparseSet>>,
@@ -69,7 +79,7 @@ impl EngineState {
         *counter
     }
 
-    fn index_entity_by_component(&self, brick: &Brick) {
+    fn index_entity_by_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_component_index.lock().unwrap();
         if !index.contains_key(&brick.component) {
             index.insert(brick.component, SparseSet::default());
@@ -78,25 +88,25 @@ impl EngineState {
         index.get_mut(&brick.component).unwrap().add(brick.id);
     }
 
-    fn index_entity_as_object(&self, brick: &Brick) {
+    fn index_entity_as_object(&self, brick: &DataBrick) {
         if brick.id == brick.source && brick.source == brick.target {
             self.entity_object_index.lock().unwrap().add(brick.id);
         }
     }
 
-    fn index_entity_as_arrow(&self, brick: &Brick) {
+    fn index_entity_as_arrow(&self, brick: &DataBrick) {
         if brick.id != brick.source && brick.id != brick.target {
             self.entity_arrow_index.lock().unwrap().add(brick.id);
         }
     }
 
-    fn index_entity_as_property(&self, brick: &Brick) {
+    fn index_entity_as_property(&self, brick: &DataBrick) {
         if brick.source != brick.target && (brick.id == brick.source || brick.id == brick.target) {
             self.entity_property_index.lock().unwrap().add(brick.id);
         }
     }
 
-    fn index_entity_by_source(&self, brick: &Brick) {
+    fn index_entity_by_source(&self, brick: &DataBrick) {
         let mut index = self.entities_by_source_index.lock().unwrap();
         if !index.contains_key(&brick.source) {
             index.insert(brick.source, SparseSet::default());
@@ -105,7 +115,7 @@ impl EngineState {
         index.get_mut(&brick.source).unwrap().add(brick.id);
     }
 
-    fn index_entity_by_target(&self, brick: &Brick) {
+    fn index_entity_by_target(&self, brick: &DataBrick) {
         let mut index = self.entities_by_target_index.lock().unwrap();
         if !index.contains_key(&brick.target) {
             index.insert(brick.target, SparseSet::default());
@@ -114,7 +124,7 @@ impl EngineState {
         index.get_mut(&brick.target).unwrap().add(brick.id);
     }
 
-    fn index_entity_by_both_endpoints(&self, brick: &Brick) {
+    fn index_entity_by_both_endpoints(&self, brick: &DataBrick) {
         let mut index = self.entities_by_both_endpoints_index.lock().unwrap();
         let key = (brick.source, brick.target);
         if !index.contains_key(&key) {
@@ -124,7 +134,7 @@ impl EngineState {
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
-    fn index_entity_by_source_and_component(&self, brick: &Brick) {
+    fn index_entity_by_source_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_source_and_component_index.lock().unwrap();
         let key = (brick.source, brick.component);
         if !index.contains_key(&key) {
@@ -134,7 +144,7 @@ impl EngineState {
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
-    fn index_entity_by_target_and_component(&self, brick: &Brick) {
+    fn index_entity_by_target_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_target_and_component_index.lock().unwrap();
         let key = (brick.target, brick.component);
         if !index.contains_key(&key) {
@@ -144,7 +154,7 @@ impl EngineState {
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
-    fn index_entity_by_endpoints_and_component(&self, brick: &Brick) {
+    fn index_entity_by_endpoints_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_endpoints_and_component_index.lock().unwrap();
         let key = (brick.source, brick.target, brick.component);
         if !index.contains_key(&key) {
@@ -154,43 +164,43 @@ impl EngineState {
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
-    fn unindex_entity_as_object(&self, brick: &Brick) {
+    fn unindex_entity_as_object(&self, brick: &DataBrick) {
         let mut index = self.entity_object_index.lock().unwrap();
         index.remove(brick.id);
     }
 
-    fn unindex_entity_as_arrow(&self, brick: &Brick) {
+    fn unindex_entity_as_arrow(&self, brick: &DataBrick) {
         let mut index = self.entity_arrow_index.lock().unwrap();
         index.remove(brick.id);
     }
 
-    fn unindex_entity_as_property(&self, brick: &Brick) {
+    fn unindex_entity_as_property(&self, brick: &DataBrick) {
         let mut index = self.entity_property_index.lock().unwrap();
         index.remove(brick.id);
     }
 
-    fn unindex_entity_by_component(&self, brick: &Brick) {
+    fn unindex_entity_by_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_component_index.lock().unwrap();
         if index.contains_key(&brick.component) {
             index.get_mut(&brick.component).unwrap().remove(brick.id);
         }
     }
 
-    fn unindex_entity_by_source(&self, brick: &Brick) {
+    fn unindex_entity_by_source(&self, brick: &DataBrick) {
         let mut index = self.entities_by_source_index.lock().unwrap();
         if index.contains_key(&brick.source) {
             index.get_mut(&brick.source).unwrap().remove(brick.id);
         }
     }
 
-    fn unindex_entity_by_target(&self, brick: &Brick) {
+    fn unindex_entity_by_target(&self, brick: &DataBrick) {
         let mut index = self.entities_by_target_index.lock().unwrap();
         if index.contains_key(&brick.target) {
             index.get_mut(&brick.target).unwrap().remove(brick.id);
         }
     }
 
-    fn unindex_entity_by_both_endpoints(&self, brick: &Brick) {
+    fn unindex_entity_by_both_endpoints(&self, brick: &DataBrick) {
         let mut index = self.entities_by_both_endpoints_index.lock().unwrap();
         let key = (brick.source, brick.target);
         if index.contains_key(&key) {
@@ -198,7 +208,7 @@ impl EngineState {
         }
     }
 
-    fn unindex_entity_by_source_and_component(&self, brick: &Brick) {
+    fn unindex_entity_by_source_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_source_and_component_index.lock().unwrap();
         let key = (brick.source, brick.component);
         if index.contains_key(&key) {
@@ -206,7 +216,7 @@ impl EngineState {
         }
     }
 
-    fn unindex_entity_by_target_and_component(&self, brick: &Brick) {
+    fn unindex_entity_by_target_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_target_and_component_index.lock().unwrap();
         let key = (brick.target, brick.component);
         if index.contains_key(&key) {
@@ -214,7 +224,7 @@ impl EngineState {
         }
     }
 
-    fn unindex_entity_by_endpoints_and_component(&self, brick: &Brick) {
+    fn unindex_entity_by_endpoints_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_endpoints_and_component_index.lock().unwrap();
         let key = (brick.source, brick.target, brick.component);
         if index.contains_key(&key) {
@@ -222,7 +232,7 @@ impl EngineState {
         }
     }
     
-    fn add_entity(&self, brick: Brick) {
+    fn add_entity(&self, brick: DataBrick) {
         self.index_entity_as_object(&brick);
         self.index_entity_as_arrow(&brick);
         self.index_entity_as_property(&brick);
@@ -254,6 +264,10 @@ impl EngineState {
 
 /// Public implementations for engine state
 impl EngineState {
+    pub(crate) fn get_all_bricks(&self) -> Vec<DataBrick> {
+        self.entity_brick_storage.lock().unwrap().values().cloned().collect_vec()
+    }
+
     /// Flatten any notion of a nested component type (`Datatype::COMP`) from the defined type
     fn flatten_component_type(&self, definition: ComponentType) -> Result<ComponentType, String> {
         use ComponentType::*;
@@ -268,15 +282,20 @@ impl EngineState {
 
     /// Register a new component type with the engine from a component type structure directly (without parsing)
     pub(crate) fn add_raw_component_type(&self, definition: ComponentType) {
-        self.component_type_index.lock().unwrap().insert(definition.name().into(), definition);
+        self.component_type_index.lock().unwrap().insert(definition.name().into(), definition.clone());
+        
+        let mut offset_size_index = self.component_offset_size_index.lock().unwrap();
+
+        let mut offset = 0usize;
+        for field in definition.get_fields() {
+            let size = field.datatype.bytesize(self);
+            let range = offset..offset + size;
+            offset_size_index.insert((definition.name().to_string(), field.name), range);
+            offset += size;
+        }
     }
     
     /// Register a new component type with the engine
-    /// Example:
-    ///     A: void
-    ///     B: void
-    ///     C: eid
-    ///     D: A
     pub fn add_component_types(&self, definition: &str) -> Result<(), String> {
         let types = ComponentParser::parse_all(definition)?;
         for component_type in types {
@@ -285,6 +304,7 @@ impl EngineState {
         Ok(())
     }
 
+    /// Checks whether a component by a certain type name exists
     pub fn has_component_type(&self, name: &ComponentName) -> bool {
         self.component_type_index.lock().unwrap().contains_key(name)
     }
@@ -303,7 +323,7 @@ impl EngineState {
     pub fn create_specific_object(&self, id: EntityId) -> Option<EntityId> {
         if self.entity_exists(id) { return None; }
 
-        let brick = Brick{ id, source: id, target: id, component: "Object".into(), data: vec![] };
+        let brick = DataBrick{ id, source: id, target: id, component: "Object".into(), data: vec![] };
         self.add_entity(brick);
 
         Some(id)
@@ -312,35 +332,9 @@ impl EngineState {
     /// Check whether entity exists
     pub fn entity_exists(&self, id: EntityId) -> bool {
         self.entity_brick_storage.lock().unwrap().contains_key(&id)
-    } 
-
-    /// Creates a new entity that is categorized as an object (a self-loop from itself to itself)
-    /// POST-CONDITION (object-definition): brick.id == brick.source && brick.source == brick.target
-    pub fn create_object(&self) -> EntityId {
-        let index = self.get_next_entity_id();
-        let brick = Brick{ id: index, source: index, target: index, component: "Object".into(), data: vec![] };
-        self.add_entity(brick);
-
-        index
     }
 
-    /// Destroy an object entity
-    pub fn destroy_object(&self, id: EntityId) {
-        self.remove_entity(id);
-    }
-
-    /// Creates a new entity that is categorized as an arrow (including non-object self-loop arrows)
-    /// Arrows are structural by design and carry a single defining property with them
-    /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
-    pub(crate) fn create_arrow_raw(&self, source: EntityId, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
-        let index = self.get_next_entity_id();
-        let brick = Brick{ id: index, source, target, component, data };
-        self.add_entity(brick);
-        
-        index
-    }
-
-    fn unify_fields_and_values(&self, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<Vec<Vec<u8>>, (ComponentField, DatatypeValue)> {
+    fn unify_fields_and_values_into_data(&self, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<Vec<Vec<u8>>, (ComponentField, DatatypeValue)> {
         let components = self.component_type_index.lock().unwrap();
         let component_type = components.get(&component)
             .ok_or((ComponentField { name: "Error".into(), datatype: Datatype::VOID }, DatatypeValue::VOID))?.clone();
@@ -362,11 +356,49 @@ impl EngineState {
         }
     }
 
+    /// Creates a new entity that is categorized as an object (a self-loop from itself to itself)
+    /// POST-CONDITION (object-definition): brick.id == brick.source && brick.source == brick.target
+    pub fn create_object_raw(&self, component: ComponentName, data: Vec<u8>) -> EntityId {
+        let index = self.get_next_entity_id();
+        let brick = DataBrick{ id: index, source: index, target: index, component, data };
+        self.add_entity(brick);
+
+        index
+    }
+
+    /// Creates a new entity that is categorized as an object (a self-loop from itself to itself)
+    /// POST-CONDITION (object-definition): brick.id == brick.source && brick.source == brick.target
+    pub fn create_object(&self, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values_into_data(component, fields)
+            .map_err(|(cf, d)| 
+                format!("[Error][engine_state.rs][create_object] Cannot unify field {} (type {:?}) with value {:?} while creating object",
+                    cf.name, cf.datatype, d))?;
+        
+        let data = matching.concat();
+        Ok(self.create_object_raw(component, data))
+    }
+
+    /// Destroy an object entity
+    pub fn destroy_object(&self, id: EntityId) {
+        self.remove_entity(id);
+    }
+
+    /// Creates a new entity that is categorized as an arrow (including non-object self-loop arrows)
+    /// Arrows are structural by design and carry a single defining property with them
+    /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
+    pub(crate) fn create_arrow_raw(&self, source: EntityId, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
+        let index = self.get_next_entity_id();
+        let brick = DataBrick{ id: index, source, target, component, data };
+        self.add_entity(brick);
+        
+        index
+    }
+
     /// Creates a new entity that is categorized as an arrow (includign non-object self-loop arrows)
     /// Arrows are structural by design and carry a single defining property with them
     /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
     pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let matching = self.unify_fields_and_values(component, fields)
+        let matching = self.unify_fields_and_values_into_data(component, fields)
             .map_err(|(cf, d)| 
                 format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
                     cf.name, cf.datatype, d, source, target))?;
@@ -385,7 +417,7 @@ impl EngineState {
     /// POST-CONDITION (incoming-property-definition): brick.id == brick.source && brick.id != brick.target
     pub(crate) fn add_incoming_property_raw(&self, target: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
         let index = self.get_next_entity_id();
-        let brick = Brick{ id: index, source: index, target, component, data };
+        let brick = DataBrick{ id: index, source: index, target, component, data };
         self.add_entity(brick);
         
         index
@@ -395,9 +427,9 @@ impl EngineState {
     /// An incoming property `p` of a target `t` looks like this: `p : p -> t`, the property is incoming into the target
     /// POST-CONDITION (incoming-property-definition): brick.id == brick.source && brick.id != brick.target
     pub fn add_incoming_property(&self, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let matching = self.unify_fields_and_values(component, fields)
+        let matching = self.unify_fields_and_values_into_data(component, fields)
         .map_err(|(cf, d)| 
-            format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
+            format!("[Error][engine_state.rs][add_incoming_property] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
                 cf.name, cf.datatype, d, target))?;
     
         let data = matching.concat();
@@ -409,7 +441,7 @@ impl EngineState {
     /// POST-CONDITION (outgoing-property-definition): brick.id == brick.target && brick.id != brick.source
     pub(crate) fn add_outgoing_property_raw(&self, source: EntityId, component: ComponentName, data: Vec<u8>) -> EntityId {
         let index = self.get_next_entity_id();
-        let brick = Brick{ id: index, source, target: index, component, data };
+        let brick = DataBrick{ id: index, source, target: index, component, data };
         self.add_entity(brick);
         
         index
@@ -419,9 +451,9 @@ impl EngineState {
     /// An outgoing property `p` of a target `t` looks like this: `p : t -> p`, the property is outgoing from the target
     /// POST-CONDITION (outgoing-property-definition): brick.id == brick.target && brick.id != brick.source
     pub fn add_outgoing_property(&self, source: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let matching = self.unify_fields_and_values(component, fields)
+        let matching = self.unify_fields_and_values_into_data(component, fields)
         .map_err(|(cf, d)| 
-            format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating outgoing property {} -> X",
+            format!("[Error][engine_state.rs][add_outgoing_property] Cannot unify field {} (type {:?}) with value {:?} while creating outgoing property {} -> X",
                 cf.name, cf.datatype, d, source))?;
     
         let data = matching.concat();
@@ -434,17 +466,13 @@ impl EngineState {
     }
 }
 
-impl EngineState {
-    
-}
-
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */
 
 #[cfg(test)]
 mod engine_state_testing {
-    use crate::internals::{datatypes::Datatype, interchange::Brick, ComponentField};
+    use crate::internals::{datatypes::Datatype, mosaic::DataBrick, ComponentField};
 
     use super::{ComponentType, EngineState};
 
@@ -507,7 +535,7 @@ mod engine_state_testing {
         let engine_state = EngineState::default();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
-        let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
+        let brick = DataBrick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
 
         assert!(engine_state.entity_brick_storage.lock().unwrap().contains_key(&brick.id));
@@ -533,7 +561,7 @@ mod engine_state_testing {
         let engine_state = EngineState::default();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
-        let brick = Brick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
+        let brick = DataBrick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
         engine_state.add_entity(brick.clone());
         engine_state.remove_entity(brick.id);
         
@@ -555,11 +583,11 @@ mod engine_state_testing {
     }
 
     #[test]
-    fn test_create_object() {
+    fn test_create_object_raw() {
         let engine_state = EngineState::default();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
-        let object_id = engine_state.create_object();
+        let object_id = engine_state.create_object_raw("Object".into(), vec![]);
         let brick_storage = engine_state.entity_brick_storage.lock().unwrap();
 
         assert!(brick_storage.contains_key(&object_id));
@@ -577,20 +605,20 @@ mod engine_state_testing {
         let engine_state = EngineState::default();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
-        let object_id = engine_state.create_object();
+        let object_id = engine_state.create_object_raw("Object".into(), vec![]);
         assert!(engine_state.entity_object_index.lock().unwrap().is_member(object_id));
         engine_state.destroy_object(object_id);
         assert!(!engine_state.entity_object_index.lock().unwrap().is_member(object_id));
     }
 
     #[test]
-    fn test_create_arrow() {
+    fn test_create_arrow_raw() {
         let engine_state = EngineState::default();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
 
-        let one_id = engine_state.create_object();
-        let two_id = engine_state.create_object();
+        let one_id = engine_state.create_object_raw("Object".into(), vec![]);
+        let two_id = engine_state.create_object_raw("Object".into(), vec![]);
         let three_id = engine_state.create_arrow_raw(one_id, two_id, "Arrow".into(), vec![]);
         let brick_storage = engine_state.entity_brick_storage.lock().unwrap();
 
@@ -600,5 +628,20 @@ mod engine_state_testing {
             assert_eq!(one_id, stored_object.source);
             assert_eq!(two_id, stored_object.target);
         }
+    }
+
+    #[test]
+    fn test_high_level_create() {
+        let engine_state = EngineState::default();
+        engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
+        engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
+
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let ab = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
+
+        assert!(engine_state.entity_exists(a));
+        assert!(engine_state.entity_exists(b));
+        assert!(engine_state.entity_exists(ab));
     }
 }

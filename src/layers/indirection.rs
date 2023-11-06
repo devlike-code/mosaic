@@ -3,8 +3,7 @@ use std::collections::HashSet;
 
 use array_tool::vec::{Uniq, Intersect};
 
-use crate::internals::{EntityId, EngineState, S32, Brick};
-
+use crate::internals::{EntityId, EngineState, S32};
 use super::{accessing::{Accessing, QueryAccess}, query_iterator::QueryIterator};
 
 #[derive(Clone)]
@@ -82,6 +81,8 @@ impl<'a> QueryIndirect<'a> {
     }
 }
 
+type ComponentName = S32;
+
 /// This is an indirection layer that is built on top of the internals.
 pub trait Indirection : Accessing {
     /// Gets the source of a bricked entity
@@ -99,8 +100,6 @@ pub trait Indirection : Accessing {
     /// Gets all the entities that either directly have a component, or have it passed through
     /// a property (both incoming and outgoing)
     fn get_with_property(&self, component: S32) -> Vec<EntityId>;
-    /// Gets a map of all the components that endorse the component directly or indirectly
-    fn get_entity_archetype(&self, entity: EntityId) -> Vec<Brick>;
     /// Query one or multiple components in inclusion or exclusion
     fn query(&self) -> QueryIndirect;
 
@@ -177,23 +176,6 @@ impl Indirection for EngineState {
             }).collect::<Vec<_>>().unique()
     }
 
-    fn get_entity_archetype(&self, entity: EntityId) -> Vec<Brick> {
-        let mut result = vec![];
-        if let Ok(brick) = self.get(entity) {
-            result.push(brick);
-
-            let incoming: Vec<Brick> = self.query_access().with_target(entity).get()
-                .into_iter().filter(|&e| self.is_property(*e)).flat_map(|&e| self.get(e)).collect();
-            result.extend(incoming);
-
-            let outgoing: Vec<Brick> = self.query_access().with_source(entity).get()
-                .into_iter().filter(|&e| self.is_property(*e)).flat_map(|&e| self.get(e)).collect();            
-            result.extend(outgoing);
-        }
-
-        result
-    }
-
     fn query(&self) -> QueryIndirect {
         QueryIndirect { no_properties: false, query: self.query_access(), include_components: vec![], exclude_components: vec![] }
     }
@@ -205,14 +187,14 @@ impl Indirection for EngineState {
 
 #[cfg(test)]
 mod indirection_testing {
-    use crate::{internals::{EngineState, EntityId}, layers::{indirection::Indirection, accessing::Accessing}};
+    use crate::{internals::{EngineState, EntityId}, layers::indirection::Indirection};
 
     #[test]
     fn test_get_source() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         assert_eq!(Some(a), engine_state.get_source(a));
         assert_eq!(Some(b), engine_state.get_source(b));
@@ -223,8 +205,8 @@ mod indirection_testing {
     fn test_get_target() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         assert_eq!(Some(a), engine_state.get_target(a));
         assert_eq!(Some(b), engine_state.get_target(b));
@@ -235,8 +217,8 @@ mod indirection_testing {
     fn test_get_with_property() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Foo: void; Data: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let c = engine_state.create_arrow(a, b, "Foo".into(), vec![]).unwrap();
         let _d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]);    // c
         let e = engine_state.create_arrow(a, b, "Data".into(), vec![]).unwrap();   // e
@@ -251,8 +233,8 @@ mod indirection_testing {
     fn setup_query_tests() -> ([EntityId; 7], EngineState) {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Arrow: void; Data: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         // C : A ---Arrow---> B
         let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
         // D : D ---Data----> C
@@ -345,11 +327,11 @@ mod indirection_testing {
     fn test_query_join() {
         let engine_state = EngineState::default();
         let _ = engine_state.add_component_types("Parent: void; Path: void;");
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
-        let c = engine_state.create_object();
-        let d = engine_state.create_object();
-        let e = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let c = engine_state.create_object_raw("Object".into(), vec![]);
+        let d = engine_state.create_object_raw("Object".into(), vec![]);
+        let e = engine_state.create_object_raw("Object".into(), vec![]);
 
         let _ab = engine_state.create_arrow(a, b, "Parent".into(), vec![]);
         let _bc = engine_state.create_arrow(b, c, "Path".into(), vec![]);
@@ -375,20 +357,5 @@ mod indirection_testing {
         let join = query_from_a.intersect(query_to_c);
         assert_eq!(1, join.len());
         assert_eq!(b, join.as_slice()[0]);
-    }
-
-    #[test]
-    fn test_get_entity_archetype() {
-        let engine_state = EngineState::default();
-        let _ = engine_state.add_component_types("Arrow: void; Foo: void; Bar: void; Baz: void;");
-        let a = engine_state.create_object();
-        engine_state.add_incoming_property_raw(a, "Foo".into(), vec![]);
-        engine_state.add_incoming_property_raw(a, "Bar".into(), vec![]);
-        engine_state.add_outgoing_property_raw(a, "Baz".into(), vec![]);
-        let b = engine_state.create_arrow(a, a, "Arrow".into(), vec![]).unwrap();
-        let arch = engine_state.get_entity_archetype(a);
-        println!("ARCH {:?}", arch);
-        assert_eq!(4, arch.len());
-        assert!(!arch.contains(&engine_state.get(b).unwrap()));
     }
 }

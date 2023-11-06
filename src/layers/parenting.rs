@@ -77,8 +77,8 @@ mod parenting_testing {
     #[test]
     fn test_set_parent() {
         let engine_state = setup_parenting_engine_state();
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _ = engine_state.set_parent(a, b);
         
         let storage = engine_state.entity_brick_storage.lock().unwrap();
@@ -96,8 +96,8 @@ mod parenting_testing {
     #[test]
     fn test_get_parenting_property() {
         let engine_state = setup_parenting_engine_state();
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _ = engine_state.set_parent(a, b);
         let p = engine_state.get_parenting_relation(a);
         assert!(p.is_some());
@@ -107,8 +107,8 @@ mod parenting_testing {
     #[test]
     fn test_unparent() {
         let engine_state = setup_parenting_engine_state();
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _ = engine_state.set_parent(a, b);
         engine_state.unparent(a);
         let p = engine_state.get_parenting_relation(a);
@@ -123,11 +123,11 @@ mod parenting_testing {
     #[test]
     fn test_get_children() {
         let engine_state = setup_parenting_engine_state();
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
-        let c = engine_state.create_object();
-        let d = engine_state.create_object();
-        let e = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let c = engine_state.create_object_raw("Object".into(), vec![]);
+        let d = engine_state.create_object_raw("Object".into(), vec![]);
+        let e = engine_state.create_object_raw("Object".into(), vec![]);
         for it in &[b, c, d, e] {
             let _ = engine_state.set_parent(*it, a);
         }
@@ -142,9 +142,9 @@ mod parenting_testing {
     #[test]
     fn test_multiple_parents() {
         let engine_state = setup_parenting_engine_state();
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
-        let c = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let c = engine_state.create_object_raw("Object".into(), vec![]);
         assert_eq!(Ok(a), engine_state.set_parent(c, a));
         assert_eq!(Err(a), engine_state.set_parent(c, b));
     }
@@ -152,8 +152,8 @@ mod parenting_testing {
     #[test]
     fn test_get_parent() {
         let engine_state = setup_parenting_engine_state();
-        let a = engine_state.create_object();
-        let b = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
+        let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _ = engine_state.set_parent(a, b);
         assert_eq!(Some(b), engine_state.get_parent(a));
         assert_eq!(None, engine_state.get_parent(b));

@@ -7,7 +7,7 @@ use super::{byte_utilities::Bytesize, engine_state::EngineState};
 /// Entity identifiers are simple usize indices
 pub type EntityId = usize;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 /// A type representing bound 32-byte strings
 pub struct S32(pub FStr<32>);
 impl Copy for S32 {}
@@ -31,6 +31,12 @@ impl Into<S32> for String {
 }
 
 impl Display for S32 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0.replace("\0", "").trim())
+    }
+}
+
+impl std::fmt::Debug for S32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.0.replace("\0", "").trim())
     }
@@ -178,6 +184,7 @@ pub fn try_read_component_type(
 pub type B256 = fstr::FStr<256>;
 
 #[derive(Debug, PartialEq, Clone)]
+/// A datatype value that holds the type and value for some variable
 pub enum DatatypeValue {
     /// A void type of size 0 used as markers and tags
     VOID,
@@ -202,6 +209,7 @@ pub enum DatatypeValue {
 }
 
 impl DatatypeValue {
+    /// Gets the datatype from the datatype and value pair
     pub fn get_datatype(&self) -> Datatype {
         match self {
             DatatypeValue::VOID => Datatype::VOID,
@@ -217,6 +225,7 @@ impl DatatypeValue {
         }
     }
 }
+
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */

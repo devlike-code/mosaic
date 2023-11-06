@@ -7,10 +7,10 @@ pub mod engine_state;
 pub mod component_grammar;
 pub mod byte_utilities;
 pub mod datatypes;
-pub mod interchange;
+pub mod mosaic;
 
 pub use sparse_set::*;
 pub use datatypes::*;
 pub use engine_state::*;
-pub use interchange::*;
+pub use mosaic::*;
 pub use byte_utilities::*;

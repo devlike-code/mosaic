@@ -34,14 +34,14 @@ impl<'a> BrickEditor<'a> {
                     Datatype::COMP(name) => {
                         return Err(format!("[Error][brick_editor.rs][get_field_editor] Datatype::COMP({}) passed even though it should have been elided.", name));
                     },
-                    Datatype::I32 => DatatypeValue::I32(i32::from_ne_bytes(slice_into_array(field_data_raw))),
-                    Datatype::U32 => DatatypeValue::U32(u32::from_ne_bytes(slice_into_array(field_data_raw))),
-                    Datatype::F32 => DatatypeValue::F32(f32::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::I32 => DatatypeValue::I32(i32::from_be_bytes(slice_into_array(field_data_raw))),
+                    Datatype::U32 => DatatypeValue::U32(u32::from_be_bytes(slice_into_array(field_data_raw))),
+                    Datatype::F32 => DatatypeValue::F32(f32::from_be_bytes(slice_into_array(field_data_raw))),
                     Datatype::S32 => DatatypeValue::S32(field_data_raw.into()),
-                    Datatype::I64 => DatatypeValue::I64(i64::from_ne_bytes(slice_into_array(field_data_raw))),
-                    Datatype::U64 => DatatypeValue::U64(u64::from_ne_bytes(slice_into_array(field_data_raw))),
-                    Datatype::F64 => DatatypeValue::F64(f64::from_ne_bytes(slice_into_array(field_data_raw))),
-                    Datatype::EID => DatatypeValue::EID(usize::from_ne_bytes(slice_into_array(field_data_raw))),
+                    Datatype::I64 => DatatypeValue::I64(i64::from_be_bytes(slice_into_array(field_data_raw))),
+                    Datatype::U64 => DatatypeValue::U64(u64::from_be_bytes(slice_into_array(field_data_raw))),
+                    Datatype::F64 => DatatypeValue::F64(f64::from_be_bytes(slice_into_array(field_data_raw))),
+                    Datatype::EID => DatatypeValue::EID(usize::from_be_bytes(slice_into_array(field_data_raw))),
                     Datatype::B256 => DatatypeValue::B256(FStr::<256>::from_str_lossy(std::str::from_utf8(field_data_raw).unwrap(), b'\0')),
                 };
             
@@ -62,14 +62,14 @@ impl<'a> BrickEditor<'a> {
 
         let value: Vec<u8> = match (field.datatype.clone(), field_data) {
             (Datatype::VOID, DatatypeValue::VOID) => vec![],
-            (Datatype::I32, DatatypeValue::I32(x)) => x.to_ne_bytes().to_vec(),
-            (Datatype::U32, DatatypeValue::U32(x)) => x.to_ne_bytes().to_vec(),
-            (Datatype::F32, DatatypeValue::F32(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::I32, DatatypeValue::I32(x)) => x.to_be_bytes().to_vec(),
+            (Datatype::U32, DatatypeValue::U32(x)) => x.to_be_bytes().to_vec(),
+            (Datatype::F32, DatatypeValue::F32(x)) => x.to_be_bytes().to_vec(),
             (Datatype::S32, DatatypeValue::S32(x)) => x.0.as_bytes().to_vec(),
-            (Datatype::I64, DatatypeValue::I64(x)) => x.to_ne_bytes().to_vec(),
-            (Datatype::U64, DatatypeValue::U64(x)) => x.to_ne_bytes().to_vec(),
-            (Datatype::F64, DatatypeValue::F64(x)) => x.to_ne_bytes().to_vec(),
-            (Datatype::EID, DatatypeValue::EID(x)) => x.to_ne_bytes().to_vec(),
+            (Datatype::I64, DatatypeValue::I64(x)) => x.to_be_bytes().to_vec(),
+            (Datatype::U64, DatatypeValue::U64(x)) => x.to_be_bytes().to_vec(),
+            (Datatype::F64, DatatypeValue::F64(x)) => x.to_be_bytes().to_vec(),
+            (Datatype::EID, DatatypeValue::EID(x)) => x.to_be_bytes().to_vec(),
             (Datatype::B256, DatatypeValue::B256(x)) => x.as_bytes().to_vec(),
             (Datatype::COMP(_), _) => vec![],
             _ => { flag = true; vec![] }
@@ -158,11 +158,11 @@ mod brick_editor_testing {
         let _ = engine_state.add_component_types("Position: product { x: f32, y: f64 };").unwrap();
         let component_type = engine_state.get_component_type("Position".into()).unwrap();
 
-        let a = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
         let input = {
             let mut buffer: Vec<u8> = vec![];
-            buffer.extend(7.5f32.to_ne_bytes());
-            buffer.extend(66.3f64.to_ne_bytes());
+            buffer.extend(7.5f32.to_be_bytes());
+            buffer.extend(66.3f64.to_be_bytes());
             buffer
         };
         engine_state.add_incoming_property_raw(a, "Position".into(), input);
@@ -215,11 +215,11 @@ mod brick_editor_testing {
             ],
         };
         engine_state.add_raw_component_type(component_type.clone());
-        let a = engine_state.create_object();
+        let a = engine_state.create_object_raw("Object".into(), vec![]);
         let input = {
             let mut buffer: Vec<u8> = vec![];
-            buffer.extend(7.5f32.to_ne_bytes());
-            buffer.extend(66.3f64.to_ne_bytes());
+            buffer.extend(7.5f32.to_be_bytes());
+            buffer.extend(66.3f64.to_be_bytes());
             buffer
         };
         engine_state.add_incoming_property_raw(a, "Position".into(), input);
