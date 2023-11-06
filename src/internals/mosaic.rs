@@ -304,7 +304,7 @@ mod interchange_testing {
 
     use crate::internals::{EngineState, DatatypeValue};
 
-    use super::Tiling;
+    use super::{Tiling, Tile};
 
     #[derive(Hash)]
     struct A {
@@ -342,6 +342,21 @@ mod interchange_testing {
         println!("{:?}", tiles.get(&a).unwrap());
         println!("{:?}", tiles.get(&b).unwrap());
 
-        //println!("{:#?}", engine_state.get_blocks(Some(vec![ 1 ].into())));
+        println!("{:#?}", engine_state.get_blocks(Some(vec![ 1 ].into())));
+    }
+
+    #[test]
+    fn test_get_tiles() {
+        let engine_state = EngineState::default();
+        engine_state.add_component_types("Object: void; Arrow: void; Color: i32; Number: u32; Position: product { x: u32, y: u32 };").unwrap();
+        let a = engine_state.create_object("Position".into(), vec![ DatatypeValue::U32(3), DatatypeValue::U32(4) ]).unwrap();
+        let tile: Tile = engine_state.get_tile(a);
+        tile["x"] = DatatypeValue::U32(7);
+        assert_eq!(DatatypeValue::U32(7), tile["x"]);
+        tile.update(engine_state);
+
+        let data: Vec<u8> = vec![ 0, 0, 0, 7, 0, 0, 0, 4 ];
+        let brick = engine_state.get_brick(a);
+        assert_eq!(data, brick.data);
     }
 }
