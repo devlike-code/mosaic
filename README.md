@@ -24,6 +24,7 @@
             - not deleting all properties, as this is going to be a systemic thing triggered through the bus
 
 [ ] top-level functionality
+    [ ] rust
     [ ] wasm
     [ ] c#
     [ ] c++
