@@ -394,7 +394,7 @@ impl EngineState {
         index
     }
 
-    /// Creates a new entity that is categorized as an arrow (includign non-object self-loop arrows)
+    /// Creates a new entity that is categorized as an arrow (including non-object self-loop arrows)
     /// Arrows are structural by design and carry a single defining property with them
     /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
     pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {

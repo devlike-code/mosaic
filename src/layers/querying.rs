@@ -10,16 +10,20 @@ pub trait Querying {
 
 impl Querying for EngineState {
     fn query_related(&self, id: EntityId) -> QueryIterator {
-        let by_source = self.entities_by_source_index.lock().unwrap().get(&id).unwrap().elements().to_owned();
-        let by_target = self.entities_by_target_index.lock().unwrap().get(&id).unwrap().elements().to_owned();
-        by_source.union(by_target).unique().into()
+        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
+            if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
+                return by_source.elements().union(by_target.elements().to_owned()).unique().into();
+            }
+        }
+
+        QueryIterator::default()
     }
 }
 
 #[cfg(test)]
 mod querying_testing {
-    use crate::internals::EngineState;
     use super::Querying;
+    use crate::internals::EngineState;
 
     #[test]
     fn test_query_all() {

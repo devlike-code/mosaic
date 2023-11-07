@@ -2,7 +2,7 @@ use array_tool::vec::Intersect;
 
 use crate::internals::EntityId;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// A query iterator is a thin wrapper around a vector of entity identifiers
 pub struct QueryIterator {
     elements: Vec<EntityId>,
