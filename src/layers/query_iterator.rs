@@ -1,8 +1,8 @@
-use array_tool::vec::Intersect;
+use array_tool::vec::{Intersect, Uniq};
 
 use crate::internals::EntityId;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// A query iterator is a thin wrapper around a vector of entity identifiers
 pub struct QueryIterator {
     elements: Vec<EntityId>,
@@ -26,7 +26,9 @@ impl<'a> IntoIterator for &'a QueryIterator {
 
 impl FromIterator<EntityId> for QueryIterator {
     fn from_iter<T: IntoIterator<Item = EntityId>>(iter: T) -> Self {
-        QueryIterator { elements: iter.into_iter().collect() }
+        QueryIterator {
+            elements: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -54,6 +56,7 @@ impl QueryIterator {
     /// Builds a union of this and another iterator
     pub fn union(mut self, other: QueryIterator) -> Self {
         self.elements.extend(other.as_slice());
+        self.elements = self.elements.unique();
         self
     }
 
