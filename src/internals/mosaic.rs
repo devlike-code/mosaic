@@ -112,10 +112,6 @@ impl Tile {
             .get_fields()
             .into_iter()
             .map(|f| self.get_data().fields.get(&f.name).unwrap())
-            // self.get_data()
-            //     .to_owned()
-            //     .fields
-            //     .into_values()
             .fold(vec![], |old: Vec<u8>, value| {
                 let mut temp = old.clone();
                 let value_bytes: Vec<u8> = match value {
