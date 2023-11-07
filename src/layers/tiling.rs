@@ -149,7 +149,8 @@ mod tiling_testing {
                             //   /-- x ---/  /-- y ---/ ?
         let data: Vec<u8> = vec![0, 0, 0, 7, 0, 0, 0, 4];
         let new_brick = engine_state.get_brick(a);
-        assert_eq!(data, new_brick.data);
         println!("{:?}", new_brick.data);
+        assert_eq!(data, new_brick.data);
+        
     }
 }

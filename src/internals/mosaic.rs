@@ -84,13 +84,16 @@ pub enum Tile {
 
 impl Index<&str> for Tile {
     type Output = DatatypeValue;
-    fn index<'a>(&'a self, i: &str) ->&'a DatatypeValue {
+    fn index<'a>(&'a self, i: &str) -> &'a DatatypeValue {
+        println!("index data: {:?}", self.get_data());
         self.get_data().fields.get(&i.into()).unwrap()
     }
 }
 
 impl IndexMut<&str> for Tile {
     fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut DatatypeValue {
+        println!("index data mut: {:?}", self.get_data_mut());
+
         self.get_data_mut().fields.get_mut(&i.into()).unwrap()
     }
 }
@@ -100,34 +103,39 @@ impl Tile {
         self.get_data_mut().fields.insert(field, field_data);
     }
 
-    pub fn commit(&self, engine_state: &EngineState) {
+    pub fn commit(&self, engine_state: &EngineState) -> Result<(), String> {
         let mut brick = engine_state.get_brick(self.id());
+        let component = engine_state.get_component_type(brick.component)?;
 
-        brick.data =
-            self.get_data()
-                .to_owned()
-                .fields
-                .into_values()
-                .fold(vec![], |old: Vec<u8>, value| {
-                    let mut temp = old.clone();
-                    let value_bytes: Vec<u8> = match value {
-                        DatatypeValue::VOID => vec![],
-                        DatatypeValue::I32(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::U32(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::F32(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::S32(x) => x.0.as_bytes().to_vec(),
-                        DatatypeValue::I64(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::U64(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::F64(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::EID(x) => x.to_be_bytes().to_vec(),
-                        DatatypeValue::B256(x) => x.as_bytes().to_vec(),
-                    };
-                    temp.extend(value_bytes);
-                    temp
-                });
+        //order of saving needs to be correct and in component fields it is.
+        brick.data = component
+            .get_fields()
+            .into_iter()
+            .map(|f| self.get_data().fields.get(&f.name).unwrap())
+            // self.get_data()
+            //     .to_owned()
+            //     .fields
+            //     .into_values()
+            .fold(vec![], |old: Vec<u8>, value| {
+                let mut temp = old.clone();
+                let value_bytes: Vec<u8> = match value {
+                    DatatypeValue::VOID => vec![],
+                    DatatypeValue::I32(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::U32(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::F32(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::S32(x) => x.0.as_bytes().to_vec(),
+                    DatatypeValue::I64(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::U64(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::F64(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::EID(x) => x.to_be_bytes().to_vec(),
+                    DatatypeValue::B256(x) => x.as_bytes().to_vec(),
+                };
+                temp.extend(value_bytes);
+                temp
+            });
 
         //push cloned brick back to engine state
-        brick.update(engine_state)
+        Ok(brick.update(engine_state))
     }
 
     pub fn order(&self) -> usize {
