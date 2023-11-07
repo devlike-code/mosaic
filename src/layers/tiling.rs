@@ -144,13 +144,12 @@ mod tiling_testing {
 
         tile["x"] = DatatypeValue::U32(7);
         assert_eq!(DatatypeValue::U32(7), tile["x"]);
-        tile.commit(&engine_state);
+        let _ = tile.commit(&engine_state);
 
                             //   /-- x ---/  /-- y ---/ ?
         let data: Vec<u8> = vec![0, 0, 0, 7, 0, 0, 0, 4];
         let new_brick = engine_state.get_brick(a);
         println!("{:?}", new_brick.data);
         assert_eq!(data, new_brick.data);
-        
     }
 }
