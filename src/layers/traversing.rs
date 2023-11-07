@@ -1,71 +1,114 @@
-use std::{
-    collections::{HashSet, VecDeque},
-    thread::sleep,
-};
-
-use array_tool::vec::Uniq;
 use itertools::Itertools;
+use std::collections::{HashSet, VecDeque};
 
 use crate::{
-    internals::{engine_state, Block, BrickEditing, EngineState, EntityId, Tile},
-    layers::{indirection::Indirection, querying::Querying, tiling::Tiling},
+    internals::{EngineState, EntityId},
+    layers::querying::Querying,
 };
 
-use super::{accessing::Accessing, query_iterator::QueryIterator};
 pub type Path = Vec<EntityId>;
 
+#[derive(Debug, Default, PartialEq, Clone)]
+pub enum Traversal {
+    #[default]
+    Forward,
+    Backward,
+    Both,
+}
+
 pub trait Traversing {
+    fn out_degree(&self, src: EntityId) -> usize;
+    fn in_degree(&self, src: EntityId) -> usize;
     /// traversing graph using Depth First Search
-    fn dfs(&self, src: EntityId) -> Vec<Path>;   
+    fn dfs(&self, src: EntityId, traversal: Traversal) -> Vec<Path>;
     fn reach_forward(&self, src: EntityId) -> Vec<Path>;
-    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> bool;
+    fn reach_backward(&self, src: EntityId) -> Vec<Path>;
+    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path>;
+    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path>;
     fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool;
-    
 }
 
 impl Traversing for EngineState {
-    fn reach_forward(&self, src: EntityId) -> Vec<Path> {
-        self.dfs(src)
+    fn out_degree(&self, src: EntityId) -> usize {
+        self.query_forward_neighbors(src).len()
     }
 
-    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> bool {
+    fn in_degree(&self, src: EntityId) -> usize {
+        self.query_backward_neighbors(src).len()
+    }
+
+    fn reach_forward(&self, src: EntityId) -> Vec<Path> {
+        self.dfs(src, Traversal::Forward)
+    }
+
+    fn reach_backward(&self, src: EntityId) -> Vec<Path> {
+        self.dfs(src, Traversal::Backward)
+    }
+
+    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path> {
         let reach = self.reach_forward(src);
-        println!("DFS reach forward: {:?}", reach);
-        reach
+        //println!("DFS reach forward: {:?}", reach);
+        let path = reach
             .iter()
             .flatten()
             .filter(|t| *t == &tgt)
-            .collect::<Vec<_>>()
-            .len()
-            > 0
+            .cloned()
+            .collect_vec();
+        if path.len() > 0 {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path> {
+        let reach = self.reach_backward(src);
+        //println!("DFS reach forward: {:?}", reach);
+        let path = reach
+            .iter()
+            .flatten()
+            .filter(|t| *t == &tgt)
+            .cloned()
+            .collect_vec();
+        if path.len() > 0 {
+            Some(path)
+        } else {
+            None
+        }
     }
 
     fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool {
-        self.reach_forward_until(src, tgt)
+        self.reach_forward_until(src, tgt).is_some()
     }
 
-    fn dfs(&self, src: EntityId) -> Vec<Path> {
+    fn dfs(&self, src: EntityId, traversal: Traversal) -> Vec<Path> {
         fn dfs_rec(
+            traversal: &Traversal,
             engine_state: &EngineState,
-            src: EntityId,
             results: &mut Vec<Path>,
             freelist: &mut VecDeque<EntityId>,
             finished: &mut HashSet<EntityId>,
             history: &mut Vec<EntityId>,
         ) {
-            while let Some(current_node) = freelist.pop_back() {
-                println!("current_node is: {:?}", current_node);
+            // println!("results: {:?}", results);
+            // println!("freelist: {:?}", freelist);
+            // println!("finished: {:?}", finished);
+            // println!("history: {:?}", history);
 
+            while let Some(current_node) = freelist.pop_back() {
+                // println!("current_node is: {:?}", current_node);
                 finished.insert(current_node);
                 history.push(current_node);
 
-                let neighbors = engine_state
-                    .query_neighbors(current_node)
-                    .into_iter()
-                    .cloned()
-                    .collect_vec();
-                println!("Neighbors: {:?}", neighbors);
-
+                let neighbors = match traversal {
+                    Traversal::Forward => engine_state.query_forward_neighbors(current_node),
+                    Traversal::Backward => engine_state.query_backward_neighbors(current_node),
+                    Traversal::Both => engine_state.query_neighbors(current_node),
+                    //println!("Neighbors: {:?}", neighbors);
+                }
+                .into_iter()
+                .cloned()
+                .collect_vec();
                 if neighbors.is_empty() {
                     results.push(history.clone());
                 } else {
@@ -73,8 +116,8 @@ impl Traversing for EngineState {
                         if !finished.contains(&neighbor) {
                             freelist.push_back(neighbor);
                             dfs_rec(
+                                traversal,
                                 engine_state,
-                                current_node,
                                 results,
                                 freelist,
                                 finished,
@@ -102,8 +145,8 @@ impl Traversing for EngineState {
         freelist.push_back(src);
 
         dfs_rec(
+            &traversal,
             self,
-            src,
             &mut results,
             &mut freelist,
             &mut finished,
@@ -126,7 +169,6 @@ mod traversing_tests {
         let b = engine_state.create_object_raw("Object".into(), vec![]);
         let d = engine_state.create_object_raw("Object".into(), vec![]);
         let e = engine_state.create_object_raw("Object".into(), vec![]);
-
         /*
             a -- x ---> b ----- y
                         |       |
