@@ -48,7 +48,6 @@ impl Traversing for Arc<EngineState> {
 
     fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator> {
         let reach = self.reach_forward(src);
-        //println!("depth_first_search reach forward: {:?}", reach);
         let path = reach
             .iter()
             .flatten()
@@ -64,7 +63,6 @@ impl Traversing for Arc<EngineState> {
 
     fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator> {
         let reach = self.reach_backward(src);
-        //println!("depth_first_search reach forward: {:?}", reach);
         let path = reach
             .iter()
             .flatten()
@@ -91,13 +89,7 @@ impl Traversing for Arc<EngineState> {
             finished: &mut HashSet<EntityId>,
             history: &mut Vec<EntityId>,
         ) {
-            // println!("results: {:?}", results);
-            // println!("freelist: {:?}", freelist);
-            // println!("finished: {:?}", finished);
-            // println!("history: {:?}", history);
-
             while let Some(current_node) = freelist.pop_back() {
-                // println!("current_node is: {:?}", current_node);
                 finished.insert(current_node);
                 history.push(current_node);
 
@@ -105,7 +97,6 @@ impl Traversing for Arc<EngineState> {
                     Traversal::Forward => engine_state.query_forward_neighbors(current_node),
                     Traversal::Backward => engine_state.query_backward_neighbors(current_node),
                     Traversal::Both => engine_state.query_neighbors(current_node),
-                    //println!("Neighbors: {:?}", neighbors);
                 }
                 .into_iter()
                 .cloned()
@@ -126,7 +117,6 @@ impl Traversing for Arc<EngineState> {
                             );
                             freelist.pop_back();
                         } else {
-                            //history.push(neighbor);
                             results.push((engine_state, history.clone()).into());
                             history.pop();
                         }
