@@ -75,7 +75,10 @@ impl Tile {
     }
 
     pub fn commit(&self, engine_state: &EngineState) -> Result<(), String> {
-        let mut brick = engine_state.get_brick(self.id());
+        let mut brick = engine_state.get_brick(self.id()).ok_or(format!(
+            "[Error][mosaic.rs][commit] Cannot find brick with id {}",
+            self.id()
+        ))?;
         let component = engine_state.get_component_type(brick.component)?;
 
         //order of saving needs to be correct and in component fields it is.

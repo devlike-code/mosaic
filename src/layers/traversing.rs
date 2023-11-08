@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    sync::Arc,
+};
 
 use crate::{
     internals::{query_iterator::QueryIterator, EngineState, EntityId},
@@ -26,7 +29,7 @@ pub trait Traversing {
     fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool;
 }
 
-impl Traversing for EngineState {
+impl Traversing for Arc<EngineState> {
     fn out_degree(&self, src: EntityId) -> usize {
         self.query_forward_neighbors(src).len()
     }
@@ -53,7 +56,7 @@ impl Traversing for EngineState {
             .cloned()
             .collect_vec();
         if path.len() > 0 {
-            Some(path.into())
+            Some((self, path).into())
         } else {
             None
         }
@@ -69,7 +72,7 @@ impl Traversing for EngineState {
             .cloned()
             .collect_vec();
         if path.len() > 0 {
-            Some(path.into())
+            Some((self, path).into())
         } else {
             None
         }
@@ -82,7 +85,7 @@ impl Traversing for EngineState {
     fn depth_first_search(&self, src: EntityId, traversal: Traversal) -> Vec<QueryIterator> {
         fn depth_first_search_rec(
             traversal: &Traversal,
-            engine_state: &EngineState,
+            engine_state: &Arc<EngineState>,
             results: &mut Vec<QueryIterator>,
             freelist: &mut VecDeque<EntityId>,
             finished: &mut HashSet<EntityId>,
@@ -108,7 +111,7 @@ impl Traversing for EngineState {
                 .cloned()
                 .collect_vec();
                 if neighbors.is_empty() {
-                    results.push(history.clone().into());
+                    results.push((engine_state, history.clone()).into());
                 } else {
                     for neighbor in neighbors {
                         if !finished.contains(&neighbor) {
@@ -124,7 +127,7 @@ impl Traversing for EngineState {
                             freelist.pop_back();
                         } else {
                             //history.push(neighbor);
-                            results.push(history.clone().into());
+                            results.push((engine_state, history.clone()).into());
                             history.pop();
                         }
                     }

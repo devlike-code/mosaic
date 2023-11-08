@@ -14,7 +14,7 @@ pub(crate) fn tile_from_brick_data(engine: &Arc<EngineState>, brick: &DataBrick)
 
 pub trait Tiling {
     fn get_blocks(&self, selection: Option<QueryIterator>) -> HashMap<EntityId, Block>;
-    fn get_tile(&self, brick: EntityId) -> Tile;
+    fn get_tile(&self, brick: EntityId) -> Option<Tile>;
 }
 
 impl Tiling for Arc<EngineState> {
@@ -26,7 +26,7 @@ impl Tiling for Arc<EngineState> {
                 .unwrap()
                 .as_slice()
                 .into_iter()
-                .fold(vec![].into(), |old: QueryIterator, &f| {
+                .fold((self, vec![]).into(), |old: QueryIterator, &f| {
                     old.union(self.query_edges(f))
                 })
         };
@@ -34,8 +34,8 @@ impl Tiling for Arc<EngineState> {
         let tiles = selection
             .as_slice()
             .into_iter()
-            .map(|id| {
-                let brick = self.get(*id).unwrap();
+            .flat_map(|id| self.get_brick(*id))
+            .map(|brick| {
                 let tile: Tile = (self, &brick).into();
                 tile
             })
@@ -73,9 +73,9 @@ impl Tiling for Arc<EngineState> {
         result
     }
 
-    fn get_tile(&self, brick: EntityId) -> Tile {
-        let brick = self.get_brick(brick);
-        tile_from_brick_data(self, &brick)
+    fn get_tile(&self, brick: EntityId) -> Option<Tile> {
+        let brick = self.get_brick(brick)?;
+        Some(tile_from_brick_data(self, &brick))
     }
 }
 
@@ -139,9 +139,9 @@ mod tiling_testing {
                 vec![DatatypeValue::U32(3), DatatypeValue::U32(4)],
             )
             .unwrap();
-        let mut tile: Tile = engine_state.get_tile(a);
+        let mut tile: Tile = engine_state.get_tile(a).unwrap();
 
-        let old_brick = engine_state.get_brick(a);
+        let old_brick = engine_state.get_brick(a).unwrap();
         println!("{:?}", old_brick.data);
 
         tile["x"] = DatatypeValue::U32(7);
@@ -150,7 +150,7 @@ mod tiling_testing {
 
         //   /-- x ---/  /-- y ---/ ?
         let data: Vec<u8> = vec![0, 0, 0, 7, 0, 0, 0, 4];
-        let new_brick = engine_state.get_brick(a);
+        let new_brick = engine_state.get_brick(a).unwrap();
         println!("{:?}", new_brick.data);
         assert_eq!(data, new_brick.data);
     }

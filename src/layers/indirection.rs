@@ -8,10 +8,10 @@ use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32
 
 /// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect {
-    query: QueryAccess,
-    select: Option<QueryIterator>,
-    include_components: Vec<S32>,
-    exclude_components: Vec<S32>,
+    pub(crate) query: QueryAccess,
+    pub(crate) select: Option<Vec<EntityId>>,
+    pub(crate) include_components: Vec<S32>,
+    pub(crate) exclude_components: Vec<S32>,
     pub(crate) filters: Vec<Box<dyn FnMut(&EntityId) -> bool>>,
 }
 
@@ -23,7 +23,7 @@ impl QueryIndirect {
     }
 
     #[allow(dead_code)]
-    pub fn select_from(mut self, it: QueryIterator) -> Self {
+    pub fn select_from(mut self, it: Vec<EntityId>) -> Self {
         self.select = Some(it);
         self
     }
@@ -63,7 +63,7 @@ impl QueryIndirect {
 
     #[allow(dead_code)]
     pub fn get(mut self) -> QueryIterator {
-        let mut included = self.select.or(Some(self.query.get())).unwrap().as_vec();
+        let mut included = self.select.or(Some(self.query.get().as_vec())).unwrap();
         for incl in self.include_components {
             let comp = self.query.engine.get_with_property(incl);
             included = included.intersect(comp);
@@ -82,15 +82,8 @@ impl QueryIndirect {
         for flt in &mut self.filters {
             result = result.into_iter().filter(flt).collect_vec();
         }
-        // if self.no_properties {
-        //     result
-        //         .into_iter()
-        //         .filter(|&e| !self.query.engine.is_property(*e))
-        //         .cloned()
-        //         .collect()
-        // } else {
-        result.into()
-        //}
+
+        (self.query.engine, result).into()
     }
 
     #[allow(dead_code)]
@@ -179,11 +172,23 @@ impl Indirection for Arc<EngineState> {
     }
 
     fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
-        iter.into_iter().flat_map(|&e| self.get_source(e)).collect()
+        (
+            self,
+            iter.into_iter()
+                .flat_map(|&e| self.get_source(e))
+                .collect_vec(),
+        )
+            .into()
     }
 
     fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
-        iter.into_iter().flat_map(|&e| self.get_target(e)).collect()
+        (
+            self,
+            iter.into_iter()
+                .flat_map(|&e| self.get_target(e))
+                .collect_vec(),
+        )
+            .into()
     }
 
     fn get_with_property(&self, component: S32) -> Vec<EntityId> {
@@ -212,6 +217,40 @@ impl Indirection for Arc<EngineState> {
             exclude_components: vec![],
             filters: vec![],
         }
+    }
+}
+
+impl Indirection for QueryIterator {
+    fn get_source(&self, id: EntityId) -> Option<EntityId> {
+        self.engine.get_source(id)
+    }
+
+    fn get_target(&self, id: EntityId) -> Option<EntityId> {
+        self.engine.get_target(id)
+    }
+
+    fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
+        self.engine.get_sources(iter)
+    }
+
+    fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
+        self.engine.get_targets(iter)
+    }
+
+    fn is_incoming_property(&self, id: EntityId) -> bool {
+        self.engine.is_incoming_property(id)
+    }
+
+    fn is_outgoing_property(&self, id: EntityId) -> bool {
+        self.engine.is_outgoing_property(id)
+    }
+
+    fn get_with_property(&self, component: S32) -> Vec<EntityId> {
+        self.engine.get_with_property(component)
+    }
+
+    fn query(&self) -> QueryIndirect {
+        self.engine.query().select_from(self.elements.clone())
     }
 }
 
@@ -416,6 +455,7 @@ mod indirection_testing {
         let query_to_c = engine_state.query().with_target(c).get_sources();
 
         let join = query_from_a.intersect(query_to_c);
+        println!("{:?}", join.as_slice());
         assert_eq!(1, join.len());
         assert_eq!(b, join.as_slice()[0]);
     }

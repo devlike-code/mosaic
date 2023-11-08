@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::internals::{query_iterator::QueryIterator, DataBrick, EngineState, EntityId, S32};
+use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
 
 #[derive(Clone)]
 /// A simple entities query connected to an engine state and applying one or more filters
@@ -40,7 +40,7 @@ impl QueryAccess {
     }
 
     pub fn get(&self) -> QueryIterator {
-        match (self.source, self.target, self.component) {
+        let iter = match (self.source, self.target, self.component) {
             (None, None, None) => self
                 .engine
                 .entity_brick_storage
@@ -112,34 +112,27 @@ impl QueryAccess {
                 .get(&(src, tgt, comp))
                 .map(|set| set.elements().clone())
                 .unwrap_or_default(),
-        }
-        .into()
+        };
+
+        (&self.engine, iter).into()
     }
 }
 
 /// Querying is a layer for simple query operations, mostly used in layers higher up
 pub(crate) trait Accessing {
-    /// Gets a brick back from an entity identifier, if existing
-    fn get(&self, id: EntityId) -> Result<DataBrick, String>;
     /// Creates a query and passes the engine over to it
     fn query_access(&self) -> QueryAccess;
 }
 
 impl Accessing for Arc<EngineState> {
-    fn get(&self, id: EntityId) -> Result<DataBrick, String> {
-        self.entity_brick_storage
-            .lock()
-            .unwrap()
-            .get(&id)
-            .cloned()
-            .ok_or(format!(
-                "[Error][querying.rs][get] Cannot get brick for entity id {}",
-                id
-            ))
-    }
-
     fn query_access(&self) -> QueryAccess {
         QueryAccess::new(Arc::clone(self))
+    }
+}
+
+impl Accessing for QueryIterator {
+    fn query_access(&self) -> QueryAccess {
+        QueryAccess::new(Arc::clone(&self.engine))
     }
 }
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use array_tool::vec::{Union, Uniq};
 use itertools::Itertools;
 
@@ -12,17 +14,20 @@ pub trait Querying {
     fn query_neighbors(&self, id: EntityId) -> QueryIterator;
 }
 
-impl Querying for EngineState {
+impl Querying for Arc<EngineState> {
     fn query_edges(&self, id: EntityId) -> QueryIterator {
         if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
             if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
-                return by_source
-                    .elements()
-                    .union(by_target.elements().to_owned())
-                    .unique()
-                    .into_iter()
-                    .filter(|i| i != &id)
-                    .collect_vec()
+                return (
+                    self,
+                    by_source
+                        .elements()
+                        .union(by_target.elements().to_owned())
+                        .unique()
+                        .into_iter()
+                        .filter(|i| i != &id)
+                        .collect_vec(),
+                )
                     .into();
             }
         }
@@ -32,14 +37,17 @@ impl Querying for EngineState {
 
     fn query_descriptors(&self, id: EntityId) -> QueryIterator {
         if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
-            by_target
-                .elements()
-                .into_iter()
-                .filter(|&i| i != &id)
-                .map(|&i| self.get_brick(i))
-                .filter(|b| b.source == b.id)
-                .map(|b| b.id)
-                .collect_vec()
+            (
+                self,
+                by_target
+                    .elements()
+                    .into_iter()
+                    .filter(|&i| i != &id)
+                    .flat_map(|&i| self.get_brick(i))
+                    .filter(|b| b.source == b.id)
+                    .map(|b| b.id)
+                    .collect_vec(),
+            )
                 .into()
         } else {
             QueryIterator::default()
@@ -48,14 +56,17 @@ impl Querying for EngineState {
 
     fn query_extensions(&self, id: EntityId) -> QueryIterator {
         if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
-            by_source
-                .elements()
-                .into_iter()
-                .filter(|&i| i != &id)
-                .map(|&i| self.get_brick(i))
-                .filter(|b| b.target == b.id)
-                .map(|b| b.id)
-                .collect_vec()
+            (
+                self,
+                by_source
+                    .elements()
+                    .into_iter()
+                    .filter(|&i| i != &id)
+                    .flat_map(|&i| self.get_brick(i))
+                    .filter(|b| b.target == b.id)
+                    .map(|b| b.id)
+                    .collect_vec(),
+            )
                 .into()
         } else {
             QueryIterator::default()
@@ -64,13 +75,16 @@ impl Querying for EngineState {
 
     fn query_forward_neighbors(&self, id: EntityId) -> QueryIterator {
         if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
-            by_source
-                .elements()
-                .into_iter()
-                .map(|&i| self.get_brick(i))
-                .filter(|b| b.source != b.target && b.target != id)
-                .map(|b| b.target)
-                .collect_vec()
+            (
+                self,
+                by_source
+                    .elements()
+                    .into_iter()
+                    .flat_map(|&i| self.get_brick(i))
+                    .filter(|b| b.source != b.target && b.target != id)
+                    .map(|b| b.target)
+                    .collect_vec(),
+            )
                 .into()
         } else {
             QueryIterator::default()
@@ -79,13 +93,16 @@ impl Querying for EngineState {
 
     fn query_backward_neighbors(&self, id: EntityId) -> QueryIterator {
         if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
-            by_target
-                .elements()
-                .into_iter()
-                .map(|&i| self.get_brick(i))
-                .filter(|b| b.source != b.target && b.source != id)
-                .map(|b| b.source)
-                .collect_vec()
+            (
+                self,
+                by_target
+                    .elements()
+                    .into_iter()
+                    .flat_map(|&i| self.get_brick(i))
+                    .filter(|b| b.source != b.target && b.source != id)
+                    .map(|b| b.source)
+                    .collect_vec(),
+            )
                 .into()
         } else {
             QueryIterator::default()
@@ -98,12 +115,40 @@ impl Querying for EngineState {
     }
 }
 
+impl Querying for QueryIterator {
+    fn query_edges(&self, id: EntityId) -> QueryIterator {
+        self.engine.query_edges(id)
+    }
+
+    fn query_descriptors(&self, id: EntityId) -> QueryIterator {
+        self.engine.query_descriptors(id)
+    }
+
+    fn query_extensions(&self, id: EntityId) -> QueryIterator {
+        self.engine.query_extensions(id)
+    }
+
+    fn query_forward_neighbors(&self, id: EntityId) -> QueryIterator {
+        self.engine.query_forward_neighbors(id)
+    }
+
+    fn query_backward_neighbors(&self, id: EntityId) -> QueryIterator {
+        self.engine.query_backward_neighbors(id)
+    }
+
+    fn query_neighbors(&self, id: EntityId) -> QueryIterator {
+        self.engine.query_neighbors(id)
+    }
+}
+
 #[cfg(test)]
 mod querying_testing {
+    use std::sync::Arc;
+
     use super::Querying;
     use crate::{
         internals::{EngineState, EntityId},
-        layers::{indirection::Indirection, parenting::Parenting, traversing::Traversing},
+        layers::{indirection::Indirection, parenting::Parenting},
     };
 
     #[test]
@@ -172,7 +217,7 @@ mod querying_testing {
             .create_arrow(b, c, "Arrow".into(), vec![])
             .unwrap();
 
-        fn assert_neighbors(engine_state: &EngineState, v: Vec<EntityId>, id: EntityId) {
+        fn assert_neighbors(engine_state: &Arc<EngineState>, v: Vec<EntityId>, id: EntityId) {
             let mut w = v.clone();
             w.sort();
 
@@ -192,7 +237,7 @@ mod querying_testing {
         let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Object: void; Arrow: void; Property: void;");
         let a = engine_state.create_object("Object".into(), vec![]).unwrap();
-        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let _b = engine_state.create_object("Object".into(), vec![]).unwrap();
         let c = engine_state
             .add_incoming_property(a, "Property".into(), vec![])
             .unwrap();
@@ -209,7 +254,7 @@ mod querying_testing {
         let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Object: void; Arrow: void; Property: void;");
         let a = engine_state.create_object("Object".into(), vec![]).unwrap();
-        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let _b = engine_state.create_object("Object".into(), vec![]).unwrap();
         let c = engine_state
             .add_outgoing_property(a, "Property".into(), vec![])
             .unwrap();
@@ -268,7 +313,7 @@ mod querying_testing {
 
         let non_parent_edges = engine_state
             .query()
-            .select_from(engine_state.query_edges(c))
+            .select_from(engine_state.query_edges(c).as_vec())
             .without_component("Parent".into())
             .get();
 
@@ -302,22 +347,24 @@ mod querying_testing {
             .create_arrow(d, a, "Arrow".into(), vec![])
             .unwrap();
 
-        println!("{:?}", engine_state.query_neighbors(a));
-        println!(
-            "{:?}",
-            engine_state
-                .query()
-                .select_from(engine_state.query_edges(a))
-                .without_component("Parent".into())
-                .get_sources()
-        );
-        println!(
-            "{:?}",
-            engine_state
-                .query()
-                .select_from(engine_state.query_neighbors(a))
-                .without_component("Parent".into())
-                .get()
-        );
+        let mut q1 = engine_state
+            .query()
+            .select_from(engine_state.query_edges(a).as_vec())
+            .without_component("Parent".into())
+            .get_sources()
+            .as_vec();
+
+        q1.sort();
+
+        let mut q2 = engine_state
+            .query_edges(a)
+            .query()
+            .without_component("Parent".into())
+            .get_sources()
+            .as_vec();
+        q2.sort();
+
+        assert_eq!(q1, q2);
+        assert_eq!(vec![2, 4], q1);
     }
 }

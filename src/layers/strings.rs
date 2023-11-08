@@ -80,7 +80,8 @@ impl Strings for Arc<EngineState> {
             .get()
             .as_slice()
             .into_iter()
-            .map(|&e| self.get(e).unwrap().data)
+            .flat_map(|&e| self.get_brick(e))
+            .map(|e| e.data)
             .collect();
 
         Some(String::from_utf8_lossy(&join_parts(parts)).to_string())

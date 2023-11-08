@@ -1,16 +1,33 @@
+use std::sync::Arc;
+
 use array_tool::vec::{Intersect, Uniq};
 
 use crate::internals::EntityId;
 
+use super::EngineState;
+
 #[derive(Debug, Clone, Default)]
 /// A query iterator is a thin wrapper around a vector of entity identifiers
 pub struct QueryIterator {
-    elements: Vec<EntityId>,
+    pub(crate) engine: Arc<EngineState>,
+    pub(crate) elements: Vec<EntityId>,
 }
 
-impl Into<QueryIterator> for Vec<EntityId> {
+impl Into<QueryIterator> for (&Arc<EngineState>, Vec<EntityId>) {
     fn into(self) -> QueryIterator {
-        QueryIterator { elements: self }
+        QueryIterator {
+            engine: Arc::clone(self.0),
+            elements: self.1,
+        }
+    }
+}
+
+impl Into<QueryIterator> for (Arc<EngineState>, Vec<EntityId>) {
+    fn into(self) -> QueryIterator {
+        QueryIterator {
+            engine: self.0,
+            elements: self.1,
+        }
     }
 }
 
@@ -21,14 +38,6 @@ impl<'a> IntoIterator for &'a QueryIterator {
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements.iter()
-    }
-}
-
-impl FromIterator<EntityId> for QueryIterator {
-    fn from_iter<T: IntoIterator<Item = EntityId>>(iter: T) -> Self {
-        QueryIterator {
-            elements: iter.into_iter().collect(),
-        }
     }
 }
 

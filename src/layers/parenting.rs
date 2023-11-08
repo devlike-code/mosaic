@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId};
 
-use super::indirection::Indirection;
+use super::indirection::{Indirection, QueryIndirect};
 
 /// This trait allows for parenting relations between entities
 /// Introduces the `Parent` marker component that forms the `P --Parent--> C` relation
@@ -42,7 +42,7 @@ impl Parenting for Arc<EngineState> {
         if let Some(relation) = self.get_parenting_relation(child) {
             Err(self.get_source(relation).unwrap())
         } else {
-            let p = self.create_arrow(parent, child, "Parent".into(), vec![]);
+            let _p = self.create_arrow(parent, child, "Parent".into(), vec![]);
             Ok(parent)
         }
     }
@@ -53,11 +53,14 @@ impl Parenting for Arc<EngineState> {
     }
 
     fn get_children(&self, parent: EntityId) -> QueryIterator {
-        self.query()
-            .with_source(parent)
-            .with_component("Parent".into())
-            .get_targets()
-            .as_vec()
+        (
+            self,
+            self.query()
+                .with_source(parent)
+                .with_component("Parent".into())
+                .get_targets()
+                .as_vec(),
+        )
             .into()
     }
 
@@ -65,6 +68,25 @@ impl Parenting for Arc<EngineState> {
         if let Some(rel) = self.get_parenting_relation(child) {
             self.destroy_arrow(rel);
         }
+    }
+}
+
+pub trait ParentingQuery {
+    fn no_parent_edges(self) -> Self;
+}
+
+impl ParentingQuery for QueryIndirect {
+    fn no_parent_edges(mut self) -> Self {
+        let engine = Arc::clone(&self.query.engine);
+        let filter: Box<dyn FnMut(&EntityId) -> bool> = Box::new(move |i: &EntityId| {
+            engine
+                .get_brick(*i)
+                .map(|e| e.component != "Parent".into())
+                .unwrap_or(false)
+        });
+
+        self.filters.push(filter);
+        self
     }
 }
 
@@ -76,7 +98,10 @@ impl Parenting for Arc<EngineState> {
 mod parenting_testing {
     use std::sync::Arc;
 
-    use crate::internals::EngineState;
+    use crate::{
+        internals::EngineState,
+        layers::{indirection::Indirection, parenting::ParentingQuery, querying::Querying},
+    };
 
     use super::Parenting;
 
@@ -175,5 +200,32 @@ mod parenting_testing {
         let _ = engine_state.set_parent(a, b);
         assert_eq!(Some(b), engine_state.get_parent(a));
         assert_eq!(None, engine_state.get_parent(b));
+    }
+
+    #[test]
+    fn test_indirection_with_parenting() {
+        let engine_state = EngineState::new();
+        let _ = engine_state.add_component_types("Object: void; Arrow: void; Parent: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let c = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let d = engine_state.create_object("Object".into(), vec![]).unwrap();
+
+        let _p1 = engine_state.set_parent(a, c).unwrap();
+        let _ba = engine_state
+            .create_arrow(b, a, "Arrow".into(), vec![])
+            .unwrap();
+        let _da = engine_state
+            .create_arrow(d, a, "Arrow".into(), vec![])
+            .unwrap();
+
+        println!(
+            "{:?}",
+            engine_state
+                .query()
+                .select_from(engine_state.query_edges(a).as_vec())
+                .no_parent_edges()
+                .get_sources()
+        );
     }
 }

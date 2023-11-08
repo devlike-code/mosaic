@@ -297,14 +297,13 @@ impl EngineState {
         }
     }
 
-    pub(crate) fn get_brick(&self, brick_id: EntityId) -> DataBrick {
+    pub(crate) fn get_brick(&self, brick_id: EntityId) -> Option<DataBrick> {
         self
             .entity_brick_storage
             .lock()
             .unwrap()
             .get(&brick_id)
-            .unwrap()
-            .clone()
+            .cloned()
     }
 }
 
