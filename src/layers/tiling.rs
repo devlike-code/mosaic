@@ -1,22 +1,23 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::internals::{Block, BrickEditing, DataBrick, EngineState, EntityId, Tile};
+use crate::internals::{
+    query_iterator::QueryIterator, Block, DataBrick, EngineState, EntityId, Tile,
+};
 
-use super::{accessing::Accessing, query_iterator::QueryIterator, querying::Querying};
+use super::{accessing::Accessing, querying::Querying};
+
+pub(crate) fn tile_from_brick_data(engine: &Arc<EngineState>, brick: &DataBrick) -> Tile {
+    (engine, brick).into()
+}
 
 pub trait Tiling {
-    fn tile_from_brick_data(&self, brick: &DataBrick) -> Tile;
     fn get_blocks(&self, selection: Option<QueryIterator>) -> HashMap<EntityId, Block>;
     fn get_tile(&self, brick: EntityId) -> Tile;
 }
 
-impl Tiling for EngineState {
-    fn tile_from_brick_data(&self, brick: &DataBrick) -> Tile {
-        (self, brick).into()
-    }
-
+impl Tiling for Arc<EngineState> {
     fn get_blocks(&self, filter: Option<QueryIterator>) -> HashMap<EntityId, Block> {
         let selection = if filter.is_none() {
             self.query_access().get()
@@ -26,7 +27,7 @@ impl Tiling for EngineState {
                 .as_slice()
                 .into_iter()
                 .fold(vec![].into(), |old: QueryIterator, &f| {
-                    old.union(self.query_related(f))
+                    old.union(self.query_edges(f))
                 })
         };
 
@@ -74,20 +75,20 @@ impl Tiling for EngineState {
 
     fn get_tile(&self, brick: EntityId) -> Tile {
         let brick = self.get_brick(brick);
-        self.tile_from_brick_data(&brick)
+        tile_from_brick_data(self, &brick)
     }
 }
 
 #[cfg(test)]
 mod tiling_testing {
     use crate::{
-        internals::{BrickEditing, DatatypeValue, EngineState, Tile},
+        internals::{DatatypeValue, EngineState, Tile},
         layers::tiling::Tiling,
     };
-    
+
     #[test]
     fn test_get_tiles() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_component_types("Object: void; Arrow: void; Color: i32; Number: u32; Position: product { x: u32, y: u32 };").unwrap();
         let a = engine_state.create_object("Object".into(), vec![]).unwrap();
         let b = engine_state.create_object("Object".into(), vec![]).unwrap();
@@ -120,8 +121,9 @@ mod tiling_testing {
                 vec![DatatypeValue::U32(3), DatatypeValue::U32(4)],
             )
             .unwrap();
-        let tiles: std::collections::HashMap<usize, crate::internals::Block> = engine_state.get_blocks(None);
-     
+        let tiles: std::collections::HashMap<usize, crate::internals::Block> =
+            engine_state.get_blocks(None);
+
         assert_eq!(5, tiles.get(&a).unwrap().tiles.len());
         assert_eq!(5, tiles.get(&b).unwrap().tiles.len());
         assert_eq!(2, tiles.get(&ab).unwrap().tiles.len());
@@ -129,7 +131,7 @@ mod tiling_testing {
 
     #[test]
     fn test_get_tile() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_component_types("Object: void; Arrow: void; Color: i32; Number: u32; Position: product { x: u32, y: u32 };").unwrap();
         let a = engine_state
             .create_object(
@@ -146,7 +148,7 @@ mod tiling_testing {
         assert_eq!(DatatypeValue::U32(7), tile["x"]);
         let _ = tile.commit(&engine_state);
 
-                            //   /-- x ---/  /-- y ---/ ?
+        //   /-- x ---/  /-- y ---/ ?
         let data: Vec<u8> = vec![0, 0, 0, 7, 0, 0, 0, 4];
         let new_brick = engine_state.get_brick(a);
         println!("{:?}", new_brick.data);

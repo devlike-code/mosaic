@@ -65,4 +65,8 @@ impl QueryIterator {
         self.elements = self.elements.intersect(other.as_vec());
         self
     }
+
+    pub fn contains(&self, id: &EntityId) -> bool {
+        self.elements.contains(id)
+    }
 }

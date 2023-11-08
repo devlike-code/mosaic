@@ -20,7 +20,10 @@ impl Into<S32> for &str {
 
 impl Into<S32> for &[u8] {
     fn into(self) -> S32 {
-        S32(FStr::<32>::from_str_lossy(std::str::from_utf8(self).unwrap(), b'\0'))
+        S32(FStr::<32>::from_str_lossy(
+            std::str::from_utf8(self).unwrap(),
+            b'\0',
+        ))
     }
 }
 
@@ -110,9 +113,20 @@ impl ComponentType {
 
     pub fn duplicate_as(&self, new_name: S32) -> ComponentType {
         match self {
-            ComponentType::Alias(ComponentField { name: _, datatype }) => ComponentType::Alias(ComponentField { name: new_name, datatype: datatype.clone() }),
-            ComponentType::Sum { name: _, fields } => ComponentType::Sum { name: new_name, fields: fields.clone() },
-            ComponentType::Product { name: _, fields } => ComponentType::Product { name: new_name, fields: fields.clone() },
+            ComponentType::Alias(ComponentField { name: _, datatype }) => {
+                ComponentType::Alias(ComponentField {
+                    name: new_name,
+                    datatype: datatype.clone(),
+                })
+            }
+            ComponentType::Sum { name: _, fields } => ComponentType::Sum {
+                name: new_name,
+                fields: fields.clone(),
+            },
+            ComponentType::Product { name: _, fields } => ComponentType::Product {
+                name: new_name,
+                fields: fields.clone(),
+            },
         }
     }
 
@@ -150,7 +164,6 @@ impl ComponentType {
             _ => None,
         }
     }
-   
 }
 
 pub fn try_read_component_type(
@@ -180,7 +193,6 @@ pub fn try_read_component_type(
     return Ok(component_type);
 }
 
-
 pub type B256 = fstr::FStr<256>;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -205,7 +217,7 @@ pub enum DatatypeValue {
     /// A 32-bit bound-size string
     S32(S32),
     /// An interned unbound string
-    B256(B256),   
+    B256(B256),
 }
 
 impl DatatypeValue {
@@ -238,7 +250,7 @@ mod datatypes_testing {
 
     #[test]
     fn test_try_read_alias() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let component_type = ComponentType::Alias({
             ComponentField {
                 name: "foo".into(),
@@ -263,7 +275,7 @@ mod datatypes_testing {
 
     #[test]
     fn test_try_read_product() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let component_type = ComponentType::Product {
             name: "foo".into(),
             fields: vec![

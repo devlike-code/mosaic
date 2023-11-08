@@ -1,10 +1,40 @@
-use std::{sync::Mutex, collections::HashMap, ops::Range};
+use std::{sync::{Mutex, Arc}, collections::HashMap, ops::Range};
 
 use itertools::Itertools;
 
-use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, mosaic::DataBrick, component_grammar::ComponentParser, Datatype, ComponentField, DatatypeValue, ToByteArray, Bytesize};
+use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, component_grammar::ComponentParser, Datatype, ComponentField, DatatypeValue, ToByteArray, Bytesize};
 
 type FieldName = ComponentName;
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+/// Bricks are the essential building blocks and hold a single component.
+/// Every brick contains a single morphism and associated data
+pub(crate) struct DataBrick {
+    /// Identity of this element
+    pub(crate) id: EntityId,
+    /// The source element of this morphism
+    pub(crate) source: EntityId,
+    /// The target element of this morphism
+    pub(crate) target: EntityId,
+    /// The name of the component representing the data in this morphism
+    pub(crate) component: ComponentName,
+    /// The actual data carried by the morphism
+    pub(crate) data: Vec<u8>,
+}
+
+impl DataBrick {
+    /// Updates the brick in the engine, lifting any changes into it
+    pub(crate) fn update(&self, engine_state: &EngineState) {
+        let mut storage = engine_state.entity_brick_storage.lock().unwrap();
+        storage.insert(self.id, self.clone());
+    }
+
+    /// Refreshes the data from the engine into the brick; it doesn't touch anything other in the brick
+    pub(crate) fn refresh(&mut self, engine_state: &EngineState) {
+        let storage = engine_state.entity_brick_storage.lock().unwrap();
+        self.data = storage.get(&self.id).unwrap_or(self).data.clone();
+    }
+}
 
 #[derive(Default, Debug)]
 /// The full state of the engine, with fields that keep the run-time of the full platform.
@@ -29,7 +59,7 @@ pub struct EngineState {
 
     /// The storage for all the bricks (id, src, tgt, component, data) tuples that define one brick
     /// (note: bricks have ownership of the information they hold)
-    pub entity_brick_storage: Mutex<HashMap<EntityId, DataBrick>>,
+    pub(crate) entity_brick_storage: Mutex<HashMap<EntityId, DataBrick>>,
 
     /// Object index holding a sparseset in which are all entity ids that are of the form (n, n, n)
     pub entity_object_index: Mutex<SparseSet>,
@@ -63,6 +93,12 @@ pub struct EngineState {
 
     /// The index of all entities that have both specific source, target, and component
     pub entities_by_endpoints_and_component_index: Mutex<HashMap<(EntityId, EntityId, ComponentName), SparseSet>>,
+}
+
+impl EngineState {
+    pub fn new() -> Arc<EngineState> {
+        Arc::new(EngineState::default())
+    }
 }
 
 /// Private implementations for engine state
@@ -259,6 +295,16 @@ impl EngineState {
             self.unindex_entity_by_target_and_component(&brick);
             self.unindex_entity_by_endpoints_and_component(&brick);
         }
+    }
+
+    pub(crate) fn get_brick(&self, brick_id: EntityId) -> DataBrick {
+        self
+            .entity_brick_storage
+            .lock()
+            .unwrap()
+            .get(&brick_id)
+            .unwrap()
+            .clone()
     }
 }
 
@@ -472,13 +518,13 @@ impl EngineState {
 
 #[cfg(test)]
 mod engine_state_testing {
-    use crate::internals::{datatypes::Datatype, mosaic::DataBrick, ComponentField};
+    use crate::internals::{datatypes::Datatype, ComponentField, DataBrick};
 
     use super::{ComponentType, EngineState};
 
     #[test]
     fn test_get_next_entity_id() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         assert_eq!(1, engine_state.get_next_entity_id());
         assert_eq!(2, engine_state.get_next_entity_id());
         assert_eq!(3, engine_state.get_next_entity_id());
@@ -486,7 +532,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_flatten_simple_alias_component() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Bar".into(), datatype: Datatype::VOID }));
         let foo = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
         let flat_foo = engine_state.flatten_component_type(foo);
@@ -496,7 +542,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_flatten_complex_alias_component() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Product { name: "Bar".into(), fields: vec![] });
         let foo = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
         let flat_foo = engine_state.flatten_component_type(foo);
@@ -506,7 +552,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_add_component_type() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let component_type_index = engine_state.component_type_index.lock().unwrap();
@@ -519,7 +565,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_get_component_type() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let output = engine_state.get_component_type("Foo".into());
@@ -532,7 +578,7 @@ mod engine_state_testing {
     // Testing that insertion creates the needed index storages
     #[test]
     fn test_add_entity() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let brick = DataBrick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
@@ -558,7 +604,7 @@ mod engine_state_testing {
     // Testing that, after removal, any index storages remain but the content is correctly freed
     #[test]
     fn test_remove_entity() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::EID }));
 
         let brick = DataBrick{ id: 1, source: 2, target: 3, component: "Foo".into(), data: vec![] };
@@ -584,7 +630,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_create_object_raw() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
         let object_id = engine_state.create_object_raw("Object".into(), vec![]);
@@ -602,7 +648,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_destroy_object() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
 
         let object_id = engine_state.create_object_raw("Object".into(), vec![]);
@@ -613,7 +659,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_create_arrow_raw() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
 
@@ -632,7 +678,7 @@ mod engine_state_testing {
 
     #[test]
     fn test_high_level_create() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Object".into(), datatype: Datatype::VOID }));
         engine_state.add_raw_component_type(ComponentType::Alias (ComponentField { name: "Arrow".into(), datatype: Datatype::VOID }));
 

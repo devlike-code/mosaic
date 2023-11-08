@@ -1,6 +1,10 @@
-use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
-use crate::internals::{EntityId, EngineState};
+use crate::internals::{EngineState, EntityId};
 
 use super::accessing::Accessing;
 
@@ -23,7 +27,7 @@ pub trait Strings {
     fn delete_string(&self, str: &str);
 }
 
-impl Strings for EngineState {
+impl Strings for Arc<EngineState> {
     fn hash_string(str: &str) -> EntityId {
         let mut hasher = DefaultHasher::new();
         str.hash(&mut hasher);
@@ -32,16 +36,21 @@ impl Strings for EngineState {
 
     fn create_string_object(&self, str: &str) -> EntityId {
         fn split_str_into_parts(input: &str, part_size: usize) -> impl Iterator<Item = &str> {
-            input.char_indices().step_by(part_size).map(move |(start, _)| {
-                &input[start..(start + part_size).min(input.len())]
-            })
+            input
+                .char_indices()
+                .step_by(part_size)
+                .map(move |(start, _)| &input[start..(start + part_size).min(input.len())])
         }
 
         let str_hash = Self::hash_string(str);
 
         if let Some(_) = self.create_specific_object(str_hash) {
             for part in split_str_into_parts(str, 256) {
-                let _ = self.add_outgoing_property_raw(str_hash, "String".into(), part.as_bytes().to_vec());
+                let _ = self.add_outgoing_property_raw(
+                    str_hash,
+                    "String".into(),
+                    part.as_bytes().to_vec(),
+                );
             }
         }
 
@@ -52,21 +61,27 @@ impl Strings for EngineState {
         fn join_parts(parts: Vec<Vec<u8>>) -> Vec<u8> {
             let total_size: usize = parts.iter().map(|part| part.len()).sum();
             let mut joined: Vec<u8> = Vec::with_capacity(total_size);
-        
+
             for part in parts {
                 joined.extend(part);
             }
-        
+
             joined
         }
 
-        if !self.entity_exists(id) { return None; }
+        if !self.entity_exists(id) {
+            return None;
+        }
 
-        let parts = self.query_access()
+        let parts = self
+            .query_access()
             .with_source(id)
             .with_component("String".into())
-            .get().as_slice().into_iter()
-            .map(|&e| self.get(e).unwrap().data).collect();
+            .get()
+            .as_slice()
+            .into_iter()
+            .map(|&e| self.get(e).unwrap().data)
+            .collect();
 
         Some(String::from_utf8_lossy(&join_parts(parts)).to_string())
     }
@@ -88,7 +103,10 @@ impl Strings for EngineState {
 
 #[cfg(test)]
 mod strings_testing {
-    use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+    };
 
     use crate::internals::{EngineState, EntityId};
 
@@ -96,9 +114,9 @@ mod strings_testing {
 
     #[test]
     fn test_create_string() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let hello_world = engine_state.create_string_object("hello world");
-        
+
         let expected = {
             let mut hasher = DefaultHasher::new();
             "hello world".hash(&mut hasher);
@@ -111,15 +129,18 @@ mod strings_testing {
 
     #[test]
     fn test_recover_string() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let random_text = include_str!("random275.txt");
         let hello_world = engine_state.create_string_object(random_text);
-        assert_eq!(Some(format!("{}", random_text)), engine_state.recover_string(hello_world));
+        assert_eq!(
+            Some(format!("{}", random_text)),
+            engine_state.recover_string(hello_world)
+        );
     }
 
     #[test]
     fn test_reuse_string() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let random_text = include_str!("random275.txt");
         let hello_world1 = engine_state.create_string_object(random_text);
         let hello_world2 = engine_state.create_string_object(random_text);

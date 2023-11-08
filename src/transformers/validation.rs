@@ -1,3 +1,4 @@
+/*
 use std::collections::HashSet;
 
 use crate::{
@@ -139,3 +140,4 @@ pub fn validate_output_dir_exists(dir: &String) -> Result<bool, String> {
         Err(format!("Path '{}' is not a valid directory.", dir))
     }
 }
+ */
