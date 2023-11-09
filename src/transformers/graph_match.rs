@@ -3,16 +3,16 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 
 use engine_state::EngineState;
 
 use crate::internals::{Block, Tile, engine_state, EntityId};
-use crate::layers::accessing::Accessing;
+
+use crate::layers::indirection::Indirection;
 use crate::layers::parenting::Parenting;
-use crate::layers::querying::Querying;
-use crate::layers::tiling::Tiling;
-use crate::transformers::validation::{self, validate_frame_is_populated};
+use crate::transformers::validation::{self, validate_frame_is_populated, validate_tile_is_arrow, validate_arrow_is_graph_match};
 
 use super::validation::validate_type_exists;
 
@@ -39,7 +39,7 @@ fn hash_hashmap<K: Ord + Clone + Display, V: Clone + Display>(hashmap: &HashMap<
     hasher.finish()
 }
 
-pub fn graph_match(block: &Block, engine_state: &EngineState) -> Result<Block, String> {
+pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile, String> {
     let mut arrow_counters = u32::MAX;
 
     fn tuple_is_completely_different(a: &(u32, u32), b: &(u32, u32)) -> bool {
@@ -48,14 +48,14 @@ pub fn graph_match(block: &Block, engine_state: &EngineState) -> Result<Block, S
 
     validate_type_exists("GraphMatch", engine_state)?;
 
-    let arrow = validate_block_is_arrow(block)?;
-    validate_arrow_is_graph_match(&arrow, engine_state)?;
+    let arrow = validate_tile_is_arrow(input)?;
+    validate_arrow_is_graph_match(arrow, engine_state)?;
 
     let pattern = arrow.get_endpoints().0; // staring arrow's source
     let target = arrow.get_endpoints().1; // staring arrow's target
 
-    validate_frame_is_populated(pattern)?;
-    validate_frame_is_populated(target)?;
+    validate_frame_is_populated(pattern, engine_state)?;
+    validate_frame_is_populated(target, engine_state)?;
 
      let pattern_graph = engine_state.get_children(pattern); // graph where pattern is parent
      let target_graph = engine_state.get_children(target);   // graph where traget is parent
@@ -64,7 +64,7 @@ pub fn graph_match(block: &Block, engine_state: &EngineState) -> Result<Block, S
 
     let archetypes = get_archetypes_by_entity().read().unwrap().clone();
 
-    let all_nodes = engine_state.get_blocks().get(&pattern).unwrap().tiles.into_iter().map(t||);
+    let all_nodes = engine_state.build_query().without_component(component).get_targets(&pattern).unwrap().tiles.into_iter().map(t||);
     let pattern_size = all_nodes.len();
 
     for node in all_nodes {
@@ -511,4 +511,5 @@ mod search_tests {
         }
     }
 }
-*/
+
+ */

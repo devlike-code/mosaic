@@ -117,7 +117,7 @@ pub trait Indirection {
     /// a property (both incoming and outgoing)
     fn get_with_property(&self, component: S32) -> Vec<EntityId>;
     /// Query one or multiple components in inclusion or exclusion
-    fn query(&self) -> QueryIndirect;
+    fn build_query(&self) -> QueryIndirect;
 
     /// Checks whether the given entity is either an incoming or outgoing property
     fn is_property(&self, id: EntityId) -> bool {
@@ -209,7 +209,7 @@ impl Indirection for Arc<EngineState> {
             .unique()
     }
 
-    fn query(&self) -> QueryIndirect {
+    fn build_query(&self) -> QueryIndirect {
         QueryIndirect {
             select: None,
             query: self.query_access(),
@@ -249,8 +249,8 @@ impl Indirection for QueryIterator {
         self.engine.get_with_property(component)
     }
 
-    fn query(&self) -> QueryIndirect {
-        self.engine.query().select_from(self.elements.clone())
+    fn build_query(&self) -> QueryIndirect {
+        self.engine.build_query().select_from(self.elements.clone())
     }
 }
 
@@ -343,7 +343,7 @@ mod indirection_testing {
     #[test]
     fn test_query_with_source() {
         let ([a, _b, c, _d, e, _f, _g], engine_state) = setup_query_tests();
-        let mut all_with_source_a = engine_state.query().with_source(a).get();
+        let mut all_with_source_a = engine_state.build_query().with_source(a).get();
         all_with_source_a.sort();
         assert_eq!(&[a, c, e], all_with_source_a.as_slice());
     }
@@ -351,7 +351,10 @@ mod indirection_testing {
     #[test]
     fn test_query_with_component() {
         let ([a, _b, c, _d, e, _f, g], engine_state) = setup_query_tests();
-        let mut all_with_comp_data = engine_state.query().with_component("Data".into()).get();
+        let mut all_with_comp_data = engine_state
+            .build_query()
+            .with_component("Data".into())
+            .get();
         all_with_comp_data.sort();
         assert_eq!(&[a, c, e, g], all_with_comp_data.as_slice());
     }
@@ -359,8 +362,10 @@ mod indirection_testing {
     #[test]
     fn test_query_without_component() {
         let ([a, b, _c, d, e, f, g], engine_state) = setup_query_tests();
-        let mut all_without_comp_arrow =
-            engine_state.query().without_component("Arrow".into()).get();
+        let mut all_without_comp_arrow = engine_state
+            .build_query()
+            .without_component("Arrow".into())
+            .get();
         all_without_comp_arrow.sort();
         assert_eq!(&[a, b, d, e, f, g], all_without_comp_arrow.as_slice());
     }
@@ -369,7 +374,7 @@ mod indirection_testing {
     fn test_query_with_two_components() {
         let ([_a, _b, c, _d, _e, _f, _g], engine_state) = setup_query_tests();
         let mut all_with_comp_arrow_and_data = engine_state
-            .query()
+            .build_query()
             .with_component("Arrow".into())
             .with_component("Data".into())
             .get();
@@ -381,7 +386,7 @@ mod indirection_testing {
     fn test_query_without_component_and_no_properties() {
         let ([a, b, _c, _d, e, _f, g], engine_state) = setup_query_tests();
         let mut all_without_comp_arrow_no_prop = engine_state
-            .query()
+            .build_query()
             .without_component("Arrow".into())
             .no_properties()
             .get();
@@ -393,7 +398,7 @@ mod indirection_testing {
     fn test_query_with_component_and_source() {
         let ([a, _b, c, _d, e, _f, _g], engine_state) = setup_query_tests();
         let mut all_with_source_a_and_data = engine_state
-            .query()
+            .build_query()
             .with_source(a)
             .with_component("Data".into())
             .get();
@@ -405,7 +410,7 @@ mod indirection_testing {
     fn test_query_with_source_without_component() {
         let ([a, _b, _c, _d, e, _f, _g], engine_state) = setup_query_tests();
         let mut all_with_source_a_without_arrow = engine_state
-            .query()
+            .build_query()
             .with_source(a)
             .without_component("Arrow".into())
             .get();
@@ -417,7 +422,7 @@ mod indirection_testing {
     fn test_query_with_source_with_one_component_without_another() {
         let ([a, _b, _c, _d, e, _f, _g], engine_state) = setup_query_tests();
         let mut all_with_source_a_and_data_without_arrow = engine_state
-            .query()
+            .build_query()
             .with_source(a)
             .with_component("Data".into())
             .without_component("Arrow".into())
@@ -446,13 +451,13 @@ mod indirection_testing {
 
         // A ---Parent----> ?
         let query_from_a = engine_state
-            .query()
+            .build_query()
             .with_source(a)
             .with_component("Parent".into())
             .get_targets();
 
         // ? -------> C
-        let query_to_c = engine_state.query().with_target(c).get_sources();
+        let query_to_c = engine_state.build_query().with_target(c).get_sources();
 
         let join = query_from_a.intersect(query_to_c);
         println!("{:?}", join.as_slice());

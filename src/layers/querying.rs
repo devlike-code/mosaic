@@ -316,7 +316,7 @@ mod querying_testing {
         assert_eq!(4, edges.len());
 
         let non_parent_edges = engine_state
-            .query()
+            .build_query()
             .select_from(engine_state.query_edges(c).as_vec())
             .without_component("Parent".into())
             .get();
@@ -352,7 +352,7 @@ mod querying_testing {
             .unwrap();
 
         let mut q1 = engine_state
-            .query()
+            .build_query()
             .select_from(engine_state.query_edges(a).as_vec())
             .without_component("Parent".into())
             .get_sources()
@@ -362,7 +362,7 @@ mod querying_testing {
 
         let mut q2 = engine_state
             .query_edges(a)
-            .query()
+            .build_query()
             .without_component("Parent".into())
             .get_sources()
             .as_vec();

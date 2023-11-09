@@ -56,14 +56,14 @@ pub enum Tile {
 impl Index<&str> for Tile {
     type Output = DatatypeValue;
     fn index<'a>(&'a self, i: &str) -> &'a DatatypeValue {
-        println!("index data: {:?}", self.get_data());
+        //"index data: {:?}", self.get_data());
         self.get_data().fields.get(&i.into()).unwrap()
     }
 }
 
 impl IndexMut<&str> for Tile {
     fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut DatatypeValue {
-        println!("index data mut: {:?}", self.get_data_mut());
+       // println!("index data mut: {:?}", self.get_data_mut());
 
         self.get_data_mut().fields.get_mut(&i.into()).unwrap()
     }

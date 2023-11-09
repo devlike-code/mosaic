@@ -30,7 +30,7 @@ pub trait Parenting {
 impl Parenting for Arc<EngineState> {
     fn get_parenting_relation(&self, child: EntityId) -> Option<EntityId> {
         let it = self
-            .query()
+            .build_query()
             .with_target(child)
             .with_component("Parent".into())
             .get();
@@ -55,7 +55,7 @@ impl Parenting for Arc<EngineState> {
     fn get_children(&self, parent: EntityId) -> QueryIterator {
         (
             self,
-            self.query()
+            self.build_query()
                 .with_source(parent)
                 .with_component("Parent".into())
                 .get_targets()
@@ -222,8 +222,9 @@ mod parenting_testing {
         println!(
             "{:?}",
             engine_state
-                .query()
-                .select_from(engine_state.query_edges(a).as_vec())
+                .query_edges(a)
+                .build_query()
+                //.select_from(engine_state.query_edges(a).as_vec())
                 .no_parent_edges()
                 .get_sources()
         );
