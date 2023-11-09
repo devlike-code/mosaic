@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
+use crate::internals::{
+    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, S32,
+};
 
 #[derive(Clone)]
 /// A simple entities query connected to an engine state and applying one or more filters
@@ -142,17 +144,17 @@ impl Accessing for QueryIterator {
 
 #[cfg(test)]
 mod querying_testing {
-    use crate::internals::EngineState;
+    use crate::internals::{lifecycle::Lifecycle, EngineState};
 
     use super::Accessing;
 
     #[test]
     fn test_get_source() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Arrow: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let _c = engine_state.create_arrow(&a, &b, "Arrow".into(), vec![]);
 
         let iter = engine_state.query_access().with_source(a).get();
 
@@ -162,10 +164,10 @@ mod querying_testing {
     #[test]
     fn test_get_target() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Arrow: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let _c = engine_state.create_arrow(&a, &b, "Arrow".into(), vec![]);
 
         let iter = engine_state.query_access().with_target(b).get();
 
@@ -175,10 +177,10 @@ mod querying_testing {
     #[test]
     fn test_get_component() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Arrow: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let _c = engine_state.create_arrow(&a, &b, "Arrow".into(), vec![]);
 
         let iter = engine_state
             .query_access()

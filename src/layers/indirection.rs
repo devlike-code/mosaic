@@ -3,8 +3,13 @@ use std::{collections::HashSet, sync::Arc};
 use array_tool::vec::{Intersect, Uniq};
 use itertools::Itertools;
 
-use super::accessing::{Accessing, QueryAccess};
-use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
+use super::{
+    accessing::{Accessing, QueryAccess},
+    tiling::Tiling,
+};
+use crate::internals::{
+    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, Tile, S32,
+};
 
 /// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect {
@@ -55,7 +60,7 @@ impl QueryIndirect {
     pub fn no_properties(mut self) -> Self {
         let engine = Arc::clone(&self.query.engine);
         let filter: Box<dyn FnMut(&EntityId) -> bool> =
-            Box::new(move |i: &EntityId| !engine.is_property(*i));
+            Box::new(move |i: &EntityId| !engine.is_property(i));
 
         self.filters.push(filter);
         self
@@ -65,14 +70,14 @@ impl QueryIndirect {
     pub fn get(mut self) -> QueryIterator {
         let mut included = self.select.or(Some(self.query.get().as_vec())).unwrap();
         for incl in self.include_components {
-            let comp = self.query.engine.get_with_property(incl);
-            included = included.intersect(comp);
+            let comp = self.query.engine.get_entities_with_property(incl);
+            included = included.intersect(comp.as_vec());
         }
 
         let mut result: HashSet<&usize> = HashSet::from_iter(included.iter().clone());
         for excl in self.exclude_components {
             for &entity in &included {
-                if self.query.engine.has_property(entity, excl) {
+                if self.query.engine.has_property(&entity, excl) {
                     result.remove(&entity);
                 }
             }
@@ -101,37 +106,34 @@ type ComponentName = S32;
 
 /// This is an indirection layer that is built on top of the internals.
 pub trait Indirection {
+    type Entity;
     /// Gets the source of a bricked entity
-    fn get_source(&self, id: EntityId) -> Option<EntityId>;
+    fn get_source(&self, id: &Self::Entity) -> Option<Self::Entity>;
     /// Gets the target of a bricked entity
-    fn get_target(&self, id: EntityId) -> Option<EntityId>;
+    fn get_target(&self, id: &Self::Entity) -> Option<Self::Entity>;
     /// Gets an iterator to the sources of an input iterator
     fn get_sources(&self, iter: QueryIterator) -> QueryIterator;
     /// Gets an iterator to the targets of an input iterator
     fn get_targets(&self, iter: QueryIterator) -> QueryIterator;
     /// Returns whether this arrow is an incoming property (defined by X: X -> Y)
-    fn is_incoming_property(&self, id: EntityId) -> bool;
+    fn is_incoming_property(&self, id: &Self::Entity) -> bool;
     /// Returns whether this arrow is an outgoing property (defined by X: Y -> X)
-    fn is_outgoing_property(&self, id: EntityId) -> bool;
+    fn is_outgoing_property(&self, id: &Self::Entity) -> bool;
     /// Gets all the entities that either directly have a component, or have it passed through
     /// a property (both incoming and outgoing)
-    fn get_with_property(&self, component: S32) -> Vec<EntityId>;
+    fn get_entities_with_property(&self, component: S32) -> QueryIterator;
     /// Query one or multiple components in inclusion or exclusion
     fn build_query(&self) -> QueryIndirect;
-
     /// Checks whether the given entity is either an incoming or outgoing property
-    fn is_property(&self, id: EntityId) -> bool {
-        self.is_incoming_property(id) || self.is_outgoing_property(id)
-    }
-
+    fn is_property(&self, id: &Self::Entity) -> bool;
     /// Checks whether the given entity has a component both directly or indirectly
-    fn has_property(&self, id: EntityId, component: S32) -> bool {
-        self.get_with_property(component).contains(&id)
-    }
+    fn has_property(&self, id: &Self::Entity, component: S32) -> bool;
 }
 
 impl Indirection for Arc<EngineState> {
-    fn is_incoming_property(&self, id: EntityId) -> bool {
+    type Entity = EntityId;
+
+    fn is_incoming_property(&self, id: &EntityId) -> bool {
         let storage = self.entity_brick_storage.lock().unwrap();
         let maybe_brick = storage.get(&id);
         if let Some(brick) = maybe_brick {
@@ -141,7 +143,7 @@ impl Indirection for Arc<EngineState> {
         }
     }
 
-    fn is_outgoing_property(&self, id: EntityId) -> bool {
+    fn is_outgoing_property(&self, id: &EntityId) -> bool {
         let storage = self.entity_brick_storage.lock().unwrap();
         let maybe_brick = storage.get(&id);
         if let Some(brick) = maybe_brick {
@@ -151,7 +153,7 @@ impl Indirection for Arc<EngineState> {
         }
     }
 
-    fn get_source(&self, id: EntityId) -> Option<EntityId> {
+    fn get_source(&self, id: &EntityId) -> Option<EntityId> {
         let storage = self.entity_brick_storage.lock().unwrap();
         let maybe_brick = storage.get(&id);
         if let Some(brick) = maybe_brick {
@@ -161,7 +163,7 @@ impl Indirection for Arc<EngineState> {
         }
     }
 
-    fn get_target(&self, id: EntityId) -> Option<EntityId> {
+    fn get_target(&self, id: &EntityId) -> Option<EntityId> {
         let storage = self.entity_brick_storage.lock().unwrap();
         let maybe_brick = storage.get(&id);
         if let Some(brick) = maybe_brick {
@@ -175,7 +177,7 @@ impl Indirection for Arc<EngineState> {
         (
             self,
             iter.into_iter()
-                .flat_map(|&e| self.get_source(e))
+                .flat_map(|e| self.get_source(e))
                 .collect_vec(),
         )
             .into()
@@ -185,28 +187,32 @@ impl Indirection for Arc<EngineState> {
         (
             self,
             iter.into_iter()
-                .flat_map(|&e| self.get_target(e))
+                .flat_map(|e| self.get_target(e))
                 .collect_vec(),
         )
             .into()
     }
 
-    fn get_with_property(&self, component: S32) -> Vec<EntityId> {
-        self.query_access()
-            .with_component(component)
-            .get()
-            .into_iter()
-            .map(|&e| {
-                if self.is_incoming_property(e) {
-                    self.get_target(e).unwrap()
-                } else if self.is_outgoing_property(e) {
-                    self.get_source(e).unwrap()
-                } else {
-                    e
-                }
-            })
-            .collect::<Vec<_>>()
-            .unique()
+    fn get_entities_with_property(&self, component: S32) -> QueryIterator {
+        (
+            self,
+            self.query_access()
+                .with_component(component)
+                .get()
+                .into_iter()
+                .map(|e| {
+                    if self.is_incoming_property(e) {
+                        self.get_target(e).unwrap()
+                    } else if self.is_outgoing_property(e) {
+                        self.get_source(e).unwrap()
+                    } else {
+                        *e
+                    }
+                })
+                .collect::<Vec<_>>()
+                .unique(),
+        )
+            .into()
     }
 
     fn build_query(&self) -> QueryIndirect {
@@ -218,14 +224,81 @@ impl Indirection for Arc<EngineState> {
             filters: vec![],
         }
     }
+
+    fn is_property(&self, id: &Self::Entity) -> bool {
+        self.is_incoming_property(id) || self.is_outgoing_property(id)
+    }
+
+    fn has_property(&self, id: &Self::Entity, component: S32) -> bool {
+        self.get_entities_with_property(component).contains(&id)
+    }
+}
+
+impl Indirection for Arc<MosaicEngine> {
+    type Entity = Tile;
+
+    fn get_source(&self, tile: &Self::Entity) -> Option<Tile> {
+        self.engine_state
+            .get_source(&tile.id())
+            .and_then(|t| self.get_tile(t))
+    }
+
+    fn get_target(&self, tile: &Self::Entity) -> Option<Self::Entity> {
+        self.engine_state
+            .get_target(&tile.id())
+            .and_then(|t| self.get_tile(t))
+    }
+
+    fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
+        self.engine_state.get_sources(iter)
+    }
+
+    fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
+        self.engine_state.get_targets(iter)
+    }
+
+    fn is_incoming_property(&self, tile: &Self::Entity) -> bool {
+        self.get_tile(tile.id())
+            .map(|b| b.is_descriptor())
+            .unwrap_or(false)
+    }
+
+    fn is_outgoing_property(&self, tile: &Self::Entity) -> bool {
+        self.get_tile(tile.id())
+            .map(|b| b.is_extension())
+            .unwrap_or(false)
+    }
+
+    fn get_entities_with_property(&self, component: S32) -> QueryIterator {
+        (
+            Arc::clone(&self.engine_state),
+            self.engine_state
+                .get_entities_with_property(component)
+                .as_vec(),
+        )
+            .into()
+    }
+
+    fn is_property(&self, tile: &Self::Entity) -> bool {
+        tile.is_property()
+    }
+
+    fn has_property(&self, tile: &Self::Entity, component: S32) -> bool {
+        self.engine_state.has_property(&tile.id(), component)
+    }
+
+    fn build_query(&self) -> QueryIndirect {
+        self.engine_state.build_query()
+    }
 }
 
 impl Indirection for QueryIterator {
-    fn get_source(&self, id: EntityId) -> Option<EntityId> {
+    type Entity = EntityId;
+    fn get_source(&self, id: &EntityId) -> Option<EntityId> {
         self.engine.get_source(id)
     }
 
-    fn get_target(&self, id: EntityId) -> Option<EntityId> {
+    fn get_target(&self, id: &EntityId) -> Option<EntityId> {
         self.engine.get_target(id)
     }
 
@@ -237,20 +310,28 @@ impl Indirection for QueryIterator {
         self.engine.get_targets(iter)
     }
 
-    fn is_incoming_property(&self, id: EntityId) -> bool {
+    fn is_incoming_property(&self, id: &EntityId) -> bool {
         self.engine.is_incoming_property(id)
     }
 
-    fn is_outgoing_property(&self, id: EntityId) -> bool {
+    fn is_outgoing_property(&self, id: &EntityId) -> bool {
         self.engine.is_outgoing_property(id)
     }
 
-    fn get_with_property(&self, component: S32) -> Vec<EntityId> {
-        self.engine.get_with_property(component)
+    fn get_entities_with_property(&self, component: S32) -> QueryIterator {
+        self.engine.get_entities_with_property(component)
     }
 
     fn build_query(&self) -> QueryIndirect {
         self.engine.build_query().select_from(self.elements.clone())
+    }
+
+    fn is_property(&self, id: &Self::Entity) -> bool {
+        self.engine.is_property(id)
+    }
+
+    fn has_property(&self, id: &Self::Entity, component: S32) -> bool {
+        self.engine.has_property(id, component)
     }
 }
 
@@ -263,53 +344,57 @@ mod indirection_testing {
     use std::sync::Arc;
 
     use crate::{
-        internals::{EngineState, EntityId},
+        internals::{lifecycle::Lifecycle, EngineState, EntityId},
         layers::indirection::Indirection,
     };
 
     #[test]
     fn test_get_source() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Arrow: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
         let c = engine_state
-            .create_arrow(a, b, "Arrow".into(), vec![])
+            .create_arrow(&a, &b, "Arrow".into(), vec![])
             .unwrap();
-        assert_eq!(Some(a), engine_state.get_source(a));
-        assert_eq!(Some(b), engine_state.get_source(b));
-        assert_eq!(Some(a), engine_state.get_source(c));
+        assert_eq!(Some(a), engine_state.get_source(&a));
+        assert_eq!(Some(b), engine_state.get_source(&b));
+        assert_eq!(Some(a), engine_state.get_source(&c));
     }
 
     #[test]
     fn test_get_target() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Arrow: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Arrow: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
         let c = engine_state
-            .create_arrow(a, b, "Arrow".into(), vec![])
+            .create_arrow(&a, &b, "Arrow".into(), vec![])
             .unwrap();
-        assert_eq!(Some(a), engine_state.get_target(a));
-        assert_eq!(Some(b), engine_state.get_target(b));
-        assert_eq!(Some(b), engine_state.get_target(c));
+        assert_eq!(Some(a), engine_state.get_target(&a));
+        assert_eq!(Some(b), engine_state.get_target(&b));
+        assert_eq!(Some(b), engine_state.get_target(&c));
     }
 
     #[test]
-    fn test_get_with_property() {
+    fn test_get_entities_with_property() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Foo: void; Data: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Foo: void; Data: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
         let c = engine_state
-            .create_arrow(a, b, "Foo".into(), vec![])
+            .create_arrow(&a, &b, "Foo".into(), vec![])
             .unwrap();
-        let _d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]); // c
+        let _d = engine_state
+            .add_descriptor(&c, "Data".into(), vec![])
+            .unwrap();
         let e = engine_state
-            .create_arrow(a, b, "Data".into(), vec![])
+            .create_arrow(&a, &b, "Data".into(), vec![])
             .unwrap(); // e
-        let _f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]); // a
-        let data = engine_state.get_with_property("Data".into());
+        let _f = engine_state
+            .add_descriptor(&a, "Data".into(), vec![])
+            .unwrap();
+        let data = engine_state.get_entities_with_property("Data".into());
         assert_eq!(3, data.len());
         assert!(data.contains(&a));
         assert!(data.contains(&c));
@@ -318,24 +403,28 @@ mod indirection_testing {
 
     fn setup_query_tests() -> ([EntityId; 7], Arc<EngineState>) {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Arrow: void; Data: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Arrow: void; Data: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
         // C : A ---Arrow---> B
         let c = engine_state
-            .create_arrow(a, b, "Arrow".into(), vec![])
+            .create_arrow(&a, &b, "Arrow".into(), vec![])
             .unwrap();
         // D : D ---Data----> C
-        let d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]);
+        let d = engine_state
+            .add_descriptor(&c, "Data".into(), vec![])
+            .unwrap();
         // E : A ---Data----> B
         let e = engine_state
-            .create_arrow(a, c, "Data".into(), vec![])
+            .create_arrow(&a, &c, "Data".into(), vec![])
             .unwrap();
         // F : F ---Data----> A
-        let f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]);
+        let f = engine_state
+            .add_descriptor(&a, "Data".into(), vec![])
+            .unwrap();
         // G : E ---Data----> C
         let g = engine_state
-            .create_arrow(e, c, "Data".into(), vec![])
+            .create_arrow(&e, &c, "Data".into(), vec![])
             .unwrap();
         ([a, b, c, d, e, f, g], engine_state)
     }
@@ -434,18 +523,18 @@ mod indirection_testing {
     #[test]
     fn test_query_join() {
         let engine_state = EngineState::new();
-        let _ = engine_state.add_component_types("Parent: void; Path: void;");
-        let a = engine_state.create_object_raw("Object".into(), vec![]);
-        let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let c = engine_state.create_object_raw("Object".into(), vec![]);
-        let d = engine_state.create_object_raw("Object".into(), vec![]);
-        let e = engine_state.create_object_raw("Object".into(), vec![]);
+        let _ = engine_state.add_component_types("Object: void; Parent: void; Path: void;");
+        let a = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let b = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let c = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let d = engine_state.create_object("Object".into(), vec![]).unwrap();
+        let e = engine_state.create_object("Object".into(), vec![]).unwrap();
 
-        let _ab = engine_state.create_arrow(a, b, "Parent".into(), vec![]);
-        let _bc = engine_state.create_arrow(b, c, "Path".into(), vec![]);
-        let _ad = engine_state.create_arrow(a, d, "Parent".into(), vec![]);
-        let _cd = engine_state.create_arrow(c, d, "Path".into(), vec![]);
-        let _de = engine_state.create_arrow(d, e, "Parent".into(), vec![]);
+        let _ab = engine_state.create_arrow(&a, &b, "Parent".into(), vec![]);
+        let _bc = engine_state.create_arrow(&b, &c, "Path".into(), vec![]);
+        let _ad = engine_state.create_arrow(&a, &d, "Parent".into(), vec![]);
+        let _cd = engine_state.create_arrow(&c, &d, "Path".into(), vec![]);
+        let _de = engine_state.create_arrow(&d, &e, "Parent".into(), vec![]);
 
         // A ---Parent----> ? -------> C
 

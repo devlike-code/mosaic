@@ -31,11 +31,11 @@ pub trait Traversing {
 
 impl Traversing for Arc<EngineState> {
     fn out_degree(&self, src: EntityId) -> usize {
-        self.query_forward_neighbors(src).len()
+        self.get_forward_neighbors(src).len()
     }
 
     fn in_degree(&self, src: EntityId) -> usize {
-        self.query_backward_neighbors(src).len()
+        self.get_backward_neighbors(src).len()
     }
 
     fn reach_forward(&self, src: EntityId) -> Vec<QueryIterator> {
@@ -94,9 +94,9 @@ impl Traversing for Arc<EngineState> {
                 history.push(current_node);
 
                 let neighbors = match traversal {
-                    Traversal::Forward => engine_state.query_forward_neighbors(current_node),
-                    Traversal::Backward => engine_state.query_backward_neighbors(current_node),
-                    Traversal::Both => engine_state.query_neighbors(current_node),
+                    Traversal::Forward => engine_state.get_forward_neighbors(current_node),
+                    Traversal::Backward => engine_state.get_backward_neighbors(current_node),
+                    Traversal::Both => engine_state.get_neighbors(current_node),
                 }
                 .into_iter()
                 .cloned()
@@ -148,7 +148,10 @@ impl Traversing for Arc<EngineState> {
 }
 #[cfg(test)]
 mod traversing_tests {
-    use crate::{internals::engine_state::EngineState, layers::traversing::Traversing};
+    use crate::{
+        internals::{engine_state::EngineState, lifecycle::Lifecycle},
+        layers::traversing::Traversing,
+    };
 
     #[test]
     fn test_simple_reachability() {
@@ -168,16 +171,16 @@ mod traversing_tests {
 
         */
         let x = engine_state
-            .create_arrow(a, b, "Arrow".into(), vec![])
+            .create_arrow(&a, &b, "Arrow".into(), vec![])
             .unwrap();
         let y = engine_state
-            .create_arrow(b, d, "Arrow".into(), vec![])
+            .create_arrow(&b, &d, "Arrow".into(), vec![])
             .unwrap();
         let v = engine_state
-            .create_arrow(b, d, "Arrow".into(), vec![])
+            .create_arrow(&b, &d, "Arrow".into(), vec![])
             .unwrap();
         let z = engine_state
-            .create_arrow(d, e, "Arrow".into(), vec![])
+            .create_arrow(&d, &e, "Arrow".into(), vec![])
             .unwrap();
         println!("{a} -- {x} ---> {b} ----- {y}");
         println!("            |       |");

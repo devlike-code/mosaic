@@ -4,13 +4,21 @@ use array_tool::vec::{Intersect, Uniq};
 
 use crate::internals::EntityId;
 
-use super::EngineState;
+use super::{mosaic_engine::MosaicEngine, EngineState};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 /// A query iterator is a thin wrapper around a vector of entity identifiers
 pub struct QueryIterator {
     pub(crate) engine: Arc<EngineState>,
     pub(crate) elements: Vec<EntityId>,
+}
+
+impl std::fmt::Debug for QueryIterator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryIterator")
+            .field("elements", &self.elements)
+            .finish()
+    }
 }
 
 impl Into<QueryIterator> for (&Arc<EngineState>, Vec<EntityId>) {

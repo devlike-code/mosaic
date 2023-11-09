@@ -43,7 +43,7 @@ pub fn validate_frame_is_populated(
     parent: EntityId,
     engine_state: Arc<EngineState>,
 ) -> Result<(), String> {
-    let children = engine_state.get_children(parent);
+    let children = engine_state.get_children(&parent);
     if children.len() > 0 {
         Ok(())
     } else {

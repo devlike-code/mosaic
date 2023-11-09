@@ -197,7 +197,7 @@ pub type B256 = fstr::FStr<256>;
 
 #[derive(Debug, PartialEq, Clone)]
 /// A datatype value that holds the type and value for some variable
-pub enum DatatypeValue {
+pub enum Value {
     /// A void type of size 0 used as markers and tags
     VOID,
     /// Entity ID - equal to U32 but will be affected by frame transitions
@@ -220,20 +220,20 @@ pub enum DatatypeValue {
     B256(B256),
 }
 
-impl DatatypeValue {
+impl Value {
     /// Gets the datatype from the datatype and value pair
     pub fn get_datatype(&self) -> Datatype {
         match self {
-            DatatypeValue::VOID => Datatype::VOID,
-            DatatypeValue::EID(_) => Datatype::EID,
-            DatatypeValue::I32(_) => Datatype::I32,
-            DatatypeValue::I64(_) => Datatype::I64,
-            DatatypeValue::U32(_) => Datatype::U32,
-            DatatypeValue::U64(_) => Datatype::U64,
-            DatatypeValue::F32(_) => Datatype::F32,
-            DatatypeValue::F64(_) => Datatype::F64,
-            DatatypeValue::S32(_) => Datatype::S32,
-            DatatypeValue::B256(_) => Datatype::B256,
+            Value::VOID => Datatype::VOID,
+            Value::EID(_) => Datatype::EID,
+            Value::I32(_) => Datatype::I32,
+            Value::I64(_) => Datatype::I64,
+            Value::U32(_) => Datatype::U32,
+            Value::U64(_) => Datatype::U64,
+            Value::F32(_) => Datatype::F32,
+            Value::F64(_) => Datatype::F64,
+            Value::S32(_) => Datatype::S32,
+            Value::B256(_) => Datatype::B256,
         }
     }
 }
@@ -244,9 +244,11 @@ impl DatatypeValue {
 
 #[cfg(test)]
 mod datatypes_testing {
-    use crate::internals::{datatypes::ComponentField, engine_state::EngineState};
+    use crate::internals::{
+        datatypes::ComponentField, engine_state::EngineState, lifecycle::Lifecycle,
+    };
 
-    use super::{try_read_component_type, ComponentType, Datatype, S32};
+    use super::{try_read_component_type, ComponentType, Datatype, Value, S32};
 
     #[test]
     fn test_try_read_alias() {
@@ -305,5 +307,18 @@ mod datatypes_testing {
             Ok(component_type),
             try_read_component_type(&engine_state, input.as_slice())
         );
+    }
+
+    #[test]
+    fn test_large_numbers() {
+        let engine_state = EngineState::new();
+        engine_state.add_component_types("Num : u32;").unwrap();
+
+        let a = engine_state
+            .create_object("Num".into(), vec![Value::U32(4294967294)])
+            .unwrap();
+
+        let brick = engine_state.get_brick(a).unwrap();
+        assert_eq!(vec![255u8, 255u8, 255u8, 254u8], brick.data);
     }
 }

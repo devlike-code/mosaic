@@ -2,7 +2,7 @@ use std::{sync::{Mutex, Arc}, collections::HashMap, ops::Range};
 
 use itertools::Itertools;
 
-use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, component_grammar::ComponentParser, Datatype, ComponentField, DatatypeValue, ToByteArray, Bytesize};
+use super::{datatypes::{S32 as ComponentName, ComponentType, EntityId}, sparse_set::SparseSet, component_grammar::ComponentParser, Datatype, ComponentField, Value, ToByteArray, Bytesize, lifecycle::Lifecycle};
 
 type FieldName = ComponentName;
 
@@ -375,14 +375,14 @@ impl EngineState {
     }
 
     /// Check whether entity exists
-    pub fn entity_exists(&self, id: EntityId) -> bool {
+    pub(crate) fn entity_exists(&self, id: EntityId) -> bool {
         self.entity_brick_storage.lock().unwrap().contains_key(&id)
     }
 
-    fn unify_fields_and_values_into_data(&self, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<Vec<Vec<u8>>, (ComponentField, DatatypeValue)> {
+    fn unify_fields_and_values_into_data(&self, component: ComponentName, fields: Vec<Value>) -> Result<Vec<Vec<u8>>, (ComponentField, Value)> {
         let components = self.component_type_index.lock().unwrap();
         let component_type = components.get(&component)
-            .ok_or((ComponentField { name: "Error".into(), datatype: Datatype::VOID }, DatatypeValue::VOID))?.clone();
+            .ok_or((ComponentField { name: format!("<{}>", component).as_str().into(), datatype: Datatype::VOID }, Value::VOID))?.clone();
         let mut has_error = None;
         let fields = component_type.get_fields().into_iter().zip(fields)
             .map(|(field, datatype_value)| {
@@ -403,7 +403,7 @@ impl EngineState {
 
     /// Creates a new entity that is categorized as an object (a self-loop from itself to itself)
     /// POST-CONDITION (object-definition): brick.id == brick.source && brick.source == brick.target
-    pub fn create_object_raw(&self, component: ComponentName, data: Vec<u8>) -> EntityId {
+    pub(crate) fn create_object_raw(&self, component: ComponentName, data: Vec<u8>) -> EntityId {
         let index = self.get_next_entity_id();
         let brick = DataBrick{ id: index, source: index, target: index, component, data };
         self.add_entity(brick);
@@ -411,20 +411,8 @@ impl EngineState {
         index
     }
 
-    /// Creates a new entity that is categorized as an object (a self-loop from itself to itself)
-    /// POST-CONDITION (object-definition): brick.id == brick.source && brick.source == brick.target
-    pub fn create_object(&self, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let matching = self.unify_fields_and_values_into_data(component, fields)
-            .map_err(|(cf, d)| 
-                format!("[Error][engine_state.rs][create_object] Cannot unify field {} (type {:?}) with value {:?} while creating object",
-                    cf.name, cf.datatype, d))?;
-        
-        let data = matching.concat();
-        Ok(self.create_object_raw(component, data))
-    }
-
     /// Destroy an object entity
-    pub fn destroy_object(&self, id: EntityId) {
+    pub(crate) fn destroy_object(&self, id: EntityId) {
         self.remove_entity(id);
     }
 
@@ -439,21 +427,8 @@ impl EngineState {
         index
     }
 
-    /// Creates a new entity that is categorized as an arrow (including non-object self-loop arrows)
-    /// Arrows are structural by design and carry a single defining property with them
-    /// POST-CONDITION (arrow-definition): brick.id != brick.source && brick.id != brick.target
-    pub fn create_arrow(&self, source: EntityId, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let matching = self.unify_fields_and_values_into_data(component, fields)
-            .map_err(|(cf, d)| 
-                format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
-                    cf.name, cf.datatype, d, source, target))?;
-        
-        let data = matching.concat();
-        Ok(self.create_arrow_raw(source, target, component, data))
-    }
-
     /// Destroy an arrow entity
-    pub fn destroy_arrow(&self, id: EntityId) {
+    pub(crate) fn destroy_arrow(&self, id: EntityId) {
         self.remove_entity(id);
     }
 
@@ -466,19 +441,6 @@ impl EngineState {
         self.add_entity(brick);
         
         index
-    }
-
-    /// Creates an entity that is categorized as an incoming property, one that has its own entity id as a source
-    /// An incoming property `p` of a target `t` looks like this: `p : p -> t`, the property is incoming into the target
-    /// POST-CONDITION (incoming-property-definition): brick.id == brick.source && brick.id != brick.target
-    pub fn add_incoming_property(&self, target: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
-        let matching = self.unify_fields_and_values_into_data(component, fields)
-        .map_err(|(cf, d)| 
-            format!("[Error][engine_state.rs][add_incoming_property] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
-                cf.name, cf.datatype, d, target))?;
-    
-        let data = matching.concat();
-        Ok(self.add_incoming_property_raw(target, component, data))
     }
 
     /// Creates an entity that is categorized as an outgoing property, one that has its own entity id as a target
@@ -495,7 +457,7 @@ impl EngineState {
     /// Creates an entity that is categorized as an outgoing property, one that has its own entity id as a target
     /// An outgoing property `p` of a target `t` looks like this: `p : t -> p`, the property is outgoing from the target
     /// POST-CONDITION (outgoing-property-definition): brick.id == brick.target && brick.id != brick.source
-    pub fn add_outgoing_property(&self, source: EntityId, component: ComponentName, fields: Vec<DatatypeValue>) -> Result<EntityId, String> {
+    pub(crate) fn add_outgoing_property(&self, source: EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
         let matching = self.unify_fields_and_values_into_data(component, fields)
         .map_err(|(cf, d)| 
             format!("[Error][engine_state.rs][add_outgoing_property] Cannot unify field {} (type {:?}) with value {:?} while creating outgoing property {} -> X",
@@ -506,18 +468,51 @@ impl EngineState {
     }
 
     /// Deletes a property entity
-    pub fn delete_property(&self, id: EntityId) {
+    pub(crate) fn delete_property(&self, id: EntityId) {
         self.remove_entity(id);
     }
 }
 
+impl Lifecycle for Arc<EngineState> {
+    type Entity = EntityId;
+
+    fn create_object(&self, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values_into_data(component, fields)
+            .map_err(|(cf, d)| 
+                format!("[Error][engine_state.rs][create_object] Cannot unify field {} (type {:?}) with value {:?} while creating object",
+                    cf.name, cf.datatype, d))?;
+        
+        let data = matching.concat();
+        Ok(self.create_object_raw(component, data))
+    }
+
+    fn create_arrow(&self, source: &EntityId, target: &EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values_into_data(component, fields)
+            .map_err(|(cf, d)| 
+                format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
+                    cf.name, cf.datatype, d, source, target))?;
+        
+        let data = matching.concat();
+        Ok(self.create_arrow_raw(*source, *target, component, data))
+    }
+
+    fn add_descriptor(&self, target: &EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values_into_data(component, fields)
+        .map_err(|(cf, d)| 
+            format!("[Error][engine_state.rs][add_incoming_property] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
+                cf.name, cf.datatype, d, target))?;
+    
+        let data = matching.concat();
+        Ok(self.add_incoming_property_raw(*target, component, data))
+    }
+}
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */
 
 #[cfg(test)]
 mod engine_state_testing {
-    use crate::internals::{datatypes::Datatype, ComponentField, DataBrick};
+    use crate::internals::{datatypes::Datatype, ComponentField, DataBrick, lifecycle::Lifecycle};
 
     use super::{ComponentType, EngineState};
 
@@ -683,7 +678,7 @@ mod engine_state_testing {
 
         let a = engine_state.create_object("Object".into(), vec![]).unwrap();
         let b = engine_state.create_object("Object".into(), vec![]).unwrap();
-        let ab = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
+        let ab = engine_state.create_arrow(&a, &b, "Arrow".into(), vec![]).unwrap();
 
         assert!(engine_state.entity_exists(a));
         assert!(engine_state.entity_exists(b));

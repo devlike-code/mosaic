@@ -6,46 +6,57 @@ use std::{
 
 use array_tool::vec::Uniq;
 use fstr::FStr;
+use itertools::Itertools;
+
+use crate::layers::{indirection::Indirection, querying::Querying, tiling::Tiling};
 
 use super::{
     datatypes::{EntityId, S32},
-    slice_into_array, ComponentType, DataBrick, Datatype, DatatypeValue, EngineState, SparseSet,
+    lifecycle::Lifecycle,
+    mosaic_engine::MosaicEngine,
+    slice_into_array, ComponentType, DataBrick, Datatype, EngineState, Value,
 };
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TileData {
     component: S32,
-    pub(crate) fields: HashMap<S32, DatatypeValue>,
+    pub(crate) fields: HashMap<S32, Value>,
 }
 
 #[derive(PartialEq, Clone)]
 pub enum Tile {
     Object {
+        mosaic: Arc<MosaicEngine>,
         id: EntityId,
         data: TileData,
     },
     Arrow {
+        mosaic: Arc<MosaicEngine>,
         id: EntityId,
         source: EntityId,
         target: EntityId,
         data: TileData,
     },
     Loop {
+        mosaic: Arc<MosaicEngine>,
         id: EntityId,
         origin: EntityId,
         data: TileData,
     },
     Descriptor {
+        mosaic: Arc<MosaicEngine>,
         id: EntityId,
         target: EntityId,
         data: TileData,
     },
     Extension {
+        mosaic: Arc<MosaicEngine>,
         id: EntityId,
         origin: EntityId,
         data: TileData,
     },
     Backlink {
+        mosaic: Arc<MosaicEngine>,
         id: EntityId,
         source: EntityId,
         target: EntityId,
@@ -54,47 +65,20 @@ pub enum Tile {
 }
 
 impl Index<&str> for Tile {
-    type Output = DatatypeValue;
-    fn index<'a>(&'a self, i: &str) -> &'a DatatypeValue {
-        //"index data: {:?}", self.get_data());
+    type Output = Value;
+    fn index<'a>(&'a self, i: &str) -> &'a Value {
         self.get_data().fields.get(&i.into()).unwrap()
     }
 }
 
 impl IndexMut<&str> for Tile {
-    fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut DatatypeValue {
-       // println!("index data mut: {:?}", self.get_data_mut());
-
+    fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut Value {
         self.get_data_mut().fields.get_mut(&i.into()).unwrap()
     }
 }
 
 impl Tile {
-    pub fn is_arrow(&self) -> bool {
-        matches!(self, Tile::Arrow { .. })
-    }
-    
-    pub fn is_object(&self) -> bool {
-        matches!(self, Tile::Object { .. })
-    }
-
-    pub fn is_loop(&self) -> bool {
-        matches!(self, Tile::Loop { .. })
-    }
-
-    pub fn is_descriptor(&self) -> bool {
-        matches!(self, Tile::Descriptor { .. })
-    }
-
-    pub fn is_extension(&self) -> bool {
-        matches!(self, Tile::Extension { .. })
-    }
-
-    pub fn is_property(&self) -> bool {
-        self.is_descriptor() | self.is_extension()
-    }
-
-    pub fn set_field(&mut self, field: S32, field_data: DatatypeValue) {
+    pub fn set_field(&mut self, field: S32, field_data: Value) {
         self.get_data_mut().fields.insert(field, field_data);
     }
 
@@ -113,16 +97,16 @@ impl Tile {
             .fold(vec![], |old: Vec<u8>, value| {
                 let mut temp = old.clone();
                 let value_bytes: Vec<u8> = match value {
-                    DatatypeValue::VOID => vec![],
-                    DatatypeValue::I32(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::U32(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::F32(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::S32(x) => x.0.as_bytes().to_vec(),
-                    DatatypeValue::I64(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::U64(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::F64(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::EID(x) => x.to_be_bytes().to_vec(),
-                    DatatypeValue::B256(x) => x.as_bytes().to_vec(),
+                    Value::VOID => vec![],
+                    Value::I32(x) => x.to_be_bytes().to_vec(),
+                    Value::U32(x) => x.to_be_bytes().to_vec(),
+                    Value::F32(x) => x.to_be_bytes().to_vec(),
+                    Value::S32(x) => x.0.as_bytes().to_vec(),
+                    Value::I64(x) => x.to_be_bytes().to_vec(),
+                    Value::U64(x) => x.to_be_bytes().to_vec(),
+                    Value::F64(x) => x.to_be_bytes().to_vec(),
+                    Value::EID(x) => x.to_be_bytes().to_vec(),
+                    Value::B256(x) => x.as_bytes().to_vec(),
                 };
                 temp.extend(value_bytes);
                 temp
@@ -131,6 +115,18 @@ impl Tile {
         //push cloned brick back to engine state
         Ok(brick.update(engine_state))
     }
+
+    pub fn add_descriptor(&self, component: S32, fields: Vec<Value>) {
+        self.mosaic()
+            .add_descriptor(self, component, fields)
+            .unwrap();
+    }
+
+    // pub fn add_extension(&self, component: S32, fields: Vec<Value>) {
+    //     self.mosaic()
+    //         .add_extension(self, component, fields)
+    //         .unwrap();
+    // }
 
     pub fn order(&self) -> usize {
         match self {
@@ -143,6 +139,17 @@ impl Tile {
         }
     }
 
+    pub fn mosaic(&self) -> Arc<MosaicEngine> {
+        Arc::clone(match self {
+            Tile::Object { mosaic, .. } => mosaic,
+            Tile::Loop { mosaic, .. } => mosaic,
+            Tile::Arrow { mosaic, .. } => mosaic,
+            Tile::Descriptor { mosaic, .. } => mosaic,
+            Tile::Extension { mosaic, .. } => mosaic,
+            Tile::Backlink { mosaic, .. } => mosaic,
+        })
+    }
+
     pub fn polarize_towards(self, e: EntityId) -> Self {
         match &self {
             Tile::Arrow {
@@ -150,11 +157,13 @@ impl Tile {
                 source,
                 target,
                 data,
+                ..
             } if e == *target => Tile::Backlink {
                 id: *id,
                 source: *source,
                 target: *target,
                 data: data.clone(),
+                mosaic: self.mosaic(),
             },
             _ => self,
         }
@@ -218,12 +227,56 @@ impl Tile {
             Tile::Backlink { source, target, .. } => (*source, *target),
         }
     }
+
+    pub fn is_arrow(&self) -> bool {
+        matches!(self, Tile::Arrow { .. })
+    }
+
+    pub fn is_object(&self) -> bool {
+        matches!(self, Tile::Object { .. })
+    }
+
+    pub fn is_loop(&self) -> bool {
+        matches!(self, Tile::Loop { .. })
+    }
+
+    pub fn is_descriptor(&self) -> bool {
+        matches!(self, Tile::Descriptor { .. })
+    }
+
+    pub fn is_extension(&self) -> bool {
+        matches!(self, Tile::Extension { .. })
+    }
+
+    pub fn is_property(&self) -> bool {
+        self.is_descriptor() | self.is_extension()
+    }
+
+    pub fn get_property(&self, component: S32) -> Option<Tile> {
+        self.get_properties(component).first().cloned()
+    }
+
+    pub fn get_properties(&self, component: S32) -> Vec<Tile> {
+        self.mosaic()
+            .get_properties(self.id())
+            .as_vec()
+            .into_iter()
+            .filter_map(|b| {
+                let tile = self.mosaic().get_tile(b).unwrap();
+                if tile.get_data().component == component {
+                    Some(tile)
+                } else {
+                    None
+                }
+            })
+            .collect_vec()
+    }
 }
 
 impl std::fmt::Debug for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Object { id, data } => f.write_fmt(format_args!(
+            Self::Object { id, data, .. } => f.write_fmt(format_args!(
                 "[ Object     | {}: {} -> {} | {} {:?} ]",
                 id, id, id, data.component, data.fields
             )),
@@ -232,6 +285,7 @@ impl std::fmt::Debug for Tile {
                 source,
                 target,
                 data,
+                ..
             } => f.write_fmt(format_args!(
                 "[ Arrow      | {}: {} -> {} | {} {:?} ]",
                 id, source, target, data.component, data.fields
@@ -241,11 +295,14 @@ impl std::fmt::Debug for Tile {
                 source,
                 target,
                 data,
+                ..
             } => f.write_fmt(format_args!(
                 "[ Backlink   | {}: {} <- {} | {} {:?} ]",
                 id, target, source, data.component, data.fields
             )),
-            Self::Loop { id, origin, data } => f.write_fmt(format_args!(
+            Self::Loop {
+                id, origin, data, ..
+            } => f.write_fmt(format_args!(
                 "[ Loop       | {}: {} -> {} | {} {:?} ]",
                 id, origin, origin, data.component, data.fields
             )),
@@ -253,11 +310,14 @@ impl std::fmt::Debug for Tile {
                 id,
                 target: origin,
                 data,
+                ..
             } => f.write_fmt(format_args!(
                 "[ Descriptor | {}: {} -> {} | {} {:?} ]",
                 id, id, origin, data.component, data.fields
             )),
-            Self::Extension { id, origin, data } => f.write_fmt(format_args!(
+            Self::Extension {
+                id, origin, data, ..
+            } => f.write_fmt(format_args!(
                 "[ Extension  | {}: {} -> {} | {} {:?} ]",
                 id, origin, id, data.component, data.fields
             )),
@@ -311,7 +371,7 @@ fn get_field_offset(
 fn create_fields_from_data(
     engine: &Arc<EngineState>,
     brick: DataBrick,
-) -> Result<HashMap<S32, DatatypeValue>, String> {
+) -> Result<HashMap<S32, Value>, String> {
     let component_type = engine.get_component_type(brick.component)?;
     let component_fields = component_type
         .get_fields()
@@ -330,34 +390,20 @@ fn create_fields_from_data(
         if let Some(offset) = field_offset {
             let field_data_raw = &brick.data[offset];
 
-            let value: DatatypeValue = match datatype {
-                Datatype::VOID => DatatypeValue::VOID,
+            let value: Value = match datatype {
+                Datatype::VOID => Value::VOID,
                 // COMP fields will disappear when the component is added to the engine state,
                 // so this situation should never arise. However, we'll leave a log here just in case.
-                Datatype::COMP(_) => DatatypeValue::VOID,
-                Datatype::I32 => {
-                    DatatypeValue::I32(i32::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::U32 => {
-                    DatatypeValue::U32(u32::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::F32 => {
-                    DatatypeValue::F32(f32::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::S32 => DatatypeValue::S32(field_data_raw.into()),
-                Datatype::I64 => {
-                    DatatypeValue::I64(i64::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::U64 => {
-                    DatatypeValue::U64(u64::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::F64 => {
-                    DatatypeValue::F64(f64::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::EID => {
-                    DatatypeValue::EID(usize::from_be_bytes(slice_into_array(field_data_raw)))
-                }
-                Datatype::B256 => DatatypeValue::B256(FStr::<256>::from_str_lossy(
+                Datatype::COMP(_) => Value::VOID,
+                Datatype::I32 => Value::I32(i32::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::U32 => Value::U32(u32::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::F32 => Value::F32(f32::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::S32 => Value::S32(field_data_raw.into()),
+                Datatype::I64 => Value::I64(i64::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::U64 => Value::U64(u64::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::F64 => Value::F64(f64::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::EID => Value::EID(usize::from_be_bytes(slice_into_array(field_data_raw))),
+                Datatype::B256 => Value::B256(FStr::<256>::from_str_lossy(
                     std::str::from_utf8(field_data_raw).unwrap(),
                     b'\0',
                 )),
@@ -372,16 +418,17 @@ fn create_fields_from_data(
                 value,
             );
         } else {
-            return Err(format!("[Error][mosaic.rs][create_fields_from_data] Cannot create field {} from component data - field missing in component {}.", field_name, component_type.name()));
+            return Err(format!("[Error][mosaic_tiles.rs][create_fields_from_data] Cannot create field {} from component data - field missing in component {}.", field_name, component_type.name()));
         }
     }
 
     Ok(result)
 }
 
-impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
-    fn from((engine, brick): (&Arc<EngineState>, &DataBrick)) -> Self {
-        let fields = create_fields_from_data(engine, brick.clone()).unwrap();
+impl From<(&Arc<MosaicEngine>, &DataBrick)> for Tile {
+    fn from((mosaic, brick): (&Arc<MosaicEngine>, &DataBrick)) -> Self {
+        let fields = create_fields_from_data(&mosaic.engine_state, brick.clone()).unwrap();
+
         match (brick.id, brick.source, brick.target) {
             // ID : ID -> ID
             (id, src, tgt) if id == src && src == tgt => Self::Object {
@@ -390,6 +437,7 @@ impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
                     component: brick.component,
                     fields,
                 },
+                mosaic: Arc::clone(mosaic),
             },
 
             // ID : ID -> TGT
@@ -400,6 +448,7 @@ impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
                     component: brick.component,
                     fields,
                 },
+                mosaic: Arc::clone(mosaic),
             },
 
             // ID : SRC -> ID
@@ -410,6 +459,7 @@ impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
                     component: brick.component,
                     fields,
                 },
+                mosaic: Arc::clone(mosaic),
             },
 
             // ID : ID' -> ID'
@@ -420,6 +470,7 @@ impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
                     component: brick.component,
                     fields,
                 },
+                mosaic: Arc::clone(mosaic),
             },
 
             // ID : SRC -> TGT
@@ -431,41 +482,20 @@ impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
                     component: brick.component,
                     fields,
                 },
+                mosaic: Arc::clone(mosaic),
             },
         }
     }
 }
 
-pub struct MosaicEngine {
-    pub(crate) engine_state: Arc<EngineState>,
-
-    pub(crate) component_block_per_main_tile_index: HashMap<(EntityId, ComponentType), SparseSet>,
-}
-
-pub trait MosaicEngineExtension {
-    fn register(&self, engine_state: &EngineState);
-}
-
-impl Default for MosaicEngine {
-    fn default() -> Self {
-        let engine_state = EngineState::new();
-        engine_state
-            .add_component_types("Object: void; Arrow: void; Label: s32; String: b256;")
-            .unwrap();
-        engine_state
-            .add_component_types("Position: product { x: u32, y: u32 };")
-            .unwrap();
-        engine_state.add_component_types("Parent: void;").unwrap();
-        Self {
-            engine_state,
-            component_block_per_main_tile_index: Default::default(),
+impl From<(Arc<MosaicEngine>, Vec<EntityId>)> for Block {
+    fn from((mosaic, entities): (Arc<MosaicEngine>, Vec<EntityId>)) -> Self {
+        Block {
+            tiles: entities
+                .into_iter()
+                .flat_map(|e| mosaic.get_tile(e))
+                .collect_vec(),
         }
-    }
-}
-
-impl MosaicEngine {
-    fn register_extension<E: MosaicEngineExtension>(&self, extension: E) {
-        extension.register(&self.engine_state);
     }
 }
 
@@ -488,7 +518,7 @@ mod mosaic_testing {
     }
 
     #[test]
-    fn hash_of_a() {
+    fn test_hash_of_a() {
         let mut hasher = DefaultHasher::new();
         let a = A {
             a: b'c',
