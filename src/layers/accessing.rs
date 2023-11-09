@@ -1,23 +1,22 @@
+use std::sync::Arc;
 
-use crate::internals::{EntityId, S32, DataBrick, EngineState};
-
-use super::query_iterator::QueryIterator;
+use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
 
 #[derive(Clone)]
 /// A simple entities query connected to an engine state and applying one or more filters
-pub struct QueryAccess<'a> {
-    pub(crate) engine: &'a EngineState,
+pub struct QueryAccess {
+    pub(crate) engine: Arc<EngineState>,
     source: Option<EntityId>,
     target: Option<EntityId>,
     component: Option<S32>,
 }
 
-impl<'a> QueryAccess<'a> {
-    pub fn new(engine: &'a EngineState) -> QueryAccess<'a> {
-        QueryAccess { 
-            engine, 
-            source: None, 
-            target: None, 
+impl QueryAccess {
+    pub fn new(engine: Arc<EngineState>) -> QueryAccess {
+        QueryAccess {
+            engine: Arc::clone(&engine),
+            source: None,
+            target: None,
             component: None,
         }
     }
@@ -30,7 +29,7 @@ impl<'a> QueryAccess<'a> {
 
     #[allow(dead_code)]
     pub fn with_target(mut self, target: EntityId) -> Self {
-        self.target = Some(target);        
+        self.target = Some(target);
         self
     }
 
@@ -41,50 +40,99 @@ impl<'a> QueryAccess<'a> {
     }
 
     pub fn get(&self) -> QueryIterator {
-        match (self.source, self.target, self.component) {
-            (None, None, None) => 
-                self.engine.entity_brick_storage.lock().unwrap().keys().cloned().collect(),
+        let iter = match (self.source, self.target, self.component) {
+            (None, None, None) => self
+                .engine
+                .entity_brick_storage
+                .lock()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect(),
 
-            (None, None, Some(comp)) => 
-                self.engine.entities_by_component_index.lock().unwrap().get(&comp).map(|set| set.elements().clone()).unwrap_or_default(),
+            (None, None, Some(comp)) => self
+                .engine
+                .entities_by_component_index
+                .lock()
+                .unwrap()
+                .get(&comp)
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
 
-            (None, Some(tgt), None) => 
-                self.engine.entities_by_target_index.lock().unwrap().get(&tgt).map(|set| set.elements().clone()).unwrap_or_default(),
+            (None, Some(tgt), None) => self
+                .engine
+                .entities_by_target_index
+                .lock()
+                .unwrap()
+                .get(&tgt)
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
 
-            (None, Some(tgt), Some(comp)) => 
-                self.engine.entities_by_target_and_component_index.lock().unwrap().get(&(tgt, comp)).map(|set| set.elements().clone()).unwrap_or_default(),
-                
-            (Some(src), None, None) => 
-                self.engine.entities_by_source_index.lock().unwrap().get(&src).map(|set| set.elements().clone()).unwrap_or_default(),
+            (None, Some(tgt), Some(comp)) => self
+                .engine
+                .entities_by_target_and_component_index
+                .lock()
+                .unwrap()
+                .get(&(tgt, comp))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
 
-            (Some(src), None, Some(comp)) => 
-                self.engine.entities_by_source_and_component_index.lock().unwrap().get(&(src, comp)).map(|set| set.elements().clone()).unwrap_or_default(),
+            (Some(src), None, None) => self
+                .engine
+                .entities_by_source_index
+                .lock()
+                .unwrap()
+                .get(&src)
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
 
-            (Some(src), Some(tgt), None) => 
-                self.engine.entities_by_both_endpoints_index.lock().unwrap().get(&(src, tgt)).map(|set| set.elements().clone()).unwrap_or_default(),
+            (Some(src), None, Some(comp)) => self
+                .engine
+                .entities_by_source_and_component_index
+                .lock()
+                .unwrap()
+                .get(&(src, comp))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
 
-            (Some(src), Some(tgt), Some(comp)) => 
-                self.engine.entities_by_endpoints_and_component_index.lock().unwrap().get(&(src, tgt, comp)).map(|set| set.elements().clone()).unwrap_or_default(),
-        }.into()
+            (Some(src), Some(tgt), None) => self
+                .engine
+                .entities_by_both_endpoints_index
+                .lock()
+                .unwrap()
+                .get(&(src, tgt))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (Some(src), Some(tgt), Some(comp)) => self
+                .engine
+                .entities_by_endpoints_and_component_index
+                .lock()
+                .unwrap()
+                .get(&(src, tgt, comp))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+        };
+
+        (&self.engine, iter).into()
     }
 }
 
 /// Querying is a layer for simple query operations, mostly used in layers higher up
-pub trait Accessing {
-    /// Gets a brick back from an entity identifier, if existing
-    fn get(&self, id: EntityId) -> Result<DataBrick, String>;
+pub(crate) trait Accessing {
     /// Creates a query and passes the engine over to it
     fn query_access(&self) -> QueryAccess;
 }
 
-impl Accessing for EngineState {
-    fn get(&self, id: EntityId) -> Result<DataBrick, String> {
-        self.entity_brick_storage.lock().unwrap().get(&id).cloned()
-            .ok_or(format!("[Error][querying.rs][get] Cannot get brick for entity id {}", id))
-    }
-
+impl Accessing for Arc<EngineState> {
     fn query_access(&self) -> QueryAccess {
-        QueryAccess::new(self)
+        QueryAccess::new(Arc::clone(self))
+    }
+}
+
+impl Accessing for QueryIterator {
+    fn query_access(&self) -> QueryAccess {
+        QueryAccess::new(Arc::clone(&self.engine))
     }
 }
 
@@ -100,43 +148,40 @@ mod querying_testing {
 
     #[test]
     fn test_get_source() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
-        
-        let iter = engine_state.query_access()
-            .with_source(a)
-            .get();
+
+        let iter = engine_state.query_access().with_source(a).get();
 
         assert_eq!(2, iter.as_vec().len());
     }
 
     #[test]
     fn test_get_target() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
-        
-        let iter = engine_state.query_access()
-            .with_target(b)
-            .get();
+
+        let iter = engine_state.query_access().with_target(b).get();
 
         assert_eq!(2, iter.as_vec().len());
     }
 
     #[test]
     fn test_get_component() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
         let _c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]);
 
-        let iter = engine_state.query_access()
+        let iter = engine_state
+            .query_access()
             .with_component("Arrow".into())
             .get();
 

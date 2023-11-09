@@ -1,21 +1,21 @@
+use std::{collections::HashSet, sync::Arc};
 
-use std::collections::HashSet;
+use array_tool::vec::{Intersect, Uniq};
+use itertools::Itertools;
 
-use array_tool::vec::{Uniq, Intersect};
+use super::accessing::{Accessing, QueryAccess};
+use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
 
-use crate::internals::{EntityId, EngineState, S32};
-use super::{accessing::{Accessing, QueryAccess}, query_iterator::QueryIterator};
-
-#[derive(Clone)]
 /// An indirection-layer version of the query, having multiple additional filters
-pub struct QueryIndirect<'a> {
-    query: QueryAccess<'a>,
-    no_properties: bool,
-    include_components: Vec<S32>,
-    exclude_components: Vec<S32>,
+pub struct QueryIndirect {
+    pub(crate) query: QueryAccess,
+    pub(crate) select: Option<Vec<EntityId>>,
+    pub(crate) include_components: Vec<S32>,
+    pub(crate) exclude_components: Vec<S32>,
+    pub(crate) filters: Vec<Box<dyn FnMut(&EntityId) -> bool>>,
 }
 
-impl<'a> QueryIndirect<'a> {
+impl QueryIndirect {
     #[allow(dead_code)]
     pub fn with_source(mut self, source: EntityId) -> Self {
         self.query = self.query.with_source(source);
@@ -23,8 +23,14 @@ impl<'a> QueryIndirect<'a> {
     }
 
     #[allow(dead_code)]
+    pub fn select_from(mut self, it: Vec<EntityId>) -> Self {
+        self.select = Some(it);
+        self
+    }
+
+    #[allow(dead_code)]
     pub fn with_target(mut self, target: EntityId) -> Self {
-        self.query = self.query.with_target(target);    
+        self.query = self.query.with_target(target);
         self
     }
 
@@ -40,15 +46,24 @@ impl<'a> QueryIndirect<'a> {
         self
     }
 
-    #[allow(dead_code)]
-    pub fn no_properties(mut self) -> Self {
-        self.no_properties = true;
+    pub fn filter<F: 'static + FnMut(&EntityId) -> bool>(mut self, f: F) -> Self {
+        self.filters.push(Box::new(f));
         self
     }
 
     #[allow(dead_code)]
-    pub fn get(self) -> QueryIterator {
-        let mut included = self.query.get().as_vec();
+    pub fn no_properties(mut self) -> Self {
+        let engine = Arc::clone(&self.query.engine);
+        let filter: Box<dyn FnMut(&EntityId) -> bool> =
+            Box::new(move |i: &EntityId| !engine.is_property(*i));
+
+        self.filters.push(filter);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn get(mut self) -> QueryIterator {
+        let mut included = self.select.or(Some(self.query.get().as_vec())).unwrap();
         for incl in self.include_components {
             let comp = self.query.engine.get_with_property(incl);
             included = included.intersect(comp);
@@ -62,29 +77,30 @@ impl<'a> QueryIndirect<'a> {
                 }
             }
         }
-        
-        if self.no_properties {
-            result.into_iter().filter(|&e| !self.query.engine.is_property(*e)).cloned().collect()
-        } else {
-            result.into_iter().cloned().collect()
+
+        let mut result = result.into_iter().cloned().collect_vec();
+        for flt in &mut self.filters {
+            result = result.into_iter().filter(flt).collect_vec();
         }
+
+        (self.query.engine, result).into()
     }
 
     #[allow(dead_code)]
     pub fn get_sources(self) -> QueryIterator {
-        self.query.engine.get_sources(self.get())
+        Arc::clone(&self.query.engine).get_sources(self.get())
     }
 
     #[allow(dead_code)]
     pub fn get_targets(self) -> QueryIterator {
-        self.query.engine.get_targets(self.get())
+        Arc::clone(&self.query.engine).get_targets(self.get())
     }
 }
 
 type ComponentName = S32;
 
 /// This is an indirection layer that is built on top of the internals.
-pub trait Indirection : Accessing {
+pub trait Indirection {
     /// Gets the source of a bricked entity
     fn get_source(&self, id: EntityId) -> Option<EntityId>;
     /// Gets the target of a bricked entity
@@ -114,7 +130,7 @@ pub trait Indirection : Accessing {
     }
 }
 
-impl Indirection for EngineState {
+impl Indirection for Arc<EngineState> {
     fn is_incoming_property(&self, id: EntityId) -> bool {
         let storage = self.entity_brick_storage.lock().unwrap();
         let maybe_brick = storage.get(&id);
@@ -156,16 +172,31 @@ impl Indirection for EngineState {
     }
 
     fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
-        iter.into_iter().flat_map(|&e| self.get_source(e)).collect()
+        (
+            self,
+            iter.into_iter()
+                .flat_map(|&e| self.get_source(e))
+                .collect_vec(),
+        )
+            .into()
     }
-    
+
     fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
-        iter.into_iter().flat_map(|&e| self.get_target(e)).collect()
+        (
+            self,
+            iter.into_iter()
+                .flat_map(|&e| self.get_target(e))
+                .collect_vec(),
+        )
+            .into()
     }
 
     fn get_with_property(&self, component: S32) -> Vec<EntityId> {
-        self.query_access().with_component(component).get()
-            .into_iter().map(|&e| { 
+        self.query_access()
+            .with_component(component)
+            .get()
+            .into_iter()
+            .map(|&e| {
                 if self.is_incoming_property(e) {
                     self.get_target(e).unwrap()
                 } else if self.is_outgoing_property(e) {
@@ -173,11 +204,53 @@ impl Indirection for EngineState {
                 } else {
                     e
                 }
-            }).collect::<Vec<_>>().unique()
+            })
+            .collect::<Vec<_>>()
+            .unique()
     }
 
     fn query(&self) -> QueryIndirect {
-        QueryIndirect { no_properties: false, query: self.query_access(), include_components: vec![], exclude_components: vec![] }
+        QueryIndirect {
+            select: None,
+            query: self.query_access(),
+            include_components: vec![],
+            exclude_components: vec![],
+            filters: vec![],
+        }
+    }
+}
+
+impl Indirection for QueryIterator {
+    fn get_source(&self, id: EntityId) -> Option<EntityId> {
+        self.engine.get_source(id)
+    }
+
+    fn get_target(&self, id: EntityId) -> Option<EntityId> {
+        self.engine.get_target(id)
+    }
+
+    fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
+        self.engine.get_sources(iter)
+    }
+
+    fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
+        self.engine.get_targets(iter)
+    }
+
+    fn is_incoming_property(&self, id: EntityId) -> bool {
+        self.engine.is_incoming_property(id)
+    }
+
+    fn is_outgoing_property(&self, id: EntityId) -> bool {
+        self.engine.is_outgoing_property(id)
+    }
+
+    fn get_with_property(&self, component: S32) -> Vec<EntityId> {
+        self.engine.get_with_property(component)
+    }
+
+    fn query(&self) -> QueryIndirect {
+        self.engine.query().select_from(self.elements.clone())
     }
 }
 
@@ -187,27 +260,36 @@ impl Indirection for EngineState {
 
 #[cfg(test)]
 mod indirection_testing {
-    use crate::{internals::{EngineState, EntityId}, layers::indirection::Indirection};
+    use std::sync::Arc;
+
+    use crate::{
+        internals::{EngineState, EntityId},
+        layers::indirection::Indirection,
+    };
 
     #[test]
     fn test_get_source() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
+        let c = engine_state
+            .create_arrow(a, b, "Arrow".into(), vec![])
+            .unwrap();
         assert_eq!(Some(a), engine_state.get_source(a));
         assert_eq!(Some(b), engine_state.get_source(b));
         assert_eq!(Some(a), engine_state.get_source(c));
     }
-    
+
     #[test]
     fn test_get_target() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Arrow: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
+        let c = engine_state
+            .create_arrow(a, b, "Arrow".into(), vec![])
+            .unwrap();
         assert_eq!(Some(a), engine_state.get_target(a));
         assert_eq!(Some(b), engine_state.get_target(b));
         assert_eq!(Some(b), engine_state.get_target(c));
@@ -215,14 +297,18 @@ mod indirection_testing {
 
     #[test]
     fn test_get_with_property() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Foo: void; Data: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
-        let c = engine_state.create_arrow(a, b, "Foo".into(), vec![]).unwrap();
-        let _d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]);    // c
-        let e = engine_state.create_arrow(a, b, "Data".into(), vec![]).unwrap();   // e
-        let _f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]);   // a
+        let c = engine_state
+            .create_arrow(a, b, "Foo".into(), vec![])
+            .unwrap();
+        let _d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]); // c
+        let e = engine_state
+            .create_arrow(a, b, "Data".into(), vec![])
+            .unwrap(); // e
+        let _f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]); // a
         let data = engine_state.get_with_property("Data".into());
         assert_eq!(3, data.len());
         assert!(data.contains(&a));
@@ -230,27 +316,33 @@ mod indirection_testing {
         assert!(data.contains(&e));
     }
 
-    fn setup_query_tests() -> ([EntityId; 7], EngineState) {
-        let engine_state = EngineState::default();
+    fn setup_query_tests() -> ([EntityId; 7], Arc<EngineState>) {
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Arrow: void; Data: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
         // C : A ---Arrow---> B
-        let c = engine_state.create_arrow(a, b, "Arrow".into(), vec![]).unwrap();
+        let c = engine_state
+            .create_arrow(a, b, "Arrow".into(), vec![])
+            .unwrap();
         // D : D ---Data----> C
         let d = engine_state.add_incoming_property_raw(c, "Data".into(), vec![]);
         // E : A ---Data----> B
-        let e = engine_state.create_arrow(a, c, "Data".into(), vec![]).unwrap();
+        let e = engine_state
+            .create_arrow(a, c, "Data".into(), vec![])
+            .unwrap();
         // F : F ---Data----> A
         let f = engine_state.add_incoming_property_raw(a, "Data".into(), vec![]);
         // G : E ---Data----> C
-        let g = engine_state.create_arrow(e, c, "Data".into(), vec![]).unwrap();
-        ([ a, b, c, d, e, f, g ], engine_state)
+        let g = engine_state
+            .create_arrow(e, c, "Data".into(), vec![])
+            .unwrap();
+        ([a, b, c, d, e, f, g], engine_state)
     }
 
     #[test]
     fn test_query_with_source() {
-        let ([ a, _b, c, _d, e, _f, _g ], engine_state) = setup_query_tests();
+        let ([a, _b, c, _d, e, _f, _g], engine_state) = setup_query_tests();
         let mut all_with_source_a = engine_state.query().with_source(a).get();
         all_with_source_a.sort();
         assert_eq!(&[a, c, e], all_with_source_a.as_slice());
@@ -258,74 +350,85 @@ mod indirection_testing {
 
     #[test]
     fn test_query_with_component() {
-        let ([ a, _b, c, _d, e, _f, g ], engine_state) = setup_query_tests();
+        let ([a, _b, c, _d, e, _f, g], engine_state) = setup_query_tests();
         let mut all_with_comp_data = engine_state.query().with_component("Data".into()).get();
         all_with_comp_data.sort();
         assert_eq!(&[a, c, e, g], all_with_comp_data.as_slice());
-
     }
 
     #[test]
     fn test_query_without_component() {
-        let ([ a, b, _c, d, e, f, g ], engine_state) = setup_query_tests();
-        let mut all_without_comp_arrow = engine_state.query().without_component("Arrow".into()).get();
+        let ([a, b, _c, d, e, f, g], engine_state) = setup_query_tests();
+        let mut all_without_comp_arrow =
+            engine_state.query().without_component("Arrow".into()).get();
         all_without_comp_arrow.sort();
         assert_eq!(&[a, b, d, e, f, g], all_without_comp_arrow.as_slice());
     }
 
     #[test]
     fn test_query_with_two_components() {
-        let ([ _a, _b, c, _d, _e, _f, _g ], engine_state) = setup_query_tests();
-        let mut all_with_comp_arrow_and_data = 
-            engine_state.query()
-                .with_component("Arrow".into())
-                .with_component("Data".into())
-                .get();
+        let ([_a, _b, c, _d, _e, _f, _g], engine_state) = setup_query_tests();
+        let mut all_with_comp_arrow_and_data = engine_state
+            .query()
+            .with_component("Arrow".into())
+            .with_component("Data".into())
+            .get();
         all_with_comp_arrow_and_data.sort();
         assert_eq!(&[c], all_with_comp_arrow_and_data.as_slice());
     }
 
     #[test]
     fn test_query_without_component_and_no_properties() {
-        let ([ a, b, _c, _d, e, _f, g ], engine_state) = setup_query_tests();
-        let mut all_without_comp_arrow_no_prop = engine_state.query().without_component("Arrow".into()).no_properties().get();
+        let ([a, b, _c, _d, e, _f, g], engine_state) = setup_query_tests();
+        let mut all_without_comp_arrow_no_prop = engine_state
+            .query()
+            .without_component("Arrow".into())
+            .no_properties()
+            .get();
         all_without_comp_arrow_no_prop.sort();
         assert_eq!(&[a, b, e, g], all_without_comp_arrow_no_prop.as_slice());
-
     }
 
     #[test]
     fn test_query_with_component_and_source() {
-        let ([ a, _b, c, _d, e, _f, _g ], engine_state) = setup_query_tests();
-        let mut all_with_source_a_and_data = engine_state.query().with_source(a).with_component("Data".into()).get();
+        let ([a, _b, c, _d, e, _f, _g], engine_state) = setup_query_tests();
+        let mut all_with_source_a_and_data = engine_state
+            .query()
+            .with_source(a)
+            .with_component("Data".into())
+            .get();
         all_with_source_a_and_data.sort();
         assert_eq!(&[a, c, e], all_with_source_a_and_data.as_slice());
     }
 
     #[test]
     fn test_query_with_source_without_component() {
-        let ([ a, _b, _c, _d, e, _f, _g ], engine_state) = setup_query_tests();
-        let mut all_with_source_a_without_arrow = engine_state.query().with_source(a).without_component("Arrow".into()).get();
+        let ([a, _b, _c, _d, e, _f, _g], engine_state) = setup_query_tests();
+        let mut all_with_source_a_without_arrow = engine_state
+            .query()
+            .with_source(a)
+            .without_component("Arrow".into())
+            .get();
         all_with_source_a_without_arrow.sort();
         assert_eq!(&[a, e], all_with_source_a_without_arrow.as_slice());
     }
 
     #[test]
     fn test_query_with_source_with_one_component_without_another() {
-        let ([ a, _b, _c, _d, e, _f, _g ], engine_state) = setup_query_tests();
-        let mut all_with_source_a_and_data_without_arrow = 
-            engine_state.query()
-                .with_source(a)
-                .with_component("Data".into())
-                .without_component("Arrow".into())
-                .get();
+        let ([a, _b, _c, _d, e, _f, _g], engine_state) = setup_query_tests();
+        let mut all_with_source_a_and_data_without_arrow = engine_state
+            .query()
+            .with_source(a)
+            .with_component("Data".into())
+            .without_component("Arrow".into())
+            .get();
         all_with_source_a_and_data_without_arrow.sort();
         assert_eq!(&[a, e], all_with_source_a_and_data_without_arrow.as_slice());
     }
 
     #[test]
     fn test_query_join() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         let _ = engine_state.add_component_types("Parent: void; Path: void;");
         let a = engine_state.create_object_raw("Object".into(), vec![]);
         let b = engine_state.create_object_raw("Object".into(), vec![]);
@@ -340,7 +443,7 @@ mod indirection_testing {
         let _de = engine_state.create_arrow(d, e, "Parent".into(), vec![]);
 
         // A ---Parent----> ? -------> C
-        
+
         // A ---Parent----> ?
         let query_from_a = engine_state
             .query()
@@ -349,12 +452,10 @@ mod indirection_testing {
             .get_targets();
 
         // ? -------> C
-        let query_to_c = engine_state
-            .query()
-            .with_target(c)
-            .get_sources();
-        
+        let query_to_c = engine_state.query().with_target(c).get_sources();
+
         let join = query_from_a.intersect(query_to_c);
+        println!("{:?}", join.as_slice());
         assert_eq!(1, join.len());
         assert_eq!(b, join.as_slice()[0]);
     }

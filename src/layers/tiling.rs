@@ -1,22 +1,23 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::internals::{Block, BrickEditing, DataBrick, EngineState, EntityId, Tile};
+use crate::internals::{
+    query_iterator::QueryIterator, Block, DataBrick, EngineState, EntityId, Tile,
+};
 
-use super::{accessing::Accessing, query_iterator::QueryIterator, querying::Querying};
+use super::{accessing::Accessing, querying::Querying};
 
-pub trait Tiling {
-    fn tile_from_brick_data(&self, brick: &DataBrick) -> Tile;
-    fn get_blocks(&self, selection: Option<QueryIterator>) -> HashMap<EntityId, Block>;
-    fn get_tile(&self, brick: EntityId) -> Tile;
+pub(crate) fn tile_from_brick_data(engine: &Arc<EngineState>, brick: &DataBrick) -> Tile {
+    (engine, brick).into()
 }
 
-impl Tiling for EngineState {
-    fn tile_from_brick_data(&self, brick: &DataBrick) -> Tile {
-        (self, brick).into()
-    }
+pub trait Tiling {
+    fn get_blocks(&self, selection: Option<QueryIterator>) -> HashMap<EntityId, Block>;
+    fn get_tile(&self, brick: EntityId) -> Option<Tile>;
+}
 
+impl Tiling for Arc<EngineState> {
     fn get_blocks(&self, filter: Option<QueryIterator>) -> HashMap<EntityId, Block> {
         let selection = if filter.is_none() {
             self.query_access().get()
@@ -25,16 +26,16 @@ impl Tiling for EngineState {
                 .unwrap()
                 .as_slice()
                 .into_iter()
-                .fold(vec![].into(), |old: QueryIterator, &f| {
-                    old.union(self.query_related(f))
+                .fold((self, vec![]).into(), |old: QueryIterator, &f| {
+                    old.union(self.query_edges(f))
                 })
         };
 
         let tiles = selection
             .as_slice()
             .into_iter()
-            .map(|id| {
-                let brick = self.get(*id).unwrap();
+            .flat_map(|id| self.get_brick(*id))
+            .map(|brick| {
                 let tile: Tile = (self, &brick).into();
                 tile
             })
@@ -72,22 +73,22 @@ impl Tiling for EngineState {
         result
     }
 
-    fn get_tile(&self, brick: EntityId) -> Tile {
-        let brick = self.get_brick(brick);
-        self.tile_from_brick_data(&brick)
+    fn get_tile(&self, brick: EntityId) -> Option<Tile> {
+        let brick = self.get_brick(brick)?;
+        Some(tile_from_brick_data(self, &brick))
     }
 }
 
 #[cfg(test)]
 mod tiling_testing {
     use crate::{
-        internals::{BrickEditing, DatatypeValue, EngineState, Tile},
+        internals::{DatatypeValue, EngineState, Tile},
         layers::tiling::Tiling,
     };
-    
+
     #[test]
     fn test_get_tiles() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_component_types("Object: void; Arrow: void; Color: i32; Number: u32; Position: product { x: u32, y: u32 };").unwrap();
         let a = engine_state.create_object("Object".into(), vec![]).unwrap();
         let b = engine_state.create_object("Object".into(), vec![]).unwrap();
@@ -120,8 +121,9 @@ mod tiling_testing {
                 vec![DatatypeValue::U32(3), DatatypeValue::U32(4)],
             )
             .unwrap();
-        let tiles: std::collections::HashMap<usize, crate::internals::Block> = engine_state.get_blocks(None);
-     
+        let tiles: std::collections::HashMap<usize, crate::internals::Block> =
+            engine_state.get_blocks(None);
+
         assert_eq!(5, tiles.get(&a).unwrap().tiles.len());
         assert_eq!(5, tiles.get(&b).unwrap().tiles.len());
         assert_eq!(2, tiles.get(&ab).unwrap().tiles.len());
@@ -129,7 +131,7 @@ mod tiling_testing {
 
     #[test]
     fn test_get_tile() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
         engine_state.add_component_types("Object: void; Arrow: void; Color: i32; Number: u32; Position: product { x: u32, y: u32 };").unwrap();
         let a = engine_state
             .create_object(
@@ -137,18 +139,18 @@ mod tiling_testing {
                 vec![DatatypeValue::U32(3), DatatypeValue::U32(4)],
             )
             .unwrap();
-        let mut tile: Tile = engine_state.get_tile(a);
+        let mut tile: Tile = engine_state.get_tile(a).unwrap();
 
-        let old_brick = engine_state.get_brick(a);
+        let old_brick = engine_state.get_brick(a).unwrap();
         println!("{:?}", old_brick.data);
 
         tile["x"] = DatatypeValue::U32(7);
         assert_eq!(DatatypeValue::U32(7), tile["x"]);
         let _ = tile.commit(&engine_state);
 
-                            //   /-- x ---/  /-- y ---/ ?
+        //   /-- x ---/  /-- y ---/ ?
         let data: Vec<u8> = vec![0, 0, 0, 7, 0, 0, 0, 4];
-        let new_brick = engine_state.get_brick(a);
+        let new_brick = engine_state.get_brick(a).unwrap();
         println!("{:?}", new_brick.data);
         assert_eq!(data, new_brick.data);
     }

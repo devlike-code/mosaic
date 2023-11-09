@@ -1,12 +1,13 @@
 use itertools::Itertools;
-use std::collections::{HashSet, VecDeque};
-
-use crate::{
-    internals::{EngineState, EntityId},
-    layers::querying::Querying,
+use std::{
+    collections::{HashSet, VecDeque},
+    sync::Arc,
 };
 
-pub type Path = Vec<EntityId>;
+use crate::{
+    internals::{query_iterator::QueryIterator, EngineState, EntityId},
+    layers::querying::Querying,
+};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub enum Traversal {
@@ -19,16 +20,16 @@ pub enum Traversal {
 pub trait Traversing {
     fn out_degree(&self, src: EntityId) -> usize;
     fn in_degree(&self, src: EntityId) -> usize;
-    /// traversing graph using Depth First Search
-    fn dfs(&self, src: EntityId, traversal: Traversal) -> Vec<Path>;
-    fn reach_forward(&self, src: EntityId) -> Vec<Path>;
-    fn reach_backward(&self, src: EntityId) -> Vec<Path>;
-    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path>;
-    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path>;
+
+    fn depth_first_search(&self, src: EntityId, traversal: Traversal) -> Vec<QueryIterator>;
+    fn reach_forward(&self, src: EntityId) -> Vec<QueryIterator>;
+    fn reach_backward(&self, src: EntityId) -> Vec<QueryIterator>;
+    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator>;
+    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator>;
     fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool;
 }
 
-impl Traversing for EngineState {
+impl Traversing for Arc<EngineState> {
     fn out_degree(&self, src: EntityId) -> usize {
         self.query_forward_neighbors(src).len()
     }
@@ -37,17 +38,16 @@ impl Traversing for EngineState {
         self.query_backward_neighbors(src).len()
     }
 
-    fn reach_forward(&self, src: EntityId) -> Vec<Path> {
-        self.dfs(src, Traversal::Forward)
+    fn reach_forward(&self, src: EntityId) -> Vec<QueryIterator> {
+        self.depth_first_search(src, Traversal::Forward)
     }
 
-    fn reach_backward(&self, src: EntityId) -> Vec<Path> {
-        self.dfs(src, Traversal::Backward)
+    fn reach_backward(&self, src: EntityId) -> Vec<QueryIterator> {
+        self.depth_first_search(src, Traversal::Backward)
     }
 
-    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path> {
+    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator> {
         let reach = self.reach_forward(src);
-        //println!("DFS reach forward: {:?}", reach);
         let path = reach
             .iter()
             .flatten()
@@ -55,15 +55,14 @@ impl Traversing for EngineState {
             .cloned()
             .collect_vec();
         if path.len() > 0 {
-            Some(path)
+            Some((self, path).into())
         } else {
             None
         }
     }
 
-    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<Path> {
+    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator> {
         let reach = self.reach_backward(src);
-        //println!("DFS reach forward: {:?}", reach);
         let path = reach
             .iter()
             .flatten()
@@ -71,7 +70,7 @@ impl Traversing for EngineState {
             .cloned()
             .collect_vec();
         if path.len() > 0 {
-            Some(path)
+            Some((self, path).into())
         } else {
             None
         }
@@ -81,22 +80,16 @@ impl Traversing for EngineState {
         self.reach_forward_until(src, tgt).is_some()
     }
 
-    fn dfs(&self, src: EntityId, traversal: Traversal) -> Vec<Path> {
-        fn dfs_rec(
+    fn depth_first_search(&self, src: EntityId, traversal: Traversal) -> Vec<QueryIterator> {
+        fn depth_first_search_rec(
             traversal: &Traversal,
-            engine_state: &EngineState,
-            results: &mut Vec<Path>,
+            engine_state: &Arc<EngineState>,
+            results: &mut Vec<QueryIterator>,
             freelist: &mut VecDeque<EntityId>,
             finished: &mut HashSet<EntityId>,
             history: &mut Vec<EntityId>,
         ) {
-            // println!("results: {:?}", results);
-            // println!("freelist: {:?}", freelist);
-            // println!("finished: {:?}", finished);
-            // println!("history: {:?}", history);
-
             while let Some(current_node) = freelist.pop_back() {
-                // println!("current_node is: {:?}", current_node);
                 finished.insert(current_node);
                 history.push(current_node);
 
@@ -104,18 +97,17 @@ impl Traversing for EngineState {
                     Traversal::Forward => engine_state.query_forward_neighbors(current_node),
                     Traversal::Backward => engine_state.query_backward_neighbors(current_node),
                     Traversal::Both => engine_state.query_neighbors(current_node),
-                    //println!("Neighbors: {:?}", neighbors);
                 }
                 .into_iter()
                 .cloned()
                 .collect_vec();
                 if neighbors.is_empty() {
-                    results.push(history.clone());
+                    results.push((engine_state, history.clone()).into());
                 } else {
                     for neighbor in neighbors {
                         if !finished.contains(&neighbor) {
                             freelist.push_back(neighbor);
-                            dfs_rec(
+                            depth_first_search_rec(
                                 traversal,
                                 engine_state,
                                 results,
@@ -125,8 +117,7 @@ impl Traversing for EngineState {
                             );
                             freelist.pop_back();
                         } else {
-                            //history.push(neighbor);
-                            results.push(history.clone());
+                            results.push((engine_state, history.clone()).into());
                             history.pop();
                         }
                     }
@@ -138,13 +129,13 @@ impl Traversing for EngineState {
             }
         }
 
-        let mut results: Vec<Path> = vec![];
+        let mut results: Vec<QueryIterator> = vec![];
         let mut freelist = VecDeque::default();
         let mut finished = HashSet::new();
         let mut history = vec![];
         freelist.push_back(src);
 
-        dfs_rec(
+        depth_first_search_rec(
             &traversal,
             self,
             &mut results,
@@ -161,7 +152,7 @@ mod traversing_tests {
 
     #[test]
     fn test_simple_reachability() {
-        let engine_state = EngineState::default();
+        let engine_state = EngineState::new();
 
         let _ = engine_state.add_component_types("Object: void; Arrow: void;");
 

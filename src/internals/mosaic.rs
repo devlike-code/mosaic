@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     ops::{Index, IndexMut, Range},
+    sync::Arc,
 };
 
 use array_tool::vec::Uniq;
@@ -8,38 +9,8 @@ use fstr::FStr;
 
 use super::{
     datatypes::{EntityId, S32},
-    slice_into_array, ComponentType, Datatype, DatatypeValue, EngineState,
+    slice_into_array, ComponentType, DataBrick, Datatype, DatatypeValue, EngineState, SparseSet,
 };
-
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-/// Bricks are the essential building blocks and hold a single component.
-/// Every brick contains a single morphism and associated data
-pub struct DataBrick {
-    /// Identity of this element
-    pub id: EntityId,
-    /// The source element of this morphism
-    pub source: EntityId,
-    /// The target element of this morphism
-    pub target: EntityId,
-    /// The name of the component representing the data in this morphism
-    pub component: S32,
-    /// The actual data carried by the morphism
-    pub data: Vec<u8>,
-}
-
-impl DataBrick {
-    /// Updates the brick in the engine, lifting any changes into it
-    fn update(&self, engine_state: &EngineState) {
-        let mut storage = engine_state.entity_brick_storage.lock().unwrap();
-        storage.insert(self.id, self.clone());
-    }
-
-    /// Refreshes the data from the engine into the brick; it doesn't touch anything other in the brick
-    fn refresh(&mut self, engine_state: &EngineState) {
-        let storage = engine_state.entity_brick_storage.lock().unwrap();
-        self.data = storage.get(&self.id).unwrap_or(self).data.clone();
-    }
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TileData {
@@ -128,7 +99,10 @@ impl Tile {
     }
 
     pub fn commit(&self, engine_state: &EngineState) -> Result<(), String> {
-        let mut brick = engine_state.get_brick(self.id());
+        let mut brick = engine_state.get_brick(self.id()).ok_or(format!(
+            "[Error][mosaic.rs][commit] Cannot find brick with id {}",
+            self.id()
+        ))?;
         let component = engine_state.get_component_type(brick.component)?;
 
         //order of saving needs to be correct and in component fields it is.
@@ -324,7 +298,7 @@ impl std::fmt::Debug for Block {
 }
 
 fn get_field_offset(
-    engine: &EngineState,
+    engine: &Arc<EngineState>,
     component_type: &ComponentType,
     field_name: S32,
 ) -> Option<Range<usize>> {
@@ -335,7 +309,7 @@ fn get_field_offset(
 }
 
 fn create_fields_from_data(
-    engine: &EngineState,
+    engine: &Arc<EngineState>,
     brick: DataBrick,
 ) -> Result<HashMap<S32, DatatypeValue>, String> {
     let component_type = engine.get_component_type(brick.component)?;
@@ -405,8 +379,8 @@ fn create_fields_from_data(
     Ok(result)
 }
 
-impl From<(&EngineState, &DataBrick)> for Tile {
-    fn from((engine, brick): (&EngineState, &DataBrick)) -> Self {
+impl From<(&Arc<EngineState>, &DataBrick)> for Tile {
+    fn from((engine, brick): (&Arc<EngineState>, &DataBrick)) -> Self {
         let fields = create_fields_from_data(engine, brick.clone()).unwrap();
         match (brick.id, brick.source, brick.target) {
             // ID : ID -> ID
@@ -462,25 +436,41 @@ impl From<(&EngineState, &DataBrick)> for Tile {
     }
 }
 
-pub trait BrickEditing {
-    ///
-    fn get_brick(&self, brick_id: EntityId) -> DataBrick;
+pub struct MosaicEngine {
+    pub(crate) engine_state: Arc<EngineState>,
+
+    pub(crate) component_block_per_main_tile_index: HashMap<(EntityId, ComponentType), SparseSet>,
 }
 
-impl BrickEditing for EngineState {
-    fn get_brick(&self, brick_id: EntityId) -> DataBrick {
-        return self
-            .entity_brick_storage
-            .lock()
-            .unwrap()
-            .get(&brick_id)
-            .unwrap()
-            .clone();
+pub trait MosaicEngineExtension {
+    fn register(&self, engine_state: &EngineState);
+}
+
+impl Default for MosaicEngine {
+    fn default() -> Self {
+        let engine_state = EngineState::new();
+        engine_state
+            .add_component_types("Object: void; Arrow: void; Label: s32; String: b256;")
+            .unwrap();
+        engine_state
+            .add_component_types("Position: product { x: u32, y: u32 };")
+            .unwrap();
+        engine_state.add_component_types("Parent: void;").unwrap();
+        Self {
+            engine_state,
+            component_block_per_main_tile_index: Default::default(),
+        }
+    }
+}
+
+impl MosaicEngine {
+    fn register_extension<E: MosaicEngineExtension>(&self, extension: E) {
+        extension.register(&self.engine_state);
     }
 }
 
 /* /////////////////////////////////////////////////////////////////////////////////// */
-/// Unit Tests
+// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */
 
 #[cfg(test)]
