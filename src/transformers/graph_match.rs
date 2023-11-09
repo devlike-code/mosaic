@@ -3,39 +3,21 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-use crate::internals::{Block, Tile};
+
+use engine_state::EngineState;
+
+use crate::internals::{Block, Tile, engine_state, EntityId};
+use crate::layers::accessing::Accessing;
+use crate::layers::parenting::Parenting;
+use crate::layers::querying::Querying;
+use crate::layers::tiling::Tiling;
 use crate::transformers::validation::{self, validate_frame_is_populated};
 
 use super::validation::validate_type_exists;
 
-fn validate_block_is_arrow(b: &Block) -> Result<Tile, String> {
-    let bricks = b.get_bricks();
-    let arrow_nodes: Vec<_> = bricks
-        .iter()
-        .filter(|br| br.component.is("Arrow"))
-        .cloned()
-        .collect();
-
-    if arrow_nodes.len() != 1 {
-        return Err(format!("Block is required to have exactly arrow."));
-    }
-
-    Ok(arrow_nodes.first().cloned().unwrap())
-}
-
-fn validate_arrow_is_graph_match(b: &Brick) -> Result<(), String> {
-    if !has_component(b.entity, "GraphMatch") {
-        Err(format!("Arrow requires to have the GraphMatch component"))
-    } else {
-        Ok(())
-    }
-}
-
 #[derive(Debug)]
-struct GraphParameters<'a> {
-    pattern_size: usize,
-    pattern_graph: &'a BidirectionalMatrix,
-    target_graph: &'a BidirectionalMatrix,
+struct GraphParameters<'a> {    
+    pattern_size: usize,   
     candidates: &'a HashMap<EntityId, HashSet<EntityId>>,
 }
 
@@ -56,32 +38,32 @@ fn hash_hashmap<K: Ord + Clone + Display, V: Clone + Display>(hashmap: &HashMap<
     hasher.finish()
 }
 
-pub fn graph_match(block: &Block) -> Result<Block, String> {
+pub fn graph_match(block: &Block, engine_state: &EngineState) -> Result<Block, String> {
     let mut arrow_counters = u32::MAX;
 
     fn tuple_is_completely_different(a: &(u32, u32), b: &(u32, u32)) -> bool {
         a.0 != b.0 && a.1 != b.1
     }
 
-    validate_type_exists("GraphMatch")?;
+    validate_type_exists("GraphMatch", engine_state)?;
 
     let arrow = validate_block_is_arrow(block)?;
-    validate_arrow_is_graph_match(&arrow)?;
+    validate_arrow_is_graph_match(&arrow, engine_state)?;
 
-    let pattern = get_comp_field_id(arrow.entity, "Arrow", "Arrow.source").unwrap();
-    let target = get_comp_field_id(arrow.entity, "Arrow", "Arrow.target").unwrap();
+    let pattern = arrow.get_endpoints().0; // staring arrow's source
+    let target = arrow.get_endpoints().1; // staring arrow's target
 
     validate_frame_is_populated(pattern)?;
     validate_frame_is_populated(target)?;
 
-    let pattern_graph = get_graph_for_entity(pattern);
-    let target_graph = get_graph_for_entity(target);
+     let pattern_graph = engine_state.get_children(pattern); // graph where pattern is parent
+     let target_graph = engine_state.get_children(target);   // graph where traget is parent
 
     let mut candidates: HashMap<EntityId, HashSet<EntityId>> = HashMap::default();
 
     let archetypes = get_archetypes_by_entity().read().unwrap().clone();
 
-    let all_nodes = pattern_graph.get_all_nodes();
+    let all_nodes = engine_state.get_blocks().get(&pattern).unwrap().tiles.into_iter().map(t||);
     let pattern_size = all_nodes.len();
 
     for node in all_nodes {

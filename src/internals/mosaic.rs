@@ -99,6 +99,30 @@ impl IndexMut<&str> for Tile {
 }
 
 impl Tile {
+    pub fn is_arrow(&self) -> bool {
+        matches!(self, Tile::Arrow { .. })
+    }
+    
+    pub fn is_object(&self) -> bool {
+        matches!(self, Tile::Object { .. })
+    }
+
+    pub fn is_loop(&self) -> bool {
+        matches!(self, Tile::Loop { .. })
+    }
+
+    pub fn is_descriptor(&self) -> bool {
+        matches!(self, Tile::Descriptor { .. })
+    }
+
+    pub fn is_extension(&self) -> bool {
+        matches!(self, Tile::Extension { .. })
+    }
+
+    pub fn is_property(&self) -> bool {
+        self.is_descriptor() | self.is_extension()
+    }
+
     pub fn set_field(&mut self, field: S32, field_data: DatatypeValue) {
         self.get_data_mut().fields.insert(field, field_data);
     }

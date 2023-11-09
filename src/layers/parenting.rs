@@ -1,7 +1,7 @@
 
 use crate::internals::{EntityId, EngineState};
 
-use super::indirection::Indirection;
+use super::{indirection::Indirection, query_iterator::QueryIterator};
 
 /// This trait allows for parenting relations between entities
 /// Introduces the `Parent` marker component that forms the `P --Parent--> C` relation
@@ -21,7 +21,7 @@ pub trait Parenting {
     /// Gets the parent of a child entity
     fn get_parent(&self, child: EntityId) -> Option<EntityId>;
     /// Gets all the children of a parent entity
-    fn get_children(&self, parent: EntityId) -> Vec<EntityId>;
+    fn get_children(&self, parent: EntityId) -> QueryIterator;
     /// Unparents a child and deletes the relation
     fn unparent(&self, child: EntityId);
 }
@@ -46,8 +46,8 @@ impl Parenting for EngineState {
         self.get_parenting_relation(child).and_then(|p| self.get_source(p))
     }
 
-    fn get_children(&self, parent: EntityId) -> Vec<EntityId> {
-        self.query().with_source(parent).with_component("Parent".into()).get_targets().as_vec()
+    fn get_children(&self, parent: EntityId) -> QueryIterator {
+        self.query().with_source(parent).with_component("Parent".into()).get_targets().as_vec().into()
     }
 
     fn unparent(&self, child: EntityId) {

@@ -1,19 +1,35 @@
 use std::collections::HashSet;
 
 use crate::{
-    ec::{has_component, EntityId},
-    graph::{get_graph_refs, get_graph_storage},
-    protocol::{component_name, v1::get_type},
-    sparse_matrix::Matrix,
-    storage::get_type_by_name_storage,
-    top_level::{
-        get_brick, get_brick_count, get_comp_field_i32, get_comp_field_name, get_frame_for_entity,
-        get_framed_entities, get_graph_for_entity, get_named_type, Block, Brick,
-    },
+    internals::{EngineState, Tile},
+    layers::accessing::Accessing,
 };
 
-pub fn validate_type_exists(name: &str) -> Result<(), String> {
-    if !get_type_by_name_storage().contains_key(&component_name(name)) {
+fn validate_block_is_arrow(t: &Tile) -> Result<(), String> {
+    if !t.is_arrow() {
+        Err(format!("Block is required to have exactly arrow."))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_arrow_is_graph_match(t: &Tile, engine_state: &EngineState) -> Result<(), String> {
+    let len = engine_state
+        .query_access()
+        .with_source(t.id())
+        .with_component("GraphMatch".into())
+        .get()
+        .len();
+
+    if !(len == 1) {
+        Err(format!("[graph_match.rs][validate_arrow_is_graph_match] Arrow requires to have the GraphMatch component."))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn validate_type_exists(name: &str, engine_state: &EngineState) -> Result<(), String> {
+    if !engine_state.has_component_type(&name.into()) {
         Err(format!("Type '{}' not registered.", name.to_string()))
     } else {
         Ok(())
