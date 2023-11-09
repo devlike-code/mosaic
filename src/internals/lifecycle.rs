@@ -23,4 +23,11 @@ pub trait Lifecycle {
         component: ComponentName,
         fields: Vec<Value>,
     ) -> Result<Self::Entity, String>;
+
+    fn add_extension(
+        &self,
+        target: &Self::Entity,
+        component: ComponentName,
+        fields: Vec<Value>,
+    ) -> Result<Self::Entity, String>;
 }

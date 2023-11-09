@@ -122,11 +122,11 @@ impl Tile {
             .unwrap();
     }
 
-    // pub fn add_extension(&self, component: S32, fields: Vec<Value>) {
-    //     self.mosaic()
-    //         .add_extension(self, component, fields)
-    //         .unwrap();
-    // }
+    pub fn add_extension(&self, component: S32, fields: Vec<Value>) {
+        self.mosaic()
+            .add_extension(self, component, fields)
+            .unwrap();
+    }
 
     pub fn order(&self) -> usize {
         match self {

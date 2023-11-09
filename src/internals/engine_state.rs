@@ -505,6 +505,16 @@ impl Lifecycle for Arc<EngineState> {
         let data = matching.concat();
         Ok(self.add_incoming_property_raw(*target, component, data))
     }
+
+    fn add_extension(&self, source: &EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
+        let matching = self.unify_fields_and_values_into_data(component, fields)
+        .map_err(|(cf, d)| 
+            format!("[Error][engine_state.rs][add_incoming_property] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
+                cf.name, cf.datatype, d, source))?;
+    
+        let data = matching.concat();
+        Ok(self.add_outgoing_property_raw(*source, component, data))
+    }
 }
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests

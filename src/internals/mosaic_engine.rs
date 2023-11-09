@@ -102,6 +102,23 @@ impl Lifecycle for Arc<MosaicEngine> {
 
         Ok(tile)
     }
+
+    fn add_extension(
+        &self,
+        target: &Tile,
+        component: ComponentName,
+        fields: Vec<Value>,
+    ) -> Result<Tile, String> {
+        let id = self
+            .engine_state
+            .add_extension(&target.id(), component, fields)?;
+        let tile = self.get_tile(id).ok_or(format!(
+            "[Error][mosaic_engine.rs][add_descriptor] Couldn't find tile with id {}",
+            id
+        ))?;
+
+        Ok(tile)
+    }
 }
 
 /* /////////////////////////////////////////////////////////////////////////////////// */
@@ -183,9 +200,13 @@ mod mosaic_engine_testing {
         log_file.add_descriptor("Log".into(), vec![Value::S32("Entry 1".into())]);
         log_file.add_descriptor("Log".into(), vec![Value::S32("=========".into())]);
 
+        log_file.add_extension(
+            "Log".into(),
+            vec![Value::S32("Extension added: 30min of play".into())],
+        );
+
         let log = log_file.get_properties("Log".into());
         assert!(!log.is_empty());
-
-        assert_eq!(4, log.len());
+        assert_eq!(5, log.len());
     }
 }
