@@ -153,7 +153,7 @@ mod mosaic_engine_testing {
 
         assert!(ab.is_arrow());
         assert_eq!(3, ab.id());
-        assert_eq!((a.id(), b.id()), ab.get_endpoints());
+        assert_eq!((a, b), ab.get_endpoints());
     }
 
     #[test]

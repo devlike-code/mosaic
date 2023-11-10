@@ -52,6 +52,7 @@ impl Tiling for Arc<MosaicEngine> {
                 .extend(vec![tile.clone()].into());
 
             let (source, target) = tile.get_endpoints();
+            let (source, target) = (source.id(), target.id());
             if !result.contains_key(&source) {
                 result.insert(source, Block::new());
             }

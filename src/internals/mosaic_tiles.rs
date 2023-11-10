@@ -215,8 +215,8 @@ impl Tile {
         }
     }
 
-    pub fn get_endpoints(&self) -> (EntityId, EntityId) {
-        match self {
+    pub fn get_endpoints(&self) -> (Tile, Tile) {
+        let (s, t) = match self {
             Tile::Object { id, .. } => (*id, *id),
             Tile::Arrow { source, target, .. } => (*source, *target),
             Tile::Loop { origin, .. } => (*origin, *origin),
@@ -225,7 +225,12 @@ impl Tile {
             } => (*origin, *id),
             Tile::Extension { origin, id, .. } => (*id, *origin),
             Tile::Backlink { source, target, .. } => (*source, *target),
-        }
+        };
+
+        (
+            self.mosaic().get_tile(s).unwrap(),
+            self.mosaic().get_tile(t).unwrap(),
+        )
     }
 
     pub fn is_arrow(&self) -> bool {
