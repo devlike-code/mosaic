@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    internals::{EngineState, EntityId, Tile, mosaic_engine::MosaicEngine},
+    internals::{mosaic_engine::MosaicEngine, EngineState, Tile},
     layers::{indirection::Indirection, parenting::Parenting},
 };
 
