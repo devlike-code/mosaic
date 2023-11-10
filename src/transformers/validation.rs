@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    internals::{EngineState, EntityId, Tile},
+    internals::{EngineState, EntityId, Tile, mosaic_engine::MosaicEngine},
     layers::{indirection::Indirection, parenting::Parenting},
 };
 
@@ -15,7 +15,7 @@ pub(crate) fn validate_tile_is_arrow(t: &Tile) -> Result<&Tile, String> {
 
 pub(crate) fn validate_arrow_is_graph_match(
     t: &Tile,
-    engine_state: Arc<EngineState>,
+    engine_state: Arc<MosaicEngine>,
 ) -> Result<(), String> {
     let len = engine_state
         .build_query()
@@ -31,8 +31,8 @@ pub(crate) fn validate_arrow_is_graph_match(
     }
 }
 
-pub fn validate_type_exists(name: &str, engine_state: Arc<EngineState>) -> Result<(), String> {
-    if !engine_state.has_component_type(&name.into()) {
+pub fn validate_type_exists(name: &str, engine: Arc<MosaicEngine>) -> Result<(), String> {
+    if !engine.engine_state.has_component_type(&name.into()) {
         Err(format!("Type '{}' not registered.", name.to_string()))
     } else {
         Ok(())
@@ -40,14 +40,14 @@ pub fn validate_type_exists(name: &str, engine_state: Arc<EngineState>) -> Resul
 }
 
 pub fn validate_frame_is_populated(
-    parent: EntityId,
-    engine_state: Arc<EngineState>,
+    parent: Tile,
+    engine_state: Arc<MosaicEngine>,
 ) -> Result<(), String> {
     let children = engine_state.get_children(&parent);
     if children.len() > 0 {
         Ok(())
     } else {
-        Err(format!("Frame {} is empty.", parent))
+        Err(format!("Frame {} is empty.", parent.id()))
     }
 }
 /*
