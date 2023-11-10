@@ -5,14 +5,26 @@ use crate::{
     layers::{indirection::Indirection, parenting::Parenting},
 };
 
+/// .
+///
+/// # Errors
+///
+/// This function will return an error if .
+#[allow(dead_code)]
 pub(crate) fn validate_tile_is_arrow(t: &Tile) -> Result<&Tile, String> {
     if !t.is_arrow() {
-        Err(format!("Block is required to have exactly arrow."))
+        Err("Block is required to have exactly arrow.".to_string())
     } else {
         Ok(t)
     }
 }
 
+/// .
+///
+/// # Errors
+///
+/// This function will return an error if .
+#[allow(dead_code)]
 pub(crate) fn validate_arrow_is_graph_match(
     t: &Tile,
     engine_state: Arc<EngineState>,
@@ -24,8 +36,8 @@ pub(crate) fn validate_arrow_is_graph_match(
         .get()
         .len();
 
-    if !(len == 1) {
-        Err(format!("[graph_match.rs][validate_arrow_is_graph_match] Arrow requires to have the GraphMatch component."))
+    if len != 1 {
+        Err("[graph_match.rs][validate_arrow_is_graph_match] Arrow requires to have the GraphMatch component.".to_string())
     } else {
         Ok(())
     }
@@ -33,7 +45,7 @@ pub(crate) fn validate_arrow_is_graph_match(
 
 pub fn validate_type_exists(name: &str, engine_state: Arc<EngineState>) -> Result<(), String> {
     if !engine_state.has_component_type(&name.into()) {
-        Err(format!("Type '{}' not registered.", name.to_string()))
+        Err(format!("Type '{}' not registered.", name))
     } else {
         Ok(())
     }
@@ -44,7 +56,7 @@ pub fn validate_frame_is_populated(
     engine_state: Arc<EngineState>,
 ) -> Result<(), String> {
     let children = engine_state.get_children(&parent);
-    if children.len() > 0 {
+    if !children.is_empty() {
         Ok(())
     } else {
         Err(format!("Frame {} is empty.", parent))

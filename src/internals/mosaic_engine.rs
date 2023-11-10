@@ -127,11 +127,7 @@ impl Lifecycle for Arc<MosaicEngine> {
 
 #[cfg(test)]
 mod mosaic_engine_testing {
-    use std::clone;
-
-    use itertools::Itertools;
-
-    use crate::internals::{mosaic_engine::Lifecycle, Value, S32};
+    use crate::internals::{mosaic_engine::Lifecycle, Value};
 
     use super::MosaicEngine;
 

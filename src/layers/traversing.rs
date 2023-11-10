@@ -54,7 +54,7 @@ impl Traversing for Arc<EngineState> {
             .filter(|t| *t == &tgt)
             .cloned()
             .collect_vec();
-        if path.len() > 0 {
+        if !path.is_empty() {
             Some((self, path).into())
         } else {
             None
@@ -69,7 +69,7 @@ impl Traversing for Arc<EngineState> {
             .filter(|t| *t == &tgt)
             .cloned()
             .collect_vec();
-        if path.len() > 0 {
+        if !path.is_empty() {
             Some((self, path).into())
         } else {
             None

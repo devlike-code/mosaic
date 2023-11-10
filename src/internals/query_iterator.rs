@@ -4,7 +4,7 @@ use array_tool::vec::{Intersect, Uniq};
 
 use crate::internals::EntityId;
 
-use super::{mosaic_engine::MosaicEngine, EngineState};
+use super::EngineState;
 
 #[derive(Clone, Default)]
 /// A query iterator is a thin wrapper around a vector of entity identifiers
@@ -21,20 +21,20 @@ impl std::fmt::Debug for QueryIterator {
     }
 }
 
-impl Into<QueryIterator> for (&Arc<EngineState>, Vec<EntityId>) {
-    fn into(self) -> QueryIterator {
+impl From<(&Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
+    fn from(val: (&Arc<EngineState>, Vec<EntityId>)) -> Self {
         QueryIterator {
-            engine: Arc::clone(self.0),
-            elements: self.1,
+            engine: Arc::clone(val.0),
+            elements: val.1,
         }
     }
 }
 
-impl Into<QueryIterator> for (Arc<EngineState>, Vec<EntityId>) {
-    fn into(self) -> QueryIterator {
+impl From<(Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
+    fn from(val: (Arc<EngineState>, Vec<EntityId>)) -> Self {
         QueryIterator {
-            engine: self.0,
-            elements: self.1,
+            engine: val.0,
+            elements: val.1,
         }
     }
 }
@@ -53,6 +53,11 @@ impl QueryIterator {
     /// Wraps around the length of the current iterator
     pub fn len(&self) -> usize {
         self.elements.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Wraps around the `sort` function of the underlying vector

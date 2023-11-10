@@ -7,7 +7,7 @@ use super::{Value, B256};
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
 pub(crate) trait Bytesize {
-    fn bytesize(self: &Self, engine: &EngineState) -> usize;
+    fn bytesize(&self, engine: &EngineState) -> usize;
 }
 
 /// Representation for anything that can be deserialized from a byte array
@@ -189,7 +189,7 @@ impl ToByteArray for Str {
 
 /// A bytesize check for complex component datatypes
 impl Bytesize for ComponentType {
-    fn bytesize(self: &Self, engine: &EngineState) -> usize {
+    fn bytesize(&self, engine: &EngineState) -> usize {
         match self {
             ComponentType::Alias(field) => field.datatype.bytesize(engine),
             ComponentType::Sum { fields, .. } => fields
@@ -208,7 +208,7 @@ impl Bytesize for ComponentType {
 
 /// A bytesize check for all basic component datatypes
 impl Bytesize for Datatype {
-    fn bytesize(self: &Self, engine: &EngineState) -> usize {
+    fn bytesize(&self, engine: &EngineState) -> usize {
         match self {
             Datatype::VOID => 0usize,
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,

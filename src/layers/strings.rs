@@ -44,7 +44,7 @@ impl Strings for Arc<EngineState> {
 
         let str_hash = Self::hash_string(str);
 
-        if let Some(_) = self.create_specific_object(str_hash) {
+        if self.create_specific_object(str_hash).is_some() {
             for part in split_str_into_parts(str, 256) {
                 let _ = self.add_outgoing_property_raw(
                     str_hash,
@@ -79,7 +79,7 @@ impl Strings for Arc<EngineState> {
             .with_component("String".into())
             .get()
             .as_slice()
-            .into_iter()
+            .iter()
             .flat_map(|&e| self.get_brick(e))
             .map(|e| e.data)
             .collect();
@@ -134,7 +134,7 @@ mod strings_testing {
         let random_text = include_str!("random275.txt");
         let hello_world = engine_state.create_string_object(random_text);
         assert_eq!(
-            Some(format!("{}", random_text)),
+            Some(random_text.to_string()),
             engine_state.recover_string(hello_world)
         );
     }
