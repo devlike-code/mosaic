@@ -5,7 +5,9 @@ use std::{
 };
 
 use crate::{
-    internals::{query_iterator::QueryIterator, EngineState, EntityId},
+    internals::{
+        mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, Tile,
+    },
     layers::querying::Querying,
 };
 
@@ -18,40 +20,44 @@ pub enum Traversal {
 }
 
 pub trait Traversing {
-    fn out_degree(&self, src: EntityId) -> usize;
-    fn in_degree(&self, src: EntityId) -> usize;
+    type Entity;
 
-    fn depth_first_search(&self, src: EntityId, traversal: Traversal) -> Vec<QueryIterator>;
-    fn reach_forward(&self, src: EntityId) -> Vec<QueryIterator>;
-    fn reach_backward(&self, src: EntityId) -> Vec<QueryIterator>;
-    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator>;
-    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator>;
-    fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool;
+    fn out_degree(&self, src: &Self::Entity) -> usize;
+    fn in_degree(&self, src: &Self::Entity) -> usize;
+
+    fn depth_first_search(&self, src: &Self::Entity, traversal: Traversal) -> Vec<QueryIterator>;
+    fn reach_forward(&self, src: &Self::Entity) -> Vec<QueryIterator>;
+    fn reach_backward(&self, src: &Self::Entity) -> Vec<QueryIterator>;
+    fn reach_forward_to(&self, src: &Self::Entity, tgt: &Self::Entity) -> Option<QueryIterator>;
+    fn reach_backward_to(&self, src: &Self::Entity, tgt: &Self::Entity) -> Option<QueryIterator>;
+    fn are_reachable(&self, src: &Self::Entity, tgt: &Self::Entity) -> bool;
 }
 
 impl Traversing for Arc<EngineState> {
-    fn out_degree(&self, src: EntityId) -> usize {
+    type Entity = EntityId;
+
+    fn out_degree(&self, src: &EntityId) -> usize {
         self.get_forward_neighbors(src).len()
     }
 
-    fn in_degree(&self, src: EntityId) -> usize {
+    fn in_degree(&self, src: &EntityId) -> usize {
         self.get_backward_neighbors(src).len()
     }
 
-    fn reach_forward(&self, src: EntityId) -> Vec<QueryIterator> {
+    fn reach_forward(&self, src: &EntityId) -> Vec<QueryIterator> {
         self.depth_first_search(src, Traversal::Forward)
     }
 
-    fn reach_backward(&self, src: EntityId) -> Vec<QueryIterator> {
+    fn reach_backward(&self, src: &EntityId) -> Vec<QueryIterator> {
         self.depth_first_search(src, Traversal::Backward)
     }
 
-    fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator> {
+    fn reach_forward_to(&self, src: &EntityId, tgt: &EntityId) -> Option<QueryIterator> {
         let reach = self.reach_forward(src);
         let path = reach
             .iter()
             .flatten()
-            .filter(|t| *t == &tgt)
+            .filter(|t| *t == tgt)
             .cloned()
             .collect_vec();
         if !path.is_empty() {
@@ -61,12 +67,12 @@ impl Traversing for Arc<EngineState> {
         }
     }
 
-    fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> Option<QueryIterator> {
+    fn reach_backward_to(&self, src: &EntityId, tgt: &EntityId) -> Option<QueryIterator> {
         let reach = self.reach_backward(src);
         let path = reach
             .iter()
             .flatten()
-            .filter(|t| *t == &tgt)
+            .filter(|t| *t == tgt)
             .cloned()
             .collect_vec();
         if !path.is_empty() {
@@ -76,11 +82,11 @@ impl Traversing for Arc<EngineState> {
         }
     }
 
-    fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool {
-        self.reach_forward_until(src, tgt).is_some()
+    fn are_reachable(&self, src: &EntityId, tgt: &EntityId) -> bool {
+        self.reach_forward_to(src, tgt).is_some()
     }
 
-    fn depth_first_search(&self, src: EntityId, traversal: Traversal) -> Vec<QueryIterator> {
+    fn depth_first_search(&self, src: &EntityId, traversal: Traversal) -> Vec<QueryIterator> {
         fn depth_first_search_rec(
             traversal: &Traversal,
             engine_state: &Arc<EngineState>,
@@ -94,9 +100,9 @@ impl Traversing for Arc<EngineState> {
                 history.push(current_node);
 
                 let neighbors = match traversal {
-                    Traversal::Forward => engine_state.get_forward_neighbors(current_node),
-                    Traversal::Backward => engine_state.get_backward_neighbors(current_node),
-                    Traversal::Both => engine_state.get_neighbors(current_node),
+                    Traversal::Forward => engine_state.get_forward_neighbors(&current_node),
+                    Traversal::Backward => engine_state.get_backward_neighbors(&current_node),
+                    Traversal::Both => engine_state.get_neighbors(&current_node),
                 }
                 .into_iter()
                 .cloned()
@@ -130,10 +136,10 @@ impl Traversing for Arc<EngineState> {
         }
 
         let mut results: Vec<QueryIterator> = vec![];
-        let mut freelist = VecDeque::default();
+        let mut freelist: VecDeque<usize> = VecDeque::default();
         let mut finished = HashSet::new();
         let mut history = vec![];
-        freelist.push_back(src);
+        freelist.push_back(*src);
 
         depth_first_search_rec(
             &traversal,
@@ -146,6 +152,43 @@ impl Traversing for Arc<EngineState> {
         results
     }
 }
+
+impl Traversing for Arc<MosaicEngine> {
+    type Entity = Tile;
+
+    fn out_degree(&self, src: &Self::Entity) -> usize {
+        self.engine_state.out_degree(&src.id())
+    }
+
+    fn in_degree(&self, src: &Self::Entity) -> usize {
+        self.engine_state.in_degree(&src.id())
+    }
+
+    fn depth_first_search(&self, src: &Self::Entity, traversal: Traversal) -> Vec<QueryIterator> {
+        self.engine_state.depth_first_search(&src.id(), traversal)
+    }
+
+    fn reach_forward(&self, src: &Self::Entity) -> Vec<QueryIterator> {
+        self.engine_state.reach_forward(&src.id())
+    }
+
+    fn reach_backward(&self, src: &Self::Entity) -> Vec<QueryIterator> {
+        self.engine_state.reach_backward(&src.id())
+    }
+
+    fn reach_forward_to(&self, src: &Self::Entity, tgt: &Self::Entity) -> Option<QueryIterator> {
+        self.engine_state.reach_forward_to(&src.id(), &tgt.id())
+    }
+
+    fn reach_backward_to(&self, src: &Self::Entity, tgt: &Self::Entity) -> Option<QueryIterator> {
+        self.engine_state.reach_backward_to(&src.id(), &tgt.id())
+    }
+
+    fn are_reachable(&self, src: &Self::Entity, tgt: &Self::Entity) -> bool {
+        self.engine_state.are_reachable(&src.id(), &tgt.id())
+    }
+}
+
 #[cfg(test)]
 mod traversing_tests {
     use crate::{
@@ -187,10 +230,10 @@ mod traversing_tests {
         println!("            |       |");
         println!("            {v} ----> {d} -- {z} --> {e}");
 
-        assert!(engine_state.are_reachable(a, e));
+        assert!(engine_state.are_reachable(&a, &e));
         engine_state.destroy_arrow(v);
-        assert!(engine_state.are_reachable(a, e));
+        assert!(engine_state.are_reachable(&a, &e));
         engine_state.destroy_arrow(y);
-        assert!(!engine_state.are_reachable(a, e));
+        assert!(!engine_state.are_reachable(&a, &e));
     }
 }

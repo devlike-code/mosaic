@@ -22,7 +22,7 @@ impl Tiling for Arc<MosaicEngine> {
         let selection = if let Some(flt) = filter {
             flt.as_slice().iter().fold(
                 (Arc::clone(&self.engine_state), vec![]).into(),
-                |old: QueryIterator, &f| old.union(self.engine_state.get_edges(f)),
+                |old: QueryIterator, &f| old.union(self.engine_state.get_edges(&f)),
             )
         } else {
             self.engine_state.query_access().get()

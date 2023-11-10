@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use array_tool::vec::{Intersect, Uniq};
+use itertools::Itertools;
 
 use crate::internals::EntityId;
 
@@ -26,6 +27,15 @@ impl From<(&Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
         QueryIterator {
             engine: Arc::clone(val.0),
             elements: val.1,
+        }
+    }
+}
+
+impl From<(&Arc<EngineState>, Vec<&EntityId>)> for QueryIterator {
+    fn from(val: (&Arc<EngineState>, Vec<&EntityId>)) -> Self {
+        QueryIterator {
+            engine: Arc::clone(val.0),
+            elements: val.1.into_iter().cloned().collect_vec(),
         }
     }
 }

@@ -264,7 +264,7 @@ impl Tile {
 
     pub fn get_properties(&self, component: S32) -> Vec<Tile> {
         self.mosaic()
-            .get_properties(self.id())
+            .get_properties(self)
             .as_vec()
             .into_iter()
             .filter_map(|b| {
