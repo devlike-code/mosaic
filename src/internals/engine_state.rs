@@ -117,10 +117,7 @@ impl EngineState {
 
     fn index_entity_by_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_component_index.lock().unwrap();
-        if !index.contains_key(&brick.component) {
-            index.insert(brick.component, SparseSet::default());
-        }
-        
+        index.entry(brick.component).or_insert_with(SparseSet::default);
         index.get_mut(&brick.component).unwrap().add(brick.id);
     }
 
@@ -144,59 +141,41 @@ impl EngineState {
 
     fn index_entity_by_source(&self, brick: &DataBrick) {
         let mut index = self.entities_by_source_index.lock().unwrap();
-        if !index.contains_key(&brick.source) {
-            index.insert(brick.source, SparseSet::default());
-        }
-        
+        index.entry(brick.source).or_insert_with(SparseSet::default);
         index.get_mut(&brick.source).unwrap().add(brick.id);
     }
 
     fn index_entity_by_target(&self, brick: &DataBrick) {
         let mut index = self.entities_by_target_index.lock().unwrap();
-        if !index.contains_key(&brick.target) {
-            index.insert(brick.target, SparseSet::default());
-        }
-        
+        index.entry(brick.target).or_insert_with(SparseSet::default);        
         index.get_mut(&brick.target).unwrap().add(brick.id);
     }
 
     fn index_entity_by_both_endpoints(&self, brick: &DataBrick) {
         let mut index = self.entities_by_both_endpoints_index.lock().unwrap();
         let key = (brick.source, brick.target);
-        if !index.contains_key(&key) {
-            index.insert(key, SparseSet::default());
-        }
-        
+        index.entry(key).or_insert_with(SparseSet::default);        
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
     fn index_entity_by_source_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_source_and_component_index.lock().unwrap();
         let key = (brick.source, brick.component);
-        if !index.contains_key(&key) {
-            index.insert(key, SparseSet::default());
-        }
-        
+        index.entry(key).or_insert_with(SparseSet::default);         
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
     fn index_entity_by_target_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_target_and_component_index.lock().unwrap();
         let key = (brick.target, brick.component);
-        if !index.contains_key(&key) {
-            index.insert(key, SparseSet::default());
-        }
-        
+        index.entry(key).or_insert_with(SparseSet::default);         
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
     fn index_entity_by_endpoints_and_component(&self, brick: &DataBrick) {
         let mut index = self.entities_by_endpoints_and_component_index.lock().unwrap();
         let key = (brick.source, brick.target, brick.component);
-        if !index.contains_key(&key) {
-            index.insert(key, SparseSet::default());
-        }
-        
+        index.entry(key).or_insert_with(SparseSet::default);         
         index.get_mut(&key).unwrap().add(brick.id);
     }
 
@@ -318,7 +297,7 @@ impl EngineState {
         use ComponentType::*;
         match &definition {
             Alias(ComponentField{ name: _, datatype: Datatype::COMP(other) }) => {
-                let other_type = self.get_component_type(other.clone())?;
+                let other_type = self.get_component_type(*other)?;
                 Ok(other_type.duplicate_as(definition.name().into()))
             },
             _ => Ok(definition)
@@ -379,7 +358,7 @@ impl EngineState {
         self.entity_brick_storage.lock().unwrap().contains_key(&id)
     }
 
-    fn unify_fields_and_values_into_data(&self, component: ComponentName, fields: Vec<Value>) -> Result<Vec<Vec<u8>>, (ComponentField, Value)> {
+    fn unify_fields_and_values_into_data(&self, component: ComponentName, fields: Vec<Value>) -> Result<Vec<Vec<u8>>, Box<(ComponentField, Value)>> {
         let components = self.component_type_index.lock().unwrap();
         let component_type = components.get(&component)
             .ok_or((ComponentField { name: format!("<{}>", component).as_str().into(), datatype: Datatype::VOID }, Value::VOID))?.clone();
@@ -394,8 +373,8 @@ impl EngineState {
                 }
             }).collect::<Vec<_>>();
         
-        if has_error.is_some() {
-            Err(has_error.unwrap())
+        if let Some(error) = has_error {
+            Err(Box::new(error))
         } else {
             Ok(fields.iter().map(|e| e.clone().unwrap()).collect())
         }
@@ -459,9 +438,9 @@ impl EngineState {
     /// POST-CONDITION (outgoing-property-definition): brick.id == brick.target && brick.id != brick.source
     pub(crate) fn add_outgoing_property(&self, source: EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
         let matching = self.unify_fields_and_values_into_data(component, fields)
-        .map_err(|(cf, d)| 
+        .map_err(|b| 
             format!("[Error][engine_state.rs][add_outgoing_property] Cannot unify field {} (type {:?}) with value {:?} while creating outgoing property {} -> X",
-                cf.name, cf.datatype, d, source))?;
+                b.0.name, b.0.datatype, b.1, source))?;
     
         let data = matching.concat();
         Ok(self.add_outgoing_property_raw(source, component, data))
@@ -478,9 +457,9 @@ impl Lifecycle for Arc<EngineState> {
 
     fn create_object(&self, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
         let matching = self.unify_fields_and_values_into_data(component, fields)
-            .map_err(|(cf, d)| 
+            .map_err(|b| 
                 format!("[Error][engine_state.rs][create_object] Cannot unify field {} (type {:?}) with value {:?} while creating object",
-                    cf.name, cf.datatype, d))?;
+                    b.0.name, b.0.datatype, b.1))?;
         
         let data = matching.concat();
         Ok(self.create_object_raw(component, data))
@@ -488,9 +467,9 @@ impl Lifecycle for Arc<EngineState> {
 
     fn create_arrow(&self, source: &EntityId, target: &EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
         let matching = self.unify_fields_and_values_into_data(component, fields)
-            .map_err(|(cf, d)| 
+            .map_err(|b| 
                 format!("[Error][engine_state.rs][create_arrow] Cannot unify field {} (type {:?}) with value {:?} while creating arrow {} -> {}",
-                    cf.name, cf.datatype, d, source, target))?;
+                    b.0.name, b.0.datatype, b.1, source, target))?;
         
         let data = matching.concat();
         Ok(self.create_arrow_raw(*source, *target, component, data))
@@ -498,9 +477,9 @@ impl Lifecycle for Arc<EngineState> {
 
     fn add_descriptor(&self, target: &EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
         let matching = self.unify_fields_and_values_into_data(component, fields)
-        .map_err(|(cf, d)| 
+        .map_err(|b| 
             format!("[Error][engine_state.rs][add_incoming_property] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
-                cf.name, cf.datatype, d, target))?;
+                b.0.name, b.0.datatype, b.1, target))?;
     
         let data = matching.concat();
         Ok(self.add_incoming_property_raw(*target, component, data))
@@ -508,9 +487,9 @@ impl Lifecycle for Arc<EngineState> {
 
     fn add_extension(&self, source: &EntityId, component: ComponentName, fields: Vec<Value>) -> Result<EntityId, String> {
         let matching = self.unify_fields_and_values_into_data(component, fields)
-        .map_err(|(cf, d)| 
+        .map_err(|b| 
             format!("[Error][engine_state.rs][add_incoming_property] Cannot unify field {} (type {:?}) with value {:?} while creating incoming property X -> {}",
-                cf.name, cf.datatype, d, source))?;
+                b.0.name, b.0.datatype, b.1, source))?;
     
         let data = matching.concat();
         Ok(self.add_outgoing_property_raw(*source, component, data))
@@ -538,8 +517,8 @@ mod engine_state_testing {
     fn test_flatten_simple_alias_component() {
         let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Alias ( ComponentField { name: "Bar".into(), datatype: Datatype::VOID }));
-        let foo = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
-        let flat_foo = engine_state.flatten_component_type(foo);
+        let foo_type = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
+        let flat_foo = engine_state.flatten_component_type(foo_type);
         assert!(flat_foo.is_ok());
         assert_eq!(Ok(ComponentType::Alias( ComponentField { name: "Foo".into(), datatype: Datatype::VOID })), flat_foo);
     }
@@ -548,8 +527,8 @@ mod engine_state_testing {
     fn test_flatten_complex_alias_component() {
         let engine_state = EngineState::new();
         engine_state.add_raw_component_type(ComponentType::Product { name: "Bar".into(), fields: vec![] });
-        let foo = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
-        let flat_foo = engine_state.flatten_component_type(foo);
+        let foo_type = ComponentType::Alias ( ComponentField { name: "Foo".into(), datatype: Datatype::COMP("Bar".into()) });
+        let flat_foo = engine_state.flatten_component_type(foo_type);
         assert!(flat_foo.is_ok());
         assert_eq!(Ok(ComponentType::Product { name: "Foo".into(), fields: vec![] }), flat_foo);
     }

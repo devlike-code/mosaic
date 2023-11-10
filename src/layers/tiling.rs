@@ -3,8 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::internals::{
-    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, Block, DataBrick, EngineState,
-    EntityId, Tile,
+    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, Block, DataBrick, EntityId, Tile,
 };
 
 use super::{accessing::Accessing, querying::Querying};
@@ -20,18 +19,18 @@ pub trait Tiling {
 
 impl Tiling for Arc<MosaicEngine> {
     fn get_blocks(&self, filter: Option<QueryIterator>) -> HashMap<EntityId, Block> {
-        let selection = if filter.is_none() {
-            self.engine_state.query_access().get()
-        } else {
-            filter.unwrap().as_slice().into_iter().fold(
+        let selection = if let Some(flt) = filter {
+            flt.as_slice().iter().fold(
                 (Arc::clone(&self.engine_state), vec![]).into(),
                 |old: QueryIterator, &f| old.union(self.engine_state.get_edges(f)),
             )
+        } else {
+            self.engine_state.query_access().get()
         };
 
         let tiles = selection
             .as_slice()
-            .into_iter()
+            .iter()
             .flat_map(|id| self.engine_state.get_brick(*id))
             .map(|brick| {
                 let tile: Tile = (self, &brick).into();
@@ -43,26 +42,21 @@ impl Tiling for Arc<MosaicEngine> {
 
         for tile in tiles {
             let id = tile.id();
-            if !result.contains_key(&id) {
-                result.insert(id, Block::new());
-            }
+            result.entry(id).or_insert_with(Block::default);
             result
                 .get_mut(&id)
                 .unwrap()
                 .extend(vec![tile.clone()].into());
 
             let (source, target) = tile.get_endpoints();
-            if !result.contains_key(&source) {
-                result.insert(source, Block::new());
-            }
+            let (source, target) = (source.id(), target.id());
+            result.entry(source).or_insert_with(Block::default);
             result
                 .get_mut(&source)
                 .unwrap()
                 .extend(vec![tile.clone()].into());
 
-            if !result.contains_key(&target) {
-                result.insert(target, Block::new());
-            }
+            result.entry(target).or_insert_with(Block::default);
             result
                 .get_mut(&target)
                 .unwrap()

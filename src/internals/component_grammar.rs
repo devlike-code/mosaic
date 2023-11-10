@@ -42,12 +42,9 @@ impl ComponentParser {
             Rule::datatype_expr | Rule::field_datatype_expr => {
                 let v = val.as_str();
                 let typ = Self::parse_base_type(v);
-                
-                if typ.is_some() {
-                    Ok(ComponentField {
-                        name,
-                        datatype: typ.unwrap(),
-                    })
+
+                if let Some(t) = typ {
+                    Ok(ComponentField { name, datatype: t })
                 } else {
                     Ok(ComponentField {
                         name,
@@ -62,16 +59,16 @@ impl ComponentParser {
             }),
 
             e => {
-                return Err(format!("[Error][component_grammar.rs][parse_field] Expected datatype or identifier when parsing field '{:?}', {:?} found.", name, e));
+                Err(format!("[Error][component_grammar.rs][parse_field] Expected datatype or identifier when parsing field '{:?}', {:?} found.", name, e))
             }
         }
     }
 
     fn check_keywords(name: &str) -> Result<(), String> {
         if name == "product" {
-            Err(format!("[Error][component_grammar.rs][check_keywords] Keyword 'product' can't be used as an identifier."))
+            Err("[Error][component_grammar.rs][check_keywords] Keyword 'product' can't be used as an identifier.".to_string())
         } else if name == "sum" {
-            Err(format!("[Error][component_grammar.rs][check_keywords] Keyword 'sum' can't be used as an identifier."))
+            Err("[Error][component_grammar.rs][check_keywords] Keyword 'sum' can't be used as an identifier.".to_string())
         } else {
             Ok(())
         }
@@ -96,26 +93,26 @@ impl ComponentParser {
             let v = val.as_str();
             Self::check_keywords(v)?;
             let typ = Self::parse_base_type(v);
-            if typ.is_some() {
-                Ok(ComponentType::Alias ({
+            if let Some(t) = typ {
+                Ok(ComponentType::Alias({
                     ComponentField {
                         name: name.into(),
-                        datatype: typ.unwrap(),                    
-                    }}),
-                )
+                        datatype: t,
+                    }
+                }))
             } else {
-                Ok(ComponentType::Alias ({                   
-                    ComponentField  {
+                Ok(ComponentType::Alias({
+                    ComponentField {
                         name: name.into(),
                         datatype: Datatype::COMP(v.into()),
-                    }})
-                )
+                    }
+                }))
             }
         } else {
-            let mut subs = val.into_inner();
+            let subs = val.into_inner();
             let mut fields = vec![];
 
-            while let Some(n) = subs.next() {
+            for n in subs {
                 let field = Self::parse_field(n.clone());
                 if field.is_err() {
                     return Err(field.err().unwrap());
@@ -143,12 +140,10 @@ impl ComponentParser {
                 let pair = pairs.into_iter().next().unwrap();
                 match pair.as_rule() {
                     Rule::struct_expr => Self::parse_product(pair),
-                    _ => {
-                        return Err(
-                            "[Error][component_grammar.rs][parse_type] Wrong structure found!"
-                                .to_string(),
-                        )
-                    }
+                    _ => Err(
+                        "[Error][component_grammar.rs][parse_type] Wrong structure found!"
+                            .to_string(),
+                    ),
                 }
             }
             Err(err) => Err(err.to_string()),
@@ -205,11 +200,12 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_basic_alias() {
         let input = "Float : f32;";
-        let expected = ComponentType::Alias ({
+        let expected = ComponentType::Alias({
             ComponentField {
                 name: "Float".into(),
                 datatype: Datatype::F32,
-            }});
+            }
+        });
 
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
@@ -217,11 +213,12 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_comp_alias() {
         let input = "Position : Point;";
-        let expected = ComponentType::Alias ({           
-           ComponentField {
+        let expected = ComponentType::Alias({
+            ComponentField {
                 name: "Position".into(),
                 datatype: Datatype::COMP("Point".into()),
-            }});
+            }
+        });
 
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
@@ -246,7 +243,6 @@ mod component_grammar_testing {
         assert_eq!(Ok(expected), ComponentParser::parse_type(input));
     }
 
-    
     #[test]
     fn test_parse_product_type_with_comp_field() {
         let input = "Position : product { x: i32, y: Foo };";

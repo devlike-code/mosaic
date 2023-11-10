@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::internals::{
-    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, S32,
-};
+use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
 
 #[derive(Clone)]
 /// A simple entities query connected to an engine state and applying one or more filters

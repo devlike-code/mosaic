@@ -44,7 +44,7 @@ impl Querying for Arc<EngineState> {
                 self,
                 by_target
                     .elements()
-                    .into_iter()
+                    .iter()
                     .filter(|&i| i != &id)
                     .flat_map(|&i| self.get_brick(i))
                     .filter(|b| b.source == b.id)
@@ -63,7 +63,7 @@ impl Querying for Arc<EngineState> {
                 self,
                 by_source
                     .elements()
-                    .into_iter()
+                    .iter()
                     .filter(|&i| i != &id)
                     .flat_map(|&i| self.get_brick(i))
                     .filter(|b| b.target == b.id)
@@ -86,7 +86,7 @@ impl Querying for Arc<EngineState> {
                 self,
                 by_source
                     .elements()
-                    .into_iter()
+                    .iter()
                     .flat_map(|&i| self.get_brick(i))
                     .filter(|b| b.source != b.target && b.target != id)
                     .map(|b| b.target)
@@ -104,7 +104,7 @@ impl Querying for Arc<EngineState> {
                 self,
                 by_target
                     .elements()
-                    .into_iter()
+                    .iter()
                     .flat_map(|&i| self.get_brick(i))
                     .filter(|b| b.source != b.target && b.source != id)
                     .map(|b| b.source)

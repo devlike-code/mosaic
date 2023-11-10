@@ -11,13 +11,14 @@ use crate::internals::{
     mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, Tile, S32,
 };
 
+pub type QueryFilter = Box<dyn FnMut(&EntityId) -> bool>;
 /// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect {
     pub(crate) query: QueryAccess,
     pub(crate) select: Option<Vec<EntityId>>,
     pub(crate) include_components: Vec<S32>,
     pub(crate) exclude_components: Vec<S32>,
-    pub(crate) filters: Vec<Box<dyn FnMut(&EntityId) -> bool>>,
+    pub(crate) filters: Vec<QueryFilter>,
 }
 
 impl QueryIndirect {
@@ -68,7 +69,7 @@ impl QueryIndirect {
 
     #[allow(dead_code)]
     pub fn get(mut self) -> QueryIterator {
-        let mut included = self.select.or(Some(self.query.get().as_vec())).unwrap();
+        let mut included = self.select.unwrap_or(self.query.get().as_vec());
         for incl in self.include_components {
             let comp = self.query.engine.get_entities_with_property(incl);
             included = included.intersect(comp.as_vec());
@@ -135,7 +136,7 @@ impl Indirection for Arc<EngineState> {
 
     fn is_incoming_property(&self, id: &EntityId) -> bool {
         let storage = self.entity_brick_storage.lock().unwrap();
-        let maybe_brick = storage.get(&id);
+        let maybe_brick = storage.get(id);
         if let Some(brick) = maybe_brick {
             brick.id == brick.source && brick.id != brick.target
         } else {
@@ -145,7 +146,7 @@ impl Indirection for Arc<EngineState> {
 
     fn is_outgoing_property(&self, id: &EntityId) -> bool {
         let storage = self.entity_brick_storage.lock().unwrap();
-        let maybe_brick = storage.get(&id);
+        let maybe_brick = storage.get(id);
         if let Some(brick) = maybe_brick {
             brick.id == brick.target && brick.id != brick.source
         } else {
@@ -155,22 +156,14 @@ impl Indirection for Arc<EngineState> {
 
     fn get_source(&self, id: &EntityId) -> Option<EntityId> {
         let storage = self.entity_brick_storage.lock().unwrap();
-        let maybe_brick = storage.get(&id);
-        if let Some(brick) = maybe_brick {
-            Some(brick.source)
-        } else {
-            None
-        }
+        let maybe_brick = storage.get(id);
+        maybe_brick.map(|brick| brick.source)
     }
 
     fn get_target(&self, id: &EntityId) -> Option<EntityId> {
         let storage = self.entity_brick_storage.lock().unwrap();
-        let maybe_brick = storage.get(&id);
-        if let Some(brick) = maybe_brick {
-            Some(brick.target)
-        } else {
-            None
-        }
+        let maybe_brick = storage.get(id);
+        maybe_brick.map(|brick| brick.target)
     }
 
     fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
@@ -230,7 +223,7 @@ impl Indirection for Arc<EngineState> {
     }
 
     fn has_property(&self, id: &Self::Entity, component: S32) -> bool {
-        self.get_entities_with_property(component).contains(&id)
+        self.get_entities_with_property(component).contains(id)
     }
 }
 

@@ -8,7 +8,7 @@ use array_tool::vec::Uniq;
 use fstr::FStr;
 use itertools::Itertools;
 
-use crate::layers::{indirection::Indirection, querying::Querying, tiling::Tiling};
+use crate::layers::{querying::Querying, tiling::Tiling};
 
 use super::{
     datatypes::{EntityId, S32},
@@ -113,7 +113,8 @@ impl Tile {
             });
 
         //push cloned brick back to engine state
-        Ok(brick.update(engine_state))
+        brick.update(engine_state);
+        Ok(())
     }
 
     pub fn add_descriptor(&self, component: S32, fields: Vec<Value>) {
@@ -216,7 +217,7 @@ impl Tile {
     }
 
     pub fn get_endpoints(&self) -> (Tile, Tile) {
-       let (s, t) = match self {
+        let (s, t) = match self {
             Tile::Object { id, .. } => (*id, *id),
             Tile::Arrow { source, target, .. } => (*source, *target),
             Tile::Loop { origin, .. } => (*origin, *origin),
@@ -226,7 +227,11 @@ impl Tile {
             Tile::Extension { origin, id, .. } => (*id, *origin),
             Tile::Backlink { source, target, .. } => (*source, *target),
         };
-        (self.mosaic().get_tile(s).unwrap(), self.mosaic().get_tile(t).unwrap())
+
+        (
+            self.mosaic().get_tile(s).unwrap(),
+            self.mosaic().get_tile(t).unwrap(),
+        )
     }
 
     pub fn is_arrow(&self) -> bool {
@@ -326,35 +331,32 @@ impl std::fmt::Debug for Tile {
     }
 }
 
+#[derive(Default)]
 pub struct Block {
     pub tiles: Vec<Tile>,
 }
 
 impl Block {
-    pub fn new() -> Block {
-        Block { tiles: vec![] }
-    }
-
     pub fn extend(&mut self, other: Block) {
         self.tiles.extend(other.tiles);
         self.tiles = self.tiles.unique();
     }
 }
 
-impl Into<Block> for Vec<Tile> {
-    fn into(mut self) -> Block {
-        self.sort_by(|a, b| (a.order(), a.id()).cmp(&(b.order(), b.id())));
-        Block { tiles: self }
+impl From<Vec<Tile>> for Block {
+    fn from(mut val: Vec<Tile>) -> Self {
+        val.sort_by_key(|a| (a.order(), a.id()));
+        Block { tiles: val }
     }
 }
 
 impl std::fmt::Debug for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut tiles = self.tiles.clone();
-        tiles.sort_by(|a, b| (a.order(), a.id()).cmp(&(b.order(), b.id())));
-        tiles.iter().fold(Ok(()), |result, item| {
-            result.and_then(|_| item.fmt(f).and_then(|_| f.write_str("\n")))
-        })
+        tiles.sort_by_key(|a| (a.order(), a.id()));
+        tiles
+            .iter()
+            .try_fold((), |_, item| item.fmt(f).and_then(|_| f.write_str("\n")))
     }
 }
 
@@ -524,7 +526,7 @@ mod mosaic_testing {
         let a = A {
             a: b'c',
             b: b'a',
-            c: format!("qweqweijwqeiofjwioefjwoeifjoiwefjewf"),
+            c: "qweqweijwqeiofjwioefjwoeifjoiwefjewf".to_string(),
         };
         a.hash(&mut hasher);
         println!("{:?}", hasher.finish());

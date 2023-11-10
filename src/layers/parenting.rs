@@ -55,7 +55,7 @@ impl Parenting for Arc<EngineState> {
         if let Some(relation) = self.get_parenting_relation(child) {
             Err(self.get_source(&relation).unwrap())
         } else {
-            let _p = self.create_arrow(&parent, &child, "Parent".into(), vec![]);
+            let _p = self.create_arrow(parent, child, "Parent".into(), vec![]);
             Ok(*parent)
         }
     }
@@ -90,8 +90,7 @@ impl Parenting for Arc<MosaicEngine> {
     fn get_parenting_relation(&self, child: &Self::Entity) -> Option<Self::Entity> {
         self.engine_state
             .get_parenting_relation(&child.id())
-            .map(|b| self.get_tile(b))
-            .flatten()
+            .and_then(|b| self.get_tile(b))
     }
 
     fn set_parent(
@@ -108,8 +107,7 @@ impl Parenting for Arc<MosaicEngine> {
     fn get_parent(&self, child: &Self::Entity) -> Option<Self::Entity> {
         self.engine_state
             .get_parent(&child.id())
-            .map(|b| self.get_tile(b))
-            .flatten()
+            .and_then(|b| self.get_tile(b))
     }
 
     fn get_children(&self, parent: &Self::Entity) -> QueryIterator {

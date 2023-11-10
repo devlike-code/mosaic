@@ -12,36 +12,36 @@ pub type EntityId = usize;
 pub struct S32(pub FStr<32>);
 impl Copy for S32 {}
 
-impl Into<S32> for &str {
-    fn into(self) -> S32 {
-        S32(FStr::<32>::from_str_lossy(self, b'\0'))
+impl From<&str> for S32 {
+    fn from(value: &str) -> Self {
+        S32(FStr::<32>::from_str_lossy(value, b'\0'))
     }
 }
 
-impl Into<S32> for &[u8] {
-    fn into(self) -> S32 {
+impl From<&[u8]> for S32 {
+    fn from(value: &[u8]) -> Self {
         S32(FStr::<32>::from_str_lossy(
-            std::str::from_utf8(self).unwrap(),
+            std::str::from_utf8(value).unwrap(),
             b'\0',
         ))
     }
 }
 
-impl Into<S32> for String {
-    fn into(self) -> S32 {
-        S32(FStr::<32>::from_str_lossy(self.as_str(), b'\0'))
+impl From<String> for S32 {
+    fn from(value: String) -> Self {
+        S32(FStr::<32>::from_str_lossy(value.as_str(), b'\0'))
     }
 }
 
 impl Display for S32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0.replace("\0", "").trim())
+        f.write_str(self.0.replace('\0', "").trim())
     }
 }
 
 impl std::fmt::Debug for S32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0.replace("\0", "").trim())
+        f.write_str(self.0.replace('\0', "").trim())
     }
 }
 
@@ -137,14 +137,11 @@ impl ComponentType {
             ComponentType::Product { name, .. } => name.0.to_string(),
         };
 
-        s.replace("\0", "")
+        s.replace('\0', "")
     }
 
     pub fn get_field_names(&self) -> Vec<S32> {
-        self.get_fields()
-            .iter()
-            .map(|comp| comp.name.clone())
-            .collect()
+        self.get_fields().iter().map(|comp| comp.name).collect()
     }
 
     /// Returns the fields of a certain component types
@@ -174,7 +171,7 @@ pub fn try_read_component_type(
     let input_length = input.len();
 
     if input_length < component_name_length {
-        return Err(format!("[Error][datatypes.rs][try_read_component_type] Input not long enough to read type name."));
+        return Err("[Error][datatypes.rs][try_read_component_type] Input not long enough to read type name.".to_string());
     }
 
     let message_length = input.len() - component_name_length;
@@ -186,16 +183,17 @@ pub fn try_read_component_type(
     let component_type = engine.get_component_type(component_name)?;
     let bytesize = component_type.bytesize(engine);
     if 8 * bytesize != message_length {
-        return Err(format!("[Error][datatypes.rs][try_read_component_type] Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
-            component_name, bytesize, message_length, input));
+        Err(format!("[Error][datatypes.rs][try_read_component_type] Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
+            component_name, bytesize, message_length, input))
+    } else {
+        Ok(component_type)
     }
-
-    return Ok(component_type);
 }
 
 pub type B256 = fstr::FStr<256>;
 
 #[derive(Debug, PartialEq, Clone)]
+#[allow(clippy::large_enum_variant)]
 /// A datatype value that holds the type and value for some variable
 pub enum Value {
     /// A void type of size 0 used as markers and tags

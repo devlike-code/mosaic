@@ -34,7 +34,7 @@ impl Default for MosaicEngine {
             .add_component_types("Object: void; Arrow: void; Label: s32; String: b256;")
             .unwrap();
         engine_state
-            .add_component_types("Position: product { x: u32, y: u32 };")
+            .add_component_types("Position: product { x: f32, y: f32 };")
             .unwrap();
         engine_state.add_component_types("Parent: void;").unwrap();
         Self {
@@ -127,11 +127,7 @@ impl Lifecycle for Arc<MosaicEngine> {
 
 #[cfg(test)]
 mod mosaic_engine_testing {
-    use std::clone;
-
-    use itertools::Itertools;
-
-    use crate::internals::{mosaic_engine::Lifecycle, Value, S32};
+    use crate::internals::{mosaic_engine::Lifecycle, Value};
 
     use super::MosaicEngine;
 
@@ -161,11 +157,15 @@ mod mosaic_engine_testing {
         let mosaic = MosaicEngine::new();
         let obj = mosaic.create_object("Object".into(), vec![]).unwrap();
         let result = mosaic
-            .add_descriptor(&obj, "Position".into(), vec![Value::U32(7), Value::U32(12)])
+            .add_descriptor(
+                &obj,
+                "Position".into(),
+                vec![Value::F32(7.0), Value::F32(12.0)],
+            )
             .unwrap();
         assert_eq!(2, result.get_data().fields.len());
-        assert_eq!(Value::U32(7), result["x"]);
-        assert_eq!(Value::U32(12), result["y"]);
+        assert_eq!(Value::F32(7.0), result["x"]);
+        assert_eq!(Value::F32(12.0), result["y"]);
     }
 
     #[test]
@@ -173,7 +173,11 @@ mod mosaic_engine_testing {
         let mosaic = MosaicEngine::new();
         let obj = mosaic.create_object("Object".into(), vec![]).unwrap();
         mosaic
-            .add_descriptor(&obj, "Position".into(), vec![Value::U32(7), Value::U32(12)])
+            .add_descriptor(
+                &obj,
+                "Position".into(),
+                vec![Value::F32(7.0), Value::F32(12.0)],
+            )
             .unwrap();
 
         let position = obj.get_property("Position".into());
@@ -181,8 +185,8 @@ mod mosaic_engine_testing {
 
         if let Some(pos) = position {
             assert_eq!(2, pos.get_data().fields.len());
-            assert_eq!(Value::U32(7), pos["x"]);
-            assert_eq!(Value::U32(12), pos["y"]);
+            assert_eq!(Value::F32(7.0), pos["x"]);
+            assert_eq!(Value::F32(12.0), pos["y"]);
         }
     }
 

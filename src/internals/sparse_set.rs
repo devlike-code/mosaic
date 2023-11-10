@@ -26,11 +26,16 @@ impl SparseSet {
     }
 
     pub fn len(&self) -> usize {
-        self.order_max as usize
+        self.order_max
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub(crate) fn get_pair_by_pos(&self, pos: EntityId) -> Option<DenseSparsePair> {
-        let dn = self.order_array[pos as usize];
+        let dn = self.order_array[pos];
         self.get_pair_by_index(dn)
     }
 
@@ -49,15 +54,15 @@ impl SparseSet {
     }
 
     pub fn add(&mut self, i: EntityId) {
-        self.order_array.insert(self.order_max as usize, i);
+        self.order_array.insert(self.order_max, i);
 
         self.order_max += 1;
-        self.index_array.insert(i, self.order_max as usize);
+        self.index_array.insert(i, self.order_max);
     }
 
     pub(crate) fn swap(&mut self, a: &DenseSparsePair, b: &DenseSparsePair) {
-        self.order_array[a.dense_index as usize] = b.sparse_index;
-        self.order_array[b.dense_index as usize] = a.sparse_index;
+        self.order_array[a.dense_index] = b.sparse_index;
+        self.order_array[b.dense_index] = a.sparse_index;
         self.index_array.insert(a.sparse_index, b.dense_index + 1);
         self.index_array.insert(b.sparse_index, a.dense_index + 1);
     }
@@ -98,16 +103,16 @@ impl SparseSet {
 
         if let Some(sp) = self.index_array.get(&i) {
             if *sp == 0 {
-                return false;
+                false
             } else {
                 let dn = *self
                     .order_array
-                    .get((sp - 1) as usize)
-                    .expect(format!("Dense map doesn't contain index {}", sp - 1).as_str());
+                    .get(sp - 1)
+                    .unwrap_or_else(|| panic!("Dense map doesn't contain index {}", sp - 1));
                 *sp <= self.order_max && dn == i
             }
         } else {
-            return false;
+            false
         }
     }
 
@@ -125,7 +130,7 @@ impl<'a> IntoIterator for &'a SparseSet {
     type IntoIter = std::slice::Iter<'a, EntityId>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.order_array[..self.order_max as usize].iter()
+        self.order_array[..self.order_max].iter()
     }
 }
 
