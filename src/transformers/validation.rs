@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    internals::{EngineState, EntityId, Tile, mosaic_engine::MosaicEngine},
+    internals::{mosaic_engine::MosaicEngine, Tile},
     layers::{indirection::Indirection, parenting::Parenting},
 };
 
@@ -43,8 +43,8 @@ pub(crate) fn validate_arrow_is_graph_match(
     }
 }
 
-pub fn validate_type_exists(name: &str, engine_state: Arc<EngineState>) -> Result<(), String> {
-    if !engine_state.has_component_type(&name.into()) {
+pub fn validate_type_exists(name: &str, engine: Arc<MosaicEngine>) -> Result<(), String> {
+    if !engine.engine_state.has_component_type(&name.into()) {
         Err(format!("Type '{}' not registered.", name))
     } else {
         Ok(())

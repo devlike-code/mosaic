@@ -51,8 +51,8 @@ pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<
     let arrow = validate_tile_is_arrow(input)?;
     validate_arrow_is_graph_match(arrow, engine_state)?;
 
-    let pattern = arrow.get_endpoints().0; // staring arrow's source
-    let target = arrow.get_endpoints().1; // staring arrow's target
+    let pattern = arrow.get_endpoints(); // staring arrow's source
+    let target = arrow.get_endpoints(); // staring arrow's target
 
     validate_frame_is_populated(pattern, engine_state)?;
     validate_frame_is_populated(target, engine_state)?;
