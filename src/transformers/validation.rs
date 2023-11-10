@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    internals::{EngineState, EntityId, Tile},
+    internals::{EngineState, EntityId, Tile, mosaic_engine::MosaicEngine},
     layers::{indirection::Indirection, parenting::Parenting},
 };
 
@@ -27,7 +27,7 @@ pub(crate) fn validate_tile_is_arrow(t: &Tile) -> Result<&Tile, String> {
 #[allow(dead_code)]
 pub(crate) fn validate_arrow_is_graph_match(
     t: &Tile,
-    engine_state: Arc<EngineState>,
+    engine_state: Arc<MosaicEngine>,
 ) -> Result<(), String> {
     let len = engine_state
         .build_query()
@@ -52,14 +52,14 @@ pub fn validate_type_exists(name: &str, engine_state: Arc<EngineState>) -> Resul
 }
 
 pub fn validate_frame_is_populated(
-    parent: EntityId,
-    engine_state: Arc<EngineState>,
+    parent: Tile,
+    engine_state: Arc<MosaicEngine>,
 ) -> Result<(), String> {
     let children = engine_state.get_children(&parent);
     if !children.is_empty() {
         Ok(())
     } else {
-        Err(format!("Frame {} is empty.", parent))
+        Err(format!("Frame {} is empty.", parent.id()))
     }
 }
 /*

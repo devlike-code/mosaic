@@ -1,10 +1,8 @@
 {
     "rust-analyzer.showUnlinkedFileNotification": false,
-    "editor.codeActionsOnSave": {
-
-    },
+    "editor.codeActionsOnSave": {},
     "rust-analyzer.check.overrideCommand": null,
-    "rust-analyzer.checkOnSave": true,
     "eslint.codeActionsOnSave.rules": null,
     "editor.formatOnSave": true,
+    "rust-analyzer.check.command": "clippy",
 }

@@ -1,24 +1,24 @@
-/*
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-
-use engine_state::EngineState;
-
-use crate::internals::{Block, Tile, engine_state, EntityId};
+use crate::internals::mosaic_engine::MosaicEngine;
+use crate::internals::{Block, EntityId, Tile};
 
 use crate::layers::indirection::Indirection;
 use crate::layers::parenting::Parenting;
-use crate::transformers::validation::{self, validate_frame_is_populated, validate_tile_is_arrow, validate_arrow_is_graph_match};
+use crate::layers::traversing::Traversing;
+use crate::transformers::validation::{
+    self, validate_arrow_is_graph_match, validate_frame_is_populated, validate_tile_is_arrow,
+};
 
 use super::validation::validate_type_exists;
 
 #[derive(Debug)]
-struct GraphParameters<'a> {    
-    pattern_size: usize,   
+struct GraphParameters<'a> {
+    pattern_size: usize,
     candidates: &'a HashMap<EntityId, HashSet<EntityId>>,
 }
 
@@ -39,7 +39,7 @@ fn hash_hashmap<K: Ord + Clone + Display, V: Clone + Display>(hashmap: &HashMap<
     hasher.finish()
 }
 
-pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile, String> {
+pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<Tile>, String> {
     let mut arrow_counters = u32::MAX;
 
     fn tuple_is_completely_different(a: &(u32, u32), b: &(u32, u32)) -> bool {
@@ -57,20 +57,19 @@ pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile,
     validate_frame_is_populated(pattern, engine_state)?;
     validate_frame_is_populated(target, engine_state)?;
 
-     let pattern_graph = engine_state.get_children(pattern); // graph where pattern is parent
-     let target_graph = engine_state.get_children(target);   // graph where traget is parent
+    let pattern_children = engine_state.get_children(&pattern).elements; // graph where pattern is parent
+    let target_children = engine_state.get_children(&target).elements; // graph where traget is parent
 
     let mut candidates: HashMap<EntityId, HashSet<EntityId>> = HashMap::default();
 
-    let archetypes = get_archetypes_by_entity().read().unwrap().clone();
+    //let archetypes = get_archetypes_by_entity().read().unwrap().clone();
 
-    let all_nodes = engine_state.build_query().without_component(component).get_targets(&pattern).unwrap().tiles.into_iter().map(t||);
-    let pattern_size = all_nodes.len();
+    let pattern_size = pattern_children.len();
 
-    for node in all_nodes {
-        let out_count = pattern_graph.out_degree(node);
-        let in_count = pattern_graph.in_degree(node);
-        let node_arch = archetypes
+    for node in pattern_children {
+        let out_count = engine_state.out_degree(node);
+        let in_count = engine_state.in_degree(node);
+        let node_arch = engine_state
             .get_vec(&node)
             .unwrap()
             .into_iter()
@@ -80,9 +79,9 @@ pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile,
             candidates.insert(node, HashSet::default());
         }
 
-        for cand in target_graph.get_all_nodes() {
-            let cand_out_count = target_graph.out_degree(cand);
-            let cand_in_count = target_graph.in_degree(cand);
+        for cand in target_children {
+            let cand_out_count = engine_state.out_degree(cand);
+            let cand_in_count = engine_state.in_degree(cand);
             if cand_out_count >= out_count && cand_in_count >= in_count {
                 let cand_arch = archetypes
                     .get_vec(&cand)
@@ -97,7 +96,7 @@ pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile,
 
         if candidates.get(&node).unwrap().is_empty() {
             // early exit: a node doesn't have any candidates, so no match can be found
-            return Ok(Block::default());
+            return Ok(vec![]);
         }
     }
 
@@ -122,7 +121,7 @@ pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile,
     for key in &keys {
         for neighbor in pattern_graph.get_front_neighbors(*key) {
             for key_tgt in candidates.get(key).unwrap() {
-                for tgt_neighbor in target_graph.get_front_neighbors(*key_tgt) {
+                for tgt_neighbor in target_children.get_front_neighbors(*key_tgt) {
                     let s1t1 = (*key, *key_tgt);
                     let s2t2 = (neighbor, tgt_neighbor);
                     if candidates.get(&neighbor).unwrap().contains(&tgt_neighbor) {
@@ -275,7 +274,7 @@ pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile,
                     let h = hash_hashmap(&bindings);
 
                     if !maps.contains(&h) {
-                        let binding_frame = new_node(arrow.entity)?;
+                        let binding_frame = engine_state.new_node(arrow.entity)?;
                         for (k, v) in bindings {
                             new_arrow(binding_frame, k, v)?;
                         }
@@ -286,8 +285,8 @@ pub fn graph_match(input: &Tile, engine_state: Arc<EngineState>) -> Result<Tile,
         }
     }
 
-    let mut result_block = Block::default();
-    result_block.add(arrow);
+    let mut result_block = vec![];
+    result_block.push(*arrow);
 
     Ok(result_block)
 }
@@ -511,5 +510,3 @@ mod search_tests {
         }
     }
 }
-
- */
