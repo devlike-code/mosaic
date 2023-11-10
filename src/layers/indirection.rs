@@ -12,6 +12,7 @@ use crate::internals::{
 };
 
 pub type QueryFilter = Box<dyn FnMut(&EntityId) -> bool>;
+
 /// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect {
     pub(crate) query: QueryAccess,

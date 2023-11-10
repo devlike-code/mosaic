@@ -270,7 +270,7 @@ mod parenting_testing {
         println!(
             "{:?}",
             engine_state
-                .get_edges(a)
+                .get_edges(&a)
                 .build_query()
                 //.select_from(engine_state.query_edges(a).as_vec())
                 .no_parent_edges()

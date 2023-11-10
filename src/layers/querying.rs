@@ -4,23 +4,26 @@ use array_tool::vec::{Union, Uniq};
 use itertools::Itertools;
 
 use crate::internals::{
-    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId,
+    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, Tile,
 };
 
 pub trait Querying {
-    fn get_edges(&self, id: EntityId) -> QueryIterator;
-    fn get_descriptors(&self, id: EntityId) -> QueryIterator;
-    fn get_extensions(&self, id: EntityId) -> QueryIterator;
-    fn get_properties(&self, id: EntityId) -> QueryIterator;
-    fn get_forward_neighbors(&self, id: EntityId) -> QueryIterator;
-    fn get_backward_neighbors(&self, id: EntityId) -> QueryIterator;
-    fn get_neighbors(&self, id: EntityId) -> QueryIterator;
+    type Entity;
+    fn get_edges(&self, id: &Self::Entity) -> QueryIterator;
+    fn get_descriptors(&self, id: &Self::Entity) -> QueryIterator;
+    fn get_extensions(&self, id: &Self::Entity) -> QueryIterator;
+    fn get_properties(&self, id: &Self::Entity) -> QueryIterator;
+    fn get_forward_neighbors(&self, id: &Self::Entity) -> QueryIterator;
+    fn get_backward_neighbors(&self, id: &Self::Entity) -> QueryIterator;
+    fn get_neighbors(&self, id: &Self::Entity) -> QueryIterator;
 }
 
 impl Querying for Arc<EngineState> {
-    fn get_edges(&self, id: EntityId) -> QueryIterator {
-        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
-            if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
+    type Entity = EntityId;
+
+    fn get_edges(&self, id: &EntityId) -> QueryIterator {
+        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(id) {
+            if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(id) {
                 return (
                     self,
                     by_source
@@ -28,7 +31,7 @@ impl Querying for Arc<EngineState> {
                         .union(by_target.elements().to_owned())
                         .unique()
                         .into_iter()
-                        .filter(|i| i != &id)
+                        .filter(|i| i != id)
                         .collect_vec(),
                 )
                     .into();
@@ -38,14 +41,14 @@ impl Querying for Arc<EngineState> {
         QueryIterator::default()
     }
 
-    fn get_descriptors(&self, id: EntityId) -> QueryIterator {
-        if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
+    fn get_descriptors(&self, id: &EntityId) -> QueryIterator {
+        if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(id) {
             (
                 self,
                 by_target
                     .elements()
                     .iter()
-                    .filter(|&i| i != &id)
+                    .filter(|&i| i != id)
                     .flat_map(|&i| self.get_brick(i))
                     .filter(|b| b.source == b.id)
                     .map(|b| b.id)
@@ -57,14 +60,14 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_extensions(&self, id: EntityId) -> QueryIterator {
-        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
+    fn get_extensions(&self, id: &EntityId) -> QueryIterator {
+        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(id) {
             (
                 self,
                 by_source
                     .elements()
                     .iter()
-                    .filter(|&i| i != &id)
+                    .filter(|&i| i != id)
                     .flat_map(|&i| self.get_brick(i))
                     .filter(|b| b.target == b.id)
                     .map(|b| b.id)
@@ -76,19 +79,19 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_properties(&self, id: EntityId) -> QueryIterator {
+    fn get_properties(&self, id: &EntityId) -> QueryIterator {
         self.get_descriptors(id).union(self.get_extensions(id))
     }
 
-    fn get_forward_neighbors(&self, id: EntityId) -> QueryIterator {
-        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(&id) {
+    fn get_forward_neighbors(&self, id: &EntityId) -> QueryIterator {
+        if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(id) {
             (
                 self,
                 by_source
                     .elements()
                     .iter()
                     .flat_map(|&i| self.get_brick(i))
-                    .filter(|b| b.source != b.target && b.target != id)
+                    .filter(|b| b.source != b.target && b.target != *id)
                     .map(|b| b.target)
                     .collect_vec(),
             )
@@ -98,15 +101,15 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_backward_neighbors(&self, id: EntityId) -> QueryIterator {
-        if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(&id) {
+    fn get_backward_neighbors(&self, id: &EntityId) -> QueryIterator {
+        if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(id) {
             (
                 self,
                 by_target
                     .elements()
                     .iter()
                     .flat_map(|&i| self.get_brick(i))
-                    .filter(|b| b.source != b.target && b.source != id)
+                    .filter(|b| b.source != b.target && b.source != *id)
                     .map(|b| b.source)
                     .collect_vec(),
             )
@@ -116,67 +119,70 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_neighbors(&self, id: EntityId) -> QueryIterator {
+    fn get_neighbors(&self, id: &EntityId) -> QueryIterator {
         self.get_forward_neighbors(id)
             .union(self.get_backward_neighbors(id))
     }
 }
 
 impl Querying for Arc<MosaicEngine> {
-    fn get_edges(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_edges(id)
+    type Entity = Tile;
+    fn get_edges(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_edges(&tile.id())
     }
 
-    fn get_descriptors(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_descriptors(id)
+    fn get_descriptors(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_descriptors(&tile.id())
     }
 
-    fn get_extensions(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_extensions(id)
+    fn get_extensions(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_extensions(&tile.id())
     }
 
-    fn get_properties(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_properties(id)
+    fn get_properties(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_properties(&tile.id())
     }
 
-    fn get_forward_neighbors(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_forward_neighbors(id)
+    fn get_forward_neighbors(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_forward_neighbors(&tile.id())
     }
 
-    fn get_backward_neighbors(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_backward_neighbors(id)
+    fn get_backward_neighbors(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_backward_neighbors(&tile.id())
     }
 
-    fn get_neighbors(&self, id: EntityId) -> QueryIterator {
-        self.engine_state.get_neighbors(id)
+    fn get_neighbors(&self, tile: &Tile) -> QueryIterator {
+        self.engine_state.get_neighbors(&tile.id())
     }
 }
 impl Querying for QueryIterator {
-    fn get_edges(&self, id: EntityId) -> QueryIterator {
+    type Entity = EntityId;
+
+    fn get_edges(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_edges(id)
     }
 
-    fn get_descriptors(&self, id: EntityId) -> QueryIterator {
+    fn get_descriptors(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_descriptors(id)
     }
 
-    fn get_extensions(&self, id: EntityId) -> QueryIterator {
+    fn get_extensions(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_extensions(id)
     }
 
-    fn get_properties(&self, id: EntityId) -> QueryIterator {
+    fn get_properties(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_properties(id)
     }
 
-    fn get_forward_neighbors(&self, id: EntityId) -> QueryIterator {
+    fn get_forward_neighbors(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_forward_neighbors(id)
     }
 
-    fn get_backward_neighbors(&self, id: EntityId) -> QueryIterator {
+    fn get_backward_neighbors(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_backward_neighbors(id)
     }
 
-    fn get_neighbors(&self, id: EntityId) -> QueryIterator {
+    fn get_neighbors(&self, id: &EntityId) -> QueryIterator {
         self.engine.get_neighbors(id)
     }
 }
@@ -203,7 +209,7 @@ mod querying_testing {
         let b = engine_state.create_object("Object".into(), vec![]).unwrap();
         let _c = engine_state.create_object("Object".into(), vec![]).unwrap();
         let _ab = engine_state.create_arrow(&a, &b, "Arrow".into(), vec![]);
-        let queried = engine_state.get_edges(a);
+        let queried = engine_state.get_edges(&a);
         let mut query = queried.as_vec();
         query.sort();
         assert_eq!(vec![4], query);
@@ -223,9 +229,9 @@ mod querying_testing {
             .create_arrow(&b, &c, "Arrow".into(), vec![])
             .unwrap();
 
-        assert_eq!(vec![b], engine_state.get_forward_neighbors(a).as_vec());
-        assert_eq!(vec![c], engine_state.get_forward_neighbors(b).as_vec());
-        assert_eq!(0, engine_state.get_forward_neighbors(c).len());
+        assert_eq!(vec![b], engine_state.get_forward_neighbors(&a).as_vec());
+        assert_eq!(vec![c], engine_state.get_forward_neighbors(&b).as_vec());
+        assert_eq!(0, engine_state.get_forward_neighbors(&c).len());
     }
 
     #[test]
@@ -242,9 +248,9 @@ mod querying_testing {
             .create_arrow(&b, &c, "Arrow".into(), vec![])
             .unwrap();
 
-        assert_eq!(0, engine_state.get_backward_neighbors(a).len());
-        assert_eq!(vec![a], engine_state.get_backward_neighbors(b).as_vec());
-        assert_eq!(vec![b], engine_state.get_backward_neighbors(c).as_vec());
+        assert_eq!(0, engine_state.get_backward_neighbors(&a).len());
+        assert_eq!(vec![a], engine_state.get_backward_neighbors(&b).as_vec());
+        assert_eq!(vec![b], engine_state.get_backward_neighbors(&c).as_vec());
     }
 
     #[test]
@@ -265,7 +271,7 @@ mod querying_testing {
             let mut w = v.clone();
             w.sort();
 
-            let mut neighbors = engine_state.get_neighbors(id).as_vec();
+            let mut neighbors = engine_state.get_neighbors(&id).as_vec();
             neighbors.sort();
 
             assert_eq!(w, neighbors);
@@ -288,7 +294,7 @@ mod querying_testing {
         let d = engine_state
             .add_descriptor(&a, "Property".into(), vec![])
             .unwrap();
-        let mut descriptors = engine_state.get_descriptors(a);
+        let mut descriptors = engine_state.get_descriptors(&a);
         descriptors.sort();
         assert_eq!(vec![c, d], descriptors.as_vec());
     }
@@ -305,7 +311,7 @@ mod querying_testing {
         let d = engine_state
             .add_outgoing_property(a, "Property".into(), vec![])
             .unwrap();
-        let mut extensions = engine_state.get_extensions(a);
+        let mut extensions = engine_state.get_extensions(&a);
         extensions.sort();
         assert_eq!(vec![c, d], extensions.as_vec());
     }
@@ -352,12 +358,12 @@ mod querying_testing {
                 .get(&a)
         );
 
-        let edges = engine_state.get_edges(c);
+        let edges = engine_state.get_edges(&c);
         assert_eq!(4, edges.len());
 
         let non_parent_edges = engine_state
             .build_query()
-            .select_from(engine_state.get_edges(c).as_vec())
+            .select_from(engine_state.get_edges(&c).as_vec())
             .without_component("Parent".into())
             .get();
 
@@ -393,7 +399,7 @@ mod querying_testing {
 
         let mut q1 = engine_state
             .build_query()
-            .select_from(engine_state.get_edges(a).as_vec())
+            .select_from(engine_state.get_edges(&a).as_vec())
             .without_component("Parent".into())
             .get_sources()
             .as_vec();
@@ -401,7 +407,7 @@ mod querying_testing {
         q1.sort();
 
         let mut q2 = engine_state
-            .get_edges(a)
+            .get_edges(&a)
             .build_query()
             .without_component("Parent".into())
             .get_sources()
