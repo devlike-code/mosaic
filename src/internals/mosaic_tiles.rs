@@ -19,7 +19,7 @@ use super::{
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TileData {
-    component: S32,
+    pub(crate) component: S32,
     pub(crate) fields: HashMap<S32, Value>,
 }
 

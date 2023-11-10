@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     internals::{mosaic_engine::MosaicEngine, Tile},
-    layers::{indirection::Indirection, parenting::Parenting},
+    layers::parenting::Parenting,
 };
 
 /// .
@@ -29,17 +29,10 @@ pub(crate) fn validate_arrow_is_graph_match(
     t: &Tile,
     engine_state: Arc<MosaicEngine>,
 ) -> Result<(), String> {
-    let len = engine_state
-        .build_query()
-        .with_source(t.id())
-        .with_component("GraphMatch".into())
-        .get()
-        .len();
-
-    if len != 1 {
-        Err("[graph_match.rs][validate_arrow_is_graph_match] Arrow requires to have the GraphMatch component.".to_string())
-    } else {
+    if t.get_data().component == "graph_match".into() {
         Ok(())
+    } else {
+        Err("[graph_match.rs][validate_arrow_is_graph_match] Arrow requires to have the GraphMatch component.".to_string())
     }
 }
 

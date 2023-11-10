@@ -19,8 +19,8 @@ pub trait Matrix {
 
 #[derive(Default, Debug, Clone)]
 pub struct UndirectedAdjacencyMatrix {
-    pub adjacency: SparseMatrixHashMap, // a -> (b, e)
-    pub edges: SparseMatrixArrowIdentity,     // e -> (a, b)
+    pub adjacency: SparseMatrixHashMap,   // a -> (b, e)
+    pub edges: SparseMatrixArrowIdentity, // e -> (a, b)
 }
 
 impl Matrix for UndirectedAdjacencyMatrix {
@@ -42,25 +42,35 @@ impl Matrix for UndirectedAdjacencyMatrix {
         }
 
         if !self.adjacency.get(&src).unwrap().contains_key(&tgt) {
-            self.adjacency.get_mut(&src).unwrap().insert(tgt, vec![ id ]);
+            self.adjacency.get_mut(&src).unwrap().insert(tgt, vec![id]);
         } else {
-            self.adjacency.get_mut(&src).unwrap().get_mut(&tgt).unwrap().push(id);
+            self.adjacency
+                .get_mut(&src)
+                .unwrap()
+                .get_mut(&tgt)
+                .unwrap()
+                .push(id);
         }
 
         if !self.edges.contains_key(&id) {
-            self.edges.insert(id, vec![ (src, tgt) ]);
+            self.edges.insert(id, vec![(src, tgt)]);
         } else {
             self.edges.get_mut(&id).unwrap().push((src, tgt));
         }
-        
+
         if !self.adjacency.get(&tgt).unwrap().contains_key(&src) {
-            self.adjacency.get_mut(&tgt).unwrap().insert(src, vec![ id ]);
+            self.adjacency.get_mut(&tgt).unwrap().insert(src, vec![id]);
         } else {
-            self.adjacency.get_mut(&tgt).unwrap().get_mut(&src).unwrap().push(id);
+            self.adjacency
+                .get_mut(&tgt)
+                .unwrap()
+                .get_mut(&src)
+                .unwrap()
+                .push(id);
         }
 
         if !self.edges.contains_key(&id) {
-            self.edges.insert(id, vec![ (tgt, src) ]);
+            self.edges.insert(id, vec![(tgt, src)]);
         } else {
             self.edges.get_mut(&id).unwrap().push((tgt, src));
         }
@@ -71,11 +81,11 @@ impl Matrix for UndirectedAdjacencyMatrix {
             for (k, v) in kv {
                 if let Some(key) = self.adjacency.get_mut(&k) {
                     key.remove(v);
-                }   
+                }
 
                 if let Some(key) = self.adjacency.get_mut(&v) {
                     key.remove(k);
-                }   
+                }
             }
         }
 
@@ -87,7 +97,7 @@ impl Matrix for UndirectedAdjacencyMatrix {
             if let Some(ids) = kv.get(&tgt) {
                 for id in ids {
                     self.edges.remove(id);
-                }                
+                }
             }
 
             kv.remove(&tgt);
@@ -102,7 +112,6 @@ impl Matrix for UndirectedAdjacencyMatrix {
 
             kv.remove(&src);
         }
-
     }
 
     fn check_edge(&self, src: EntityId, tgt: EntityId) -> bool {
@@ -112,23 +121,20 @@ impl Matrix for UndirectedAdjacencyMatrix {
 
         if let Some(adj_map) = self.adjacency.get(&src) {
             adj_map.contains_key(&tgt)
+        } else if let Some(adj_map) = self.adjacency.get(&tgt) {
+            adj_map.contains_key(&src)
         } else {
-            if let Some(adj_map) = self.adjacency.get(&tgt) {
-                adj_map.contains_key(&src)
-            } else {
-                false
-            }
+            false
         }
     }
 
     fn get_all_nodes(&self) -> Vec<EntityId> {
-        self.adjacency.keys().cloned().collect()       
+        self.adjacency.keys().cloned().collect()
     }
 
     fn get_all_edges(&self) -> Vec<EntityId> {
         self.edges.keys().cloned().collect()
     }
-    
 }
 
 impl UndirectedAdjacencyMatrix {
@@ -214,8 +220,8 @@ impl UndirectedAdjacencyMatrix {
 
 #[derive(Default, Debug, Clone)]
 pub struct AdjacencyMatrix {
-    pub adjacency: SparseMatrixHashMap, // a -> (b, e)
-    pub edges: SparseMatrixArrowIdentity,     // e -> (a, b)
+    pub adjacency: SparseMatrixHashMap,   // a -> (b, e)
+    pub edges: SparseMatrixArrowIdentity, // e -> (a, b)
 }
 
 impl Matrix for AdjacencyMatrix {
@@ -237,13 +243,18 @@ impl Matrix for AdjacencyMatrix {
         }
 
         if !self.adjacency.get(&src).unwrap().contains_key(&tgt) {
-            self.adjacency.get_mut(&src).unwrap().insert(tgt, vec![ id ]);
+            self.adjacency.get_mut(&src).unwrap().insert(tgt, vec![id]);
         } else {
-            self.adjacency.get_mut(&src).unwrap().get_mut(&tgt).unwrap().push(id);
+            self.adjacency
+                .get_mut(&src)
+                .unwrap()
+                .get_mut(&tgt)
+                .unwrap()
+                .push(id);
         }
 
         if !self.edges.contains_key(&id) {
-            self.edges.insert(id, vec![ (src, tgt) ]);
+            self.edges.insert(id, vec![(src, tgt)]);
         } else {
             self.edges.get_mut(&id).unwrap().push((src, tgt));
         }
@@ -261,7 +272,7 @@ impl Matrix for AdjacencyMatrix {
                 }
             }
         }
-        
+
         self.edges.remove(&id);
     }
 
@@ -290,13 +301,12 @@ impl Matrix for AdjacencyMatrix {
     }
 
     fn get_all_nodes(&self) -> Vec<EntityId> {
-        self.adjacency.keys().cloned().collect()       
+        self.adjacency.keys().cloned().collect()
     }
 
     fn get_all_edges(&self) -> Vec<EntityId> {
         self.edges.keys().cloned().collect()
-    }    
-    
+    }
 }
 
 impl AdjacencyMatrix {
@@ -314,7 +324,13 @@ impl AdjacencyMatrix {
 
     fn neighbors(&self, src: EntityId) -> Vec<EntityId> {
         if let Some(adj_map) = self.adjacency.get(&src) {
-            Vec::from_iter(adj_map.keys().filter(|e| !adj_map.get(*e).unwrap().is_empty()).cloned().into_iter())
+            Vec::from_iter(
+                adj_map
+                    .keys()
+                    .filter(|e| !adj_map.get(*e).unwrap().is_empty())
+                    .cloned()
+                    .into_iter(),
+            )
         } else {
             vec![]
         }
@@ -422,11 +438,9 @@ impl Matrix for BidirectionalMatrix {
     fn get_all_edges(&self) -> Vec<EntityId> {
         self.forward.get_all_edges()
     }
-    
 }
 
 impl BidirectionalMatrix {
-    
     pub fn out_degree(&self, src: EntityId) -> usize {
         self.forward.neighbor_count(src)
     }
@@ -696,5 +710,16 @@ mod sparse_matrix_testing {
         assert!(mat.are_reachable(3, 1));
         assert!(mat.are_reachable(1, 3));
         assert!(mat.are_reachable(2, 1));
+    }
+
+    #[test]
+    fn test_get_edges() {
+        let mut mat = BidirectionalMatrix::default();
+        mat.add_edge(10, 1, 2);
+        mat.add_edge(11, 2, 3);
+        mat.add_edge(12, 3, 4);
+        assert!(mat.are_reachable(1, 4));
+        mat.remove_edge(12);
+        assert!(!mat.are_reachable(1, 4));
     }
 }
