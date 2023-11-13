@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::process::ChildStderr;
 use std::sync::Arc;
 
+use array_tool::vec::Uniq;
 use itertools::Itertools;
 
 use crate::internals::lifecycle::Lifecycle;
@@ -65,22 +66,14 @@ pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<
     validate_frame_is_populated(pattern, engine_state)?;
     validate_frame_is_populated(target, engine_state)?;
 
-    let pattern_children = engine_state
-        .get_children(&pattern)
-        .into_iter()
-        .flat_map(|c| engine_state.get_tile(*c))
-        .collect_vec(); // graph where pattern is parent
+    let pattern_children = engine_state.get_children(&pattern);
 
-    let target_children = engine_state
-        .get_children(&target)
-        .into_iter()
-        .flat_map(|c| engine_state.get_tile(*c))
-        .collect_vec(); // graph where traget is parent
+    let target_children = engine_state.get_children(&target);
 
-    let pattern_graph = BidirectionalMatrix::default();
-    let target_graph = BidirectionalMatrix::default();
+    let mut pattern_graph = BidirectionalMatrix::default();
+    let mut target_graph = BidirectionalMatrix::default();
 
-    for child in pattern_children {
+    for child in pattern_children.into_iter() {
         pattern_graph.add_node(child.id());
 
         let child_edges = engine_state
@@ -90,7 +83,7 @@ pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<
             .no_parent_edges()
             .get()
             .into_iter()
-            .flat_map(|c| engine_state.get_tile(*c))
+            //.flat_map(|c| engine_state.get_tile(*c))
             .collect_vec();
 
         for edge in child_edges {
@@ -99,17 +92,15 @@ pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<
         }
     }
 
-    for child in target_children {
+    for child in target_children.into_iter() {
         target_graph.add_node(child.id());
 
         let child_edges = engine_state
             .get_edges(&child)
             .build_query()
-            //.select_from(engine_state.query_edges(a).as_vec())
             .no_parent_edges()
             .get()
             .into_iter()
-            .flat_map(|c| engine_state.get_tile(*c))
             .collect_vec();
 
         for edge in child_edges {
@@ -130,11 +121,13 @@ pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<
     for node in all_nodes {
         let out_count = pattern_graph.out_degree(node);
         let in_count = pattern_graph.in_degree(node);
-        let node_arch = archetypes
-            .get_vec(&node)
-            .unwrap()
+        let node_tile = engine_state.get_tile(node).unwrap();
+        let node_arch = engine_state
+            .get_properties(&node_tile)
             .into_iter()
-            .collect::<HashSet<_>>();
+            .cloned()
+            .collect_vec()
+            .unique();
 
         if !candidates.contains_key(&node) {
             candidates.insert(node, HashSet::default());
@@ -144,12 +137,20 @@ pub fn graph_match(input: &Tile, engine_state: Arc<MosaicEngine>) -> Result<Vec<
             let cand_out_count = target_graph.out_degree(cand);
             let cand_in_count = target_graph.in_degree(cand);
             if cand_out_count >= out_count && cand_in_count >= in_count {
-                let cand_arch = archetypes
-                    .get_vec(&cand)
-                    .unwrap()
+                let cand_tile = engine_state.get_tile(node).unwrap();
+                let cand_arch = engine_state
+                    .get_properties(&cand_tile)
                     .into_iter()
-                    .collect::<HashSet<_>>();
-                if node_arch.difference(&cand_arch).count() == 0 {
+                    .cloned()
+                    .collect_vec()
+                    .unique();
+
+                if node_arch
+                    .into_iter()
+                    .filter(|n| !cand_arch.iter().any(|c| n == c))
+                    .count()
+                    == 0
+                {
                     candidates.get_mut(&node).unwrap().insert(cand);
                 }
             }
@@ -376,13 +377,16 @@ impl GraphMatchHelper {
         self.block.len()
     }
 
-    pub fn get_solution(&self, index: usize) -> HashMap<EntityId, EntityId> {
+    // TO-DO from here
+    pub fn get_solution(
+        &self,
+        index: usize,
+        engine_state: Arc<MosaicEngine>,
+    ) -> HashMap<EntityId, EntityId> {
         let mut binding = HashMap::new();
 
-        if let Some(solution) =
-            get_framed_entities(self.block.get_bricks().first().unwrap().entity).get(index)
-        {
-            for arrow in get_framed_entities(*solution) {
+        if let Some(solution) = engine_state.get_children() {
+            for arrow in engine_state.get_children(*solution) {
                 let src = get_comp_field_u32(arrow, "Arrow", "Arrow.source").unwrap();
                 let tgt = get_comp_field_u32(arrow, "Arrow", "Arrow.target").unwrap();
                 binding.insert(src, tgt);

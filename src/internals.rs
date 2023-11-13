@@ -10,6 +10,7 @@ pub mod mosaic_tiles;
 pub mod query_iterator;
 pub mod sparse_matrix;
 pub mod sparse_set;
+pub mod tile_iterator;
 
 pub use byte_utilities::*;
 pub use datatypes::*;

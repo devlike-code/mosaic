@@ -8,7 +8,10 @@ use array_tool::vec::Uniq;
 use fstr::FStr;
 use itertools::Itertools;
 
-use crate::layers::{querying::Querying, tiling::Tiling};
+use crate::layers::{
+    querying::Querying,
+    tiling::Tiling,
+};
 
 use super::{
     datatypes::{EntityId, S32},
@@ -62,6 +65,20 @@ pub enum Tile {
         target: EntityId,
         data: TileData,
     },
+}
+
+impl Eq for Tile {}
+
+impl Ord for Tile {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id().cmp(&other.id())
+    }
+}
+
+impl PartialOrd for Tile {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id().partial_cmp(&other.id())
+    }
 }
 
 impl Index<&str> for Tile {
@@ -267,10 +284,9 @@ impl Tile {
             .get_properties(self)
             .as_vec()
             .into_iter()
-            .filter_map(|b| {
-                let tile = self.mosaic().get_tile(b).unwrap();
-                if tile.get_data().component == component {
-                    Some(tile)
+            .filter_map(|t| {
+                if t.get_data().component == component {
+                    Some(t)
                 } else {
                     None
                 }

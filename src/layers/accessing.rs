@@ -1,6 +1,13 @@
 use std::sync::Arc;
 
-use crate::internals::{query_iterator::QueryIterator, EngineState, EntityId, S32};
+use itertools::Itertools;
+
+use crate::internals::{
+    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, tile_iterator::TileIterator,
+    EngineState, EntityId, Tile, S32,
+};
+
+use super::tiling::Tiling;
 
 #[derive(Clone)]
 /// A simple entities query connected to an engine state and applying one or more filters
@@ -136,6 +143,147 @@ impl Accessing for QueryIterator {
     }
 }
 
+#[derive(Clone)]
+/// A simple entities query connected to an engine state and applying one or more filters
+pub struct TileAccess {
+    pub(crate) engine: Arc<MosaicEngine>,
+    source: Option<Tile>,
+    target: Option<Tile>,
+    component: Option<S32>,
+}
+
+impl TileAccess {
+    pub fn new(engine: Arc<MosaicEngine>) -> TileAccess {
+        TileAccess {
+            engine: Arc::clone(&engine),
+            source: None,
+            target: None,
+            component: None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_source(mut self, source: Tile) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_target(mut self, target: Tile) -> Self {
+        self.target = Some(target);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_component(mut self, component: S32) -> Self {
+        self.component = Some(component);
+        self
+    }
+
+    pub fn get(&self) -> TileIterator {
+        let iter = match (self.source, self.target, self.component) {
+            (None, None, None) => self
+                .engine
+                .engine_state
+                .entity_brick_storage
+                .lock()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect(),
+
+            (None, None, Some(comp)) => self
+                .engine
+                .engine_state
+                .entities_by_component_index
+                .lock()
+                .unwrap()
+                .get(&comp)
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (None, Some(tgt), None) => self
+                .engine
+                .engine_state
+                .entities_by_target_index
+                .lock()
+                .unwrap()
+                .get(&tgt.id())
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (None, Some(tgt), Some(comp)) => self
+                .engine
+                .engine_state
+                .entities_by_target_and_component_index
+                .lock()
+                .unwrap()
+                .get(&(tgt.id(), comp))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (Some(src), None, None) => self
+                .engine
+                .engine_state
+                .entities_by_source_index
+                .lock()
+                .unwrap()
+                .get(&src.id())
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (Some(src), None, Some(comp)) => self
+                .engine
+                .engine_state
+                .entities_by_source_and_component_index
+                .lock()
+                .unwrap()
+                .get(&(src.id(), comp))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (Some(src), Some(tgt), None) => self
+                .engine
+                .engine_state
+                .entities_by_both_endpoints_index
+                .lock()
+                .unwrap()
+                .get(&(src.id(), tgt.id()))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+
+            (Some(src), Some(tgt), Some(comp)) => self
+                .engine
+                .engine_state
+                .entities_by_endpoints_and_component_index
+                .lock()
+                .unwrap()
+                .get(&(src.id(), tgt.id(), comp))
+                .map(|set| set.elements().clone())
+                .unwrap_or_default(),
+        };
+
+        (&self.engine, iter.into_iter().flat_map(|t |self.engine.get_tile(t)).collect_vec()).into()
+    }
+}
+
+/// Querying is a layer for simple query operations, mostly used in layers higher up
+pub(crate) trait TileAccessing {
+    /// Creates a query and passes the engine over to it
+    fn tile_access(&self) -> TileAccess;
+}
+
+impl TileAccessing for Arc<MosaicEngine> {
+    fn tile_access(&self) -> TileAccess {
+        TileAccess::new(Arc::clone(self))
+    }
+}
+
+impl TileAccessing for TileIterator {
+    fn tile_access(&self) -> TileAccess {
+        TileAccess::new(Arc::clone(&self.engine))
+    }
+}
 /* /////////////////////////////////////////////////////////////////////////////////// */
 /// Unit Tests
 /* /////////////////////////////////////////////////////////////////////////////////// */

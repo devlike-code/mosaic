@@ -4,14 +4,16 @@ use array_tool::vec::{Intersect, Uniq};
 use itertools::Itertools;
 
 use super::{
-    accessing::{Accessing, QueryAccess},
+    accessing::{Accessing, QueryAccess, TileAccess, TileAccessing},
     tiling::Tiling,
 };
 use crate::internals::{
-    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState, EntityId, Tile, S32,
+    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, tile_iterator::TileIterator,
+    EngineState, EntityId, Tile, S32,
 };
 
 pub type QueryFilter = Box<dyn FnMut(&EntityId) -> bool>;
+pub type TileFilter = Box<dyn FnMut(&Tile) -> bool>;
 
 /// An indirection-layer version of the query, having multiple additional filters
 pub struct QueryIndirect {
@@ -103,29 +105,120 @@ impl QueryIndirect {
         Arc::clone(&self.query.engine).get_targets(self.get())
     }
 }
+pub struct TileIndirect {
+    pub(crate) query: TileAccess,
+    pub(crate) select: Option<Vec<Tile>>,
+    pub(crate) include_components: Vec<S32>,
+    pub(crate) exclude_components: Vec<S32>,
+    pub(crate) filters: Vec<TileFilter>,
+}
+
+impl TileIndirect {
+    #[allow(dead_code)]
+    pub fn with_source(mut self, source: Tile) -> Self {
+        self.query = self.query.with_source(source);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn select_from(mut self, it: Vec<Tile>) -> Self {
+        self.select = Some(it);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_target(mut self, target: Tile) -> Self {
+        self.query = self.query.with_target(target);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_component(mut self, component: S32) -> Self {
+        self.include_components.push(component);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn without_component(mut self, component: S32) -> Self {
+        self.exclude_components.push(component);
+        self
+    }
+
+    pub fn filter<F: 'static + FnMut(&Tile) -> bool>(mut self, f: F) -> Self {
+        self.filters.push(Box::new(f));
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn no_properties(mut self) -> Self {
+        let engine = Arc::clone(&self.query.engine);
+        let filter: Box<dyn FnMut(&Tile) -> bool> =
+            Box::new(move |i: &Tile| !engine.is_property(i));
+
+        self.filters.push(filter);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn get(mut self) -> TileIterator {
+        let mut included = self.select.unwrap_or(self.query.get().as_vec());
+        for incl in self.include_components {
+            let comp = self.query.engine.get_entities_with_property(incl);
+            included = included.intersect(comp.as_vec()).unique();
+        }
+        let mut result = included.unique();
+
+        for excl in self.exclude_components {
+            for &entity in &result {
+                if self.query.engine.has_property(&entity, excl) {
+                    result.retain(|t| t != &entity);
+                }
+            }
+        }
+
+        for flt in &mut self.filters {
+            result = result.into_iter().filter(flt).collect_vec();
+        }
+
+        (self.query.engine, result).into()
+    }
+
+    #[allow(dead_code)]
+    pub fn get_sources(self) -> TileIterator {
+        Arc::clone(&self.query.engine).get_sources(self.get())
+    }
+
+    #[allow(dead_code)]
+    pub fn get_targets(self) -> TileIterator {
+        Arc::clone(&self.query.engine).get_targets(self.get())
+    }
+}
 
 type ComponentName = S32;
 
 /// This is an indirection layer that is built on top of the internals.
 pub trait Indirection {
     type Entity;
+    type CustomIterator;
+    type Indirect;
+
     /// Gets the source of a bricked entity
     fn get_source(&self, id: &Self::Entity) -> Option<Self::Entity>;
     /// Gets the target of a bricked entity
     fn get_target(&self, id: &Self::Entity) -> Option<Self::Entity>;
     /// Gets an iterator to the sources of an input iterator
-    fn get_sources(&self, iter: QueryIterator) -> QueryIterator;
+    fn get_sources(&self, iter: Self::CustomIterator) -> Self::CustomIterator;
     /// Gets an iterator to the targets of an input iterator
-    fn get_targets(&self, iter: QueryIterator) -> QueryIterator;
+    fn get_targets(&self, iter: Self::CustomIterator) -> Self::CustomIterator;
     /// Returns whether this arrow is an incoming property (defined by X: X -> Y)
     fn is_incoming_property(&self, id: &Self::Entity) -> bool;
     /// Returns whether this arrow is an outgoing property (defined by X: Y -> X)
     fn is_outgoing_property(&self, id: &Self::Entity) -> bool;
     /// Gets all the entities that either directly have a component, or have it passed through
     /// a property (both incoming and outgoing)
-    fn get_entities_with_property(&self, component: S32) -> QueryIterator;
+    fn get_entities_with_property(&self, component: S32) -> Self::CustomIterator;
     /// Query one or multiple components in inclusion or exclusion
-    fn build_query(&self) -> QueryIndirect;
+    fn build_query(&self) -> Self::Indirect;
     /// Checks whether the given entity is either an incoming or outgoing property
     fn is_property(&self, id: &Self::Entity) -> bool;
     /// Checks whether the given entity has a component both directly or indirectly
@@ -134,6 +227,8 @@ pub trait Indirection {
 
 impl Indirection for Arc<EngineState> {
     type Entity = EntityId;
+    type CustomIterator = QueryIterator;
+    type Indirect = QueryIndirect;
 
     fn is_incoming_property(&self, id: &EntityId) -> bool {
         let storage = self.entity_brick_storage.lock().unwrap();
@@ -230,25 +325,23 @@ impl Indirection for Arc<EngineState> {
 
 impl Indirection for Arc<MosaicEngine> {
     type Entity = Tile;
+    type CustomIterator = TileIterator;
+    type Indirect = TileIndirect;
 
     fn get_source(&self, tile: &Self::Entity) -> Option<Tile> {
-        self.engine_state
-            .get_source(&tile.id())
-            .and_then(|t| self.get_tile(t))
+        self.get_source(&tile)
     }
 
     fn get_target(&self, tile: &Self::Entity) -> Option<Self::Entity> {
-        self.engine_state
-            .get_target(&tile.id())
-            .and_then(|t| self.get_tile(t))
+        self.get_target(&tile)
     }
 
-    fn get_sources(&self, iter: QueryIterator) -> QueryIterator {
-        self.engine_state.get_sources(iter)
+    fn get_sources(&self, iter: TileIterator) -> TileIterator {
+        self.get_sources(iter)
     }
 
-    fn get_targets(&self, iter: QueryIterator) -> QueryIterator {
-        self.engine_state.get_targets(iter)
+    fn get_targets(&self, iter: TileIterator) -> TileIterator {
+        self.get_targets(iter)
     }
 
     fn is_incoming_property(&self, tile: &Self::Entity) -> bool {
@@ -263,12 +356,10 @@ impl Indirection for Arc<MosaicEngine> {
             .unwrap_or(false)
     }
 
-    fn get_entities_with_property(&self, component: S32) -> QueryIterator {
+    fn get_entities_with_property(&self, component: S32) -> TileIterator {
         (
-            Arc::clone(&self.engine_state),
-            self.engine_state
-                .get_entities_with_property(component)
-                .as_vec(),
+            Arc::clone(&self),
+            self.get_entities_with_property(component).as_vec(),
         )
             .into()
     }
@@ -281,13 +372,22 @@ impl Indirection for Arc<MosaicEngine> {
         self.engine_state.has_property(&tile.id(), component)
     }
 
-    fn build_query(&self) -> QueryIndirect {
-        self.engine_state.build_query()
+    fn build_query(&self) -> TileIndirect {
+        TileIndirect {
+            select: None,
+            query: self.tile_access(),
+            include_components: vec![],
+            exclude_components: vec![],
+            filters: vec![],
+        }
     }
 }
 
 impl Indirection for QueryIterator {
     type Entity = EntityId;
+    type CustomIterator = QueryIterator;
+    type Indirect = QueryIndirect;
+
     fn get_source(&self, id: &EntityId) -> Option<EntityId> {
         self.engine.get_source(id)
     }
@@ -326,6 +426,52 @@ impl Indirection for QueryIterator {
 
     fn has_property(&self, id: &Self::Entity, component: S32) -> bool {
         self.engine.has_property(id, component)
+    }
+}
+
+impl Indirection for TileIterator {
+    type Entity = Tile;
+    type CustomIterator = TileIterator;
+    type Indirect = TileIndirect;
+
+    fn get_source(&self, tile: &Tile) -> Option<Tile> {
+        self.get_source(tile)
+    }
+
+    fn get_target(&self, tile: &Tile) -> Option<Tile> {
+        self.get_target(tile)
+    }
+
+    fn get_sources(&self, iter: TileIterator) -> TileIterator {
+        self.get_sources(iter)
+    }
+
+    fn get_targets(&self, iter: TileIterator) -> TileIterator {
+        self.get_targets(iter)
+    }
+
+    fn is_incoming_property(&self, tile: &Tile) -> bool {
+        self.is_incoming_property(tile)
+    }
+
+    fn is_outgoing_property(&self, tile: &Tile) -> bool {
+        self.is_outgoing_property(tile)
+    }
+
+    fn get_entities_with_property(&self, component: S32) -> TileIterator {
+        self.get_entities_with_property(component)
+    }
+
+    fn build_query(&self) -> TileIndirect {
+        self.build_query().select_from(self.tiles.clone())
+    }
+
+    fn is_property(&self, tile: &Self::Entity) -> bool {
+        self.is_property(tile)
+    }
+
+    fn has_property(&self, id: &Self::Entity, component: S32) -> bool {
+        self.has_property(id, component)
     }
 }
 

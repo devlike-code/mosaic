@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
+use itertools::Itertools;
+
 use crate::internals::{
-    lifecycle::Lifecycle, mosaic_engine::MosaicEngine, query_iterator::QueryIterator, EngineState,
-    EntityId, Tile,
+    lifecycle::Lifecycle, mosaic_engine::MosaicEngine, query_iterator::QueryIterator,
+    tile_iterator::TileIterator, EngineState, EntityId, Tile,
 };
 
 use super::{
-    indirection::{Indirection, QueryIndirect},
+    indirection::{Indirection, QueryIndirect, TileIndirect},
     tiling::Tiling,
 };
 
@@ -16,6 +18,7 @@ use super::{
 /// remove the `Parent` relation.
 pub trait Parenting {
     type Entity;
+    type CustomIterator;
     /** Returns the id of the parenting relation entity (useful for internal bookkeeping)
     /// As a picture, it's like this:
     ///
@@ -33,13 +36,14 @@ pub trait Parenting {
     /// Gets the parent of a child entity
     fn get_parent(&self, child: &Self::Entity) -> Option<Self::Entity>;
     /// Gets all the children of a parent entity
-    fn get_children(&self, parent: &Self::Entity) -> QueryIterator;
+    fn get_children(&self, parent: &Self::Entity) -> Self::CustomIterator;
     /// Unparents a child and deletes the relation
     fn unparent(&self, child: &Self::Entity);
 }
 
 impl Parenting for Arc<EngineState> {
     type Entity = EntityId;
+    type CustomIterator = QueryIterator;
 
     fn get_parenting_relation(&self, child: &EntityId) -> Option<EntityId> {
         let it = self
@@ -86,6 +90,7 @@ impl Parenting for Arc<EngineState> {
 
 impl Parenting for Arc<MosaicEngine> {
     type Entity = Tile;
+    type CustomIterator = TileIterator;
 
     fn get_parenting_relation(&self, child: &Self::Entity) -> Option<Self::Entity> {
         self.engine_state
@@ -110,8 +115,16 @@ impl Parenting for Arc<MosaicEngine> {
             .and_then(|b| self.get_tile(b))
     }
 
-    fn get_children(&self, parent: &Self::Entity) -> QueryIterator {
-        self.engine_state.get_children(&parent.id())
+    fn get_children(&self, parent: &Self::Entity) -> TileIterator {
+        (
+            self,
+            self.engine_state
+                .get_children(&parent.id())
+                .into_iter()
+                .flat_map(|b| self.get_tile(*b))
+                .collect_vec(),
+        )
+            .into()
     }
 
     fn unparent(&self, child: &Self::Entity) {
@@ -132,6 +145,16 @@ impl ParentingQuery for QueryIndirect {
                 .map(|e| e.component != "Parent".into())
                 .unwrap_or(false)
         });
+
+        self.filters.push(filter);
+        self
+    }
+}
+impl ParentingQuery for TileIndirect {
+    fn no_parent_edges(mut self) -> Self {
+        let engine = Arc::clone(&self.query.engine);
+        let filter: Box<dyn FnMut(&Tile) -> bool> =
+            Box::new(move |i: &Tile| !engine.has_property(i, "Parent".into()));
 
         self.filters.push(filter);
         self
