@@ -7,14 +7,21 @@ use crate::internals::EntityId;
 
 use super::EngineState;
 
-#[derive(Clone, Default)]
+
 /// A query iterator is a thin wrapper around a vector of entity identifiers
-pub struct QueryIterator {
-    pub(crate) engine: Arc<EngineState>,
-    pub(crate) elements: Vec<EntityId>,
+
+pub trait Engine {
+  type Item;
 }
 
-impl std::fmt::Debug for QueryIterator {
+
+#[derive(Clone, Default)]
+pub struct QueryIterator<E: Engine> {
+    pub(crate) engine: Arc<E>,
+    pub(crate) elements: Vec<E::Item>,
+}
+
+impl<E: Engine> std::fmt::Debug for QueryIterator<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueryIterator")
             .field("elements", &self.elements)
@@ -22,8 +29,8 @@ impl std::fmt::Debug for QueryIterator {
     }
 }
 
-impl From<(&Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
-    fn from(val: (&Arc<EngineState>, Vec<EntityId>)) -> Self {
+impl<E: Engine> From<(&Arc<E>, Vec<E::Item>)> for QueryIterator<E> {
+    fn from(val: (&Arc<E>, Vec<E::Item>)) -> Self {
         QueryIterator {
             engine: Arc::clone(val.0),
             elements: val.1,
@@ -31,8 +38,8 @@ impl From<(&Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
     }
 }
 
-impl From<(&Arc<EngineState>, Vec<&EntityId>)> for QueryIterator {
-    fn from(val: (&Arc<EngineState>, Vec<&EntityId>)) -> Self {
+impl<E: Engine> From<(&Arc<E>, Vec<&E::Item>)> for QueryIterator<E> {
+    fn from(val: (&Arc<E>, Vec<&E::Item>)) -> Self {
         QueryIterator {
             engine: Arc::clone(val.0),
             elements: val.1.into_iter().cloned().collect_vec(),
@@ -40,8 +47,8 @@ impl From<(&Arc<EngineState>, Vec<&EntityId>)> for QueryIterator {
     }
 }
 
-impl From<(Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
-    fn from(val: (Arc<EngineState>, Vec<EntityId>)) -> Self {
+impl<E: Engine> From<(Arc<E>, Vec<E::Item>)> for QueryIterator<E> {
+    fn from(val: (Arc<E>, Vec<E::Item>)) -> Self {
         QueryIterator {
             engine: val.0,
             elements: val.1,
@@ -49,17 +56,15 @@ impl From<(Arc<EngineState>, Vec<EntityId>)> for QueryIterator {
     }
 }
 
-impl<'a> IntoIterator for &'a QueryIterator {
-    type Item = &'a EntityId;
-
-    type IntoIter = std::slice::Iter<'a, EntityId>;
+impl<'a, E:Engine> IntoIterator for &'a QueryIterator<E> {
+    type IntoIter = std::slice::Iter<'a, E::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.elements.iter()
     }
 }
 
-impl QueryIterator {
+impl<E: Engine> QueryIterator<E> {
     /// Wraps around the length of the current iterator
     pub fn len(&self) -> usize {
         self.elements.len()
@@ -86,19 +91,19 @@ impl QueryIterator {
     }
 
     /// Builds a union of this and another iterator
-    pub fn union(mut self, other: QueryIterator) -> Self {
+    pub fn union(mut self, other: QueryIterator<E>) -> Self {
         self.elements.extend(other.as_slice());
         self.elements = self.elements.unique();
         self
     }
 
     /// Builds an intersection of this and another iterator
-    pub fn intersect(mut self, other: QueryIterator) -> Self {
+    pub fn intersect(mut self, other: QueryIterator<E>) -> Self {
         self.elements = self.elements.intersect(other.as_vec());
         self
     }
 
-    pub fn contains(&self, id: &EntityId) -> bool {
+    pub fn contains(&self, id: &E::Item) -> bool {
         self.elements.contains(id)
     }
 }

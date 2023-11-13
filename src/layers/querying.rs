@@ -4,28 +4,25 @@ use array_tool::vec::{Union, Uniq};
 use itertools::Itertools;
 
 use crate::internals::{
-    mosaic_engine::MosaicEngine, query_iterator::QueryIterator, tile_iterator::TileIterator,
+    mosaic_engine::MosaicEngine,
+    query_iterator::{Engine, QueryIterator},
+    tile_iterator::TileIterator,
     EngineState, EntityId, Tile,
 };
 
 use super::tiling::Tiling;
 
-pub trait Querying {
-    type Entity;
-    type CustomIterator;
-    fn get_edges(&self, id: &Self::Entity) -> Self::CustomIterator;
-    fn get_descriptors(&self, id: &Self::Entity) -> Self::CustomIterator;
-    fn get_extensions(&self, id: &Self::Entity) -> Self::CustomIterator;
-    fn get_properties(&self, id: &Self::Entity) -> Self::CustomIterator;
-    fn get_forward_neighbors(&self, id: &Self::Entity) -> Self::CustomIterator;
-    fn get_backward_neighbors(&self, id: &Self::Entity) -> Self::CustomIterator;
-    fn get_neighbors(&self, id: &Self::Entity) -> Self::CustomIterator;
+pub trait Querying<E: Engine> {
+    fn get_edges(&self, id: &E::Item) -> QueryIterator<E>;
+    fn get_descriptors(&self, id: &E::Item) -> QueryIterator<E>;
+    fn get_extensions(&self, id: &E::Item) -> QueryIterator<E>;
+    fn get_properties(&self, id: &E::Item) -> QueryIterator<E>;
+    fn get_forward_neighbors(&self, id: &E::Item) -> QueryIterator<E>;
+    fn get_backward_neighbors(&self, id: &E::Item) -> QueryIterator<E>;
+    fn get_neighbors(&self, id: &E::Item) -> QueryIterator<E>;
 }
-impl Querying for Arc<EngineState> {
-    type Entity = EntityId;
-    type CustomIterator = QueryIterator;
-
-    fn get_edges(&self, id: &EntityId) -> QueryIterator {
+impl<E: Engine> Querying<E> for Arc<E> {
+    fn get_edges(&self, id: &E::Item) -> QueryIterator<E> {
         if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(id) {
             if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(id) {
                 return (
@@ -45,7 +42,7 @@ impl Querying for Arc<EngineState> {
         QueryIterator::default()
     }
 
-    fn get_descriptors(&self, id: &EntityId) -> QueryIterator {
+    fn get_descriptors(&self, id: &EntityId) -> QueryIterator<E, I> {
         if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(id) {
             (
                 self,
@@ -64,7 +61,7 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_extensions(&self, id: &EntityId) -> QueryIterator {
+    fn get_extensions(&self, id: &EntityId) -> QueryIterator<E, I> {
         if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(id) {
             (
                 self,
@@ -83,11 +80,11 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_properties(&self, id: &EntityId) -> QueryIterator {
+    fn get_properties(&self, id: &EntityId) -> QueryIterator<E, I> {
         self.get_descriptors(id).union(self.get_extensions(id))
     }
 
-    fn get_forward_neighbors(&self, id: &EntityId) -> QueryIterator {
+    fn get_forward_neighbors(&self, id: &EntityId) -> QueryIterator<E, I> {
         if let Some(by_source) = self.entities_by_source_index.lock().unwrap().get(id) {
             (
                 self,
@@ -105,7 +102,7 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_backward_neighbors(&self, id: &EntityId) -> QueryIterator {
+    fn get_backward_neighbors(&self, id: &EntityId) -> QueryIterator<E, I> {
         if let Some(by_target) = self.entities_by_target_index.lock().unwrap().get(id) {
             (
                 self,
@@ -123,129 +120,38 @@ impl Querying for Arc<EngineState> {
         }
     }
 
-    fn get_neighbors(&self, id: &EntityId) -> QueryIterator {
+    fn get_neighbors(&self, id: &EntityId) -> QueryIterator<E, I> {
         self.get_forward_neighbors(id)
             .union(self.get_backward_neighbors(id))
     }
 }
 
-impl Querying for Arc<MosaicEngine> {
-    type Entity = Tile;
-    type CustomIterator = TileIterator;
-    fn get_edges(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_edges(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-
-    fn get_descriptors(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_descriptors(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-
-    fn get_extensions(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_extensions(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-
-    fn get_properties(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_properties(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-
-    fn get_forward_neighbors(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_forward_neighbors(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-
-    fn get_backward_neighbors(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_backward_neighbors(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-
-    fn get_neighbors(&self, tile: &Tile) -> TileIterator {
-        (
-            self,
-            self.engine_state
-                .get_neighbors(&tile.id())
-                .into_iter()
-                .flat_map(|e| self.get_tile(*e))
-                .collect_vec(),
-        )
-            .into()
-    }
-}
-
-impl Querying for QueryIterator {
-    type Entity = EntityId;
-    type CustomIterator = QueryIterator;
-
-    fn get_edges(&self, id: &EntityId) -> QueryIterator {
+impl<E, I> Querying for QueryIterator<E, I> {
+    fn get_edges(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_edges(id)
     }
 
-    fn get_descriptors(&self, id: &EntityId) -> QueryIterator {
+    fn get_descriptors(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_descriptors(id)
     }
 
-    fn get_extensions(&self, id: &EntityId) -> QueryIterator {
+    fn get_extensions(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_extensions(id)
     }
 
-    fn get_properties(&self, id: &EntityId) -> QueryIterator {
+    fn get_properties(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_properties(id)
     }
 
-    fn get_forward_neighbors(&self, id: &EntityId) -> QueryIterator {
+    fn get_forward_neighbors(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_forward_neighbors(id)
     }
 
-    fn get_backward_neighbors(&self, id: &EntityId) -> QueryIterator {
+    fn get_backward_neighbors(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_backward_neighbors(id)
     }
 
-    fn get_neighbors(&self, id: &EntityId) -> QueryIterator {
+    fn get_neighbors(&self, id: &U) -> QueryIterator<E, I> {
         self.engine.get_neighbors(id)
     }
 }
