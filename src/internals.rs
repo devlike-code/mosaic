@@ -4,7 +4,7 @@ pub mod byte_utilities;
 pub mod component_grammar;
 pub mod datatypes;
 pub mod entity_registry;
-pub mod iterators;
+pub mod get_entities;
 pub mod logging;
 pub mod mosaic;
 pub mod sparse_matrix;

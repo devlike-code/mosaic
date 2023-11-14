@@ -168,15 +168,15 @@ impl FromByteArray for Str {
 /// The `ToByteArray` implementation for `s32`
 impl ToByteArray for B128 {
     fn to_byte_array(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+        self.to_vec()
     }
 }
 
 /// The `FromByteArray` implementation for `str`
 impl FromByteArray for B128 {
     fn from_byte_array(data: &[u8]) -> Self {
-        let str = std::str::from_utf8(data);
-        FStr::<128>::from_str_lossy(str.unwrap(), b'\0')
+        data.try_into()
+            .expect("Cannot turn slice into array and satisfy conditions for B128")
     }
 }
 

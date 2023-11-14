@@ -174,7 +174,7 @@ pub fn try_read_component_type(
     }
 }
 
-pub type B128 = fstr::FStr<128>;
+pub type B128 = Vec<u8>;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -204,6 +204,69 @@ impl Value {
             Value::F64(_) => Datatype::F64,
             Value::S32(_) => Datatype::S32,
             Value::B128(_) => Datatype::B128,
+        }
+    }
+
+    pub fn as_eid(&self) -> EntityId {
+        match self {
+            Value::EID(v) => *v,
+            _ => panic!("Cannot get type variant EID"),
+        }
+    }
+
+    pub fn as_i32(&self) -> i32 {
+        match self {
+            Value::I32(v) => *v,
+            _ => panic!("Cannot get type variant I32"),
+        }
+    }
+
+    pub fn as_i64(&self) -> i64 {
+        match self {
+            Value::I64(v) => *v,
+            _ => panic!("Cannot get type variant I64"),
+        }
+    }
+
+    pub fn as_u32(&self) -> u32 {
+        match self {
+            Value::U32(v) => *v,
+            _ => panic!("Cannot get type variant U32"),
+        }
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        match self {
+            Value::U64(v) => *v,
+            _ => panic!("Cannot get type variant U64"),
+        }
+    }
+
+    pub fn as_f32(&self) -> f32 {
+        match self {
+            Value::F32(v) => *v,
+            _ => panic!("Cannot get type variant F32"),
+        }
+    }
+
+    pub fn as_f64(&self) -> f64 {
+        match self {
+            Value::F64(v) => *v,
+            _ => panic!("Cannot get type variant F64"),
+        }
+    }
+
+    pub fn as_s32(&self) -> S32 {
+        match self {
+            Value::S32(v) => *v,
+            _ => panic!("Cannot get type variant S32"),
+        }
+    }
+
+    pub fn as_b128(&self) -> B128 {
+        match self {
+            Value::B128(v) => v.clone(),
+            _ => panic!("Cannot get type variant B128"),
         }
     }
 }

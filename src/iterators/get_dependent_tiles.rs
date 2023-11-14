@@ -52,7 +52,7 @@ impl Iterator for GetDependentTilesIterator {
 }
 
 pub trait GetDependentTiles: Iterator {
-    fn get_dependent_tiles(self) -> GetDependentTilesIterator;
+    fn get_dependents(self) -> GetDependentTilesIterator;
 }
 
 pub trait GetDependentTilesExtension: Iterator {
@@ -63,7 +63,7 @@ impl<I> GetDependentTiles for I
 where
     I: Iterator<Item = Tile> + WithMosaic,
 {
-    fn get_dependent_tiles(self) -> GetDependentTilesIterator {
+    fn get_dependents(self) -> GetDependentTilesIterator {
         let mosaic = Arc::clone(&self.get_mosaic());
         GetDependentTilesIterator::new(self, mosaic)
     }

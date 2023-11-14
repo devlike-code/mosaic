@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ops::{Index, IndexMut},
     sync::{Arc, Mutex},
 };
 
@@ -7,7 +8,7 @@ use atomic_counter::{AtomicCounter, RelaxedCounter};
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    iterators::get_entities::GetEntitiesIterator, EntityId, EntityRegistry, SparseSet, Tile,
+    get_entities::GetEntitiesIterator, EntityId, EntityRegistry, Logging, SparseSet, Tile,
     TileType, S32,
 };
 
@@ -48,11 +49,16 @@ impl Mosaic {
     }
 
     fn next_id(&self) -> EntityId {
-        self.entity_counter.inc()
+        let registry = self.tile_registry.lock().unwrap();
+        let mut id = self.entity_counter.inc();
+        while registry.contains_key(&id) {
+            id = self.entity_counter.inc();
+        }
+        id
     }
 }
 
-trait MosaicCRUD<Id> {
+pub trait MosaicCRUD<Id> {
     // not generic in Id, but still a part:
     // fn new_object(&self, component: S32) -> Tile
     fn new_arrow(&self, source: &Id, target: &Id, component: S32) -> Tile;
@@ -62,6 +68,18 @@ trait MosaicCRUD<Id> {
 }
 
 impl Mosaic {
+    pub fn index(&self, i: EntityId) -> Option<Tile> {
+        self.tile_registry.lock().unwrap().get(&i).cloned()
+    }
+
+    pub fn commit(&self, tile: &Tile) -> anyhow::Result<()> {
+        tile.commit(Arc::clone(&self.entity_registry))
+    }
+
+    pub fn tile_exists(&self, i: EntityId) -> bool {
+        self.tile_registry.lock().unwrap().contains_key(&i)
+    }
+
     pub fn new_object(&self, component: S32) -> Tile {
         let id = self.next_id();
         let tile = Tile {
@@ -73,6 +91,28 @@ impl Mosaic {
         self.object_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
+    }
+
+    pub fn new_specific_object(&self, id: EntityId, component: S32) -> anyhow::Result<Tile> {
+        let mut registry = self.tile_registry.lock().unwrap();
+        if registry.contains_key(&id) {
+            format!(
+                "Cannot create specific object at id {}, it already exists:\n\t{:?}",
+                id,
+                self.index(id)
+            )
+            .to_error()
+        } else {
+            let tile = Tile {
+                id,
+                tile_type: TileType::Object,
+                component,
+                data: HashMap::default(),
+            };
+            self.object_ids.lock().unwrap().add(id);
+            registry.insert(id, tile.clone());
+            Ok(tile)
+        }
     }
 }
 
@@ -180,11 +220,12 @@ pub trait WithMosaic {
 mod mosaic_tests {
     use itertools::Itertools;
 
-    use super::{Mosaic, MosaicCRUD};
-    use crate::internals::iterators::{
-        get_dependent_tiles::GetDependentTiles, get_entities::GetEntitiesExtension,
-        get_objects::GetObjects,
+    use crate::{
+        internals::get_entities::{GetEntities, GetEntitiesExtension},
+        iterators::{get_dependent_tiles::GetDependentTiles, get_objects::GetObjects},
     };
+
+    use super::{Mosaic, MosaicCRUD};
 
     #[test]
     fn test() {
@@ -194,11 +235,11 @@ mod mosaic_tests {
         let _c = mosaic.new_arrow(&a, &b, "Tile".into());
         let _d = mosaic.new_arrow(&b, &a, "Tile".into());
 
-        for dep in Some(a)
-            .into_iter()
-            .get_entities_with(mosaic)
+        for dep in a
+            .iter_with(&mosaic)
+            .get_entities()
             .get_objects()
-            .get_dependent_tiles()
+            .get_dependents()
             .unique()
         {
             println!("{:?}", dep);

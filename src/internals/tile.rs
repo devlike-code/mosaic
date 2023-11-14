@@ -4,12 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use fstr::FStr;
 use itertools::Itertools;
+
+use crate::iterators::get_tile::JustTileIterator;
 
 use super::{
     logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId,
-    EntityRegistry, Value, S32,
+    EntityRegistry, Mosaic, Value, S32,
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
@@ -149,10 +150,7 @@ impl Tile {
                     Datatype::EID => {
                         Value::EID(usize::from_be_bytes(slice_into_array(field_data_raw)))
                     }
-                    Datatype::B128 => Value::B128(FStr::<128>::from_str_lossy(
-                        std::str::from_utf8(field_data_raw).unwrap(),
-                        b'\0',
-                    )),
+                    Datatype::B128 => Value::B128(slice_into_array(field_data_raw)),
                 };
 
                 result.insert(
@@ -193,7 +191,7 @@ impl Tile {
                     Value::U64(x) => x.to_be_bytes().to_vec(),
                     Value::F64(x) => x.to_be_bytes().to_vec(),
                     Value::EID(x) => x.to_be_bytes().to_vec(),
-                    Value::B128(x) => x.as_bytes().to_vec(),
+                    Value::B128(x) => x.clone(),
                 };
                 temp.extend(value_bytes);
                 temp.resize(200, 0);
@@ -238,6 +236,10 @@ impl Tile {
 }
 
 impl Tile {
+    pub fn iter_with(&self, mosaic: &Arc<Mosaic>) -> JustTileIterator {
+        JustTileIterator::new(Some(self.clone()), Arc::clone(mosaic))
+    }
+
     pub fn source_id(&self) -> EntityId {
         match self.tile_type {
             TileType::Object => self.id,
