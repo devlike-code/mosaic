@@ -52,8 +52,8 @@ impl Matrix for UndirectedAdjacencyMatrix {
                 .push(id);
         }
 
-        if !self.edges.contains_key(&id) {
-            self.edges.insert(id, vec![(src, tgt)]);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.edges.entry(id) {
+            e.insert(vec![(src, tgt)]);
         } else {
             self.edges.get_mut(&id).unwrap().push((src, tgt));
         }
@@ -69,8 +69,8 @@ impl Matrix for UndirectedAdjacencyMatrix {
                 .push(id);
         }
 
-        if !self.edges.contains_key(&id) {
-            self.edges.insert(id, vec![(tgt, src)]);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.edges.entry(id) {
+            e.insert(vec![(tgt, src)]);
         } else {
             self.edges.get_mut(&id).unwrap().push((tgt, src));
         }
@@ -79,11 +79,11 @@ impl Matrix for UndirectedAdjacencyMatrix {
     fn remove_edge(&mut self, id: EntityId) {
         if let Some(kv) = self.edges.get(&id) {
             for (k, v) in kv {
-                if let Some(key) = self.adjacency.get_mut(&k) {
+                if let Some(key) = self.adjacency.get_mut(k) {
                     key.remove(v);
                 }
 
-                if let Some(key) = self.adjacency.get_mut(&v) {
+                if let Some(key) = self.adjacency.get_mut(v) {
                     key.remove(k);
                 }
             }
@@ -152,7 +152,7 @@ impl UndirectedAdjacencyMatrix {
 
     pub fn neighbors(&self, src: EntityId) -> Vec<EntityId> {
         if let Some(adj_map) = self.adjacency.get(&src) {
-            Vec::from_iter(adj_map.keys().cloned().into_iter())
+            Vec::from_iter(adj_map.keys().cloned())
         } else {
             vec![]
         }
@@ -160,7 +160,7 @@ impl UndirectedAdjacencyMatrix {
 
     pub fn edges(&self, src: EntityId) -> Vec<EntityId> {
         if let Some(adj_map) = self.adjacency.get(&src) {
-            Vec::from_iter(adj_map.values().flatten().cloned().into_iter())
+            Vec::from_iter(adj_map.values().flatten().cloned())
         } else {
             vec![]
         }
@@ -253,8 +253,8 @@ impl Matrix for AdjacencyMatrix {
                 .push(id);
         }
 
-        if !self.edges.contains_key(&id) {
-            self.edges.insert(id, vec![(src, tgt)]);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.edges.entry(id) {
+            e.insert(vec![(src, tgt)]);
         } else {
             self.edges.get_mut(&id).unwrap().push((src, tgt));
         }
@@ -264,11 +264,11 @@ impl Matrix for AdjacencyMatrix {
         if let Some(adj_map) = self.edges.get(&id) {
             for (src, _) in adj_map {
                 if let Some(tgts) = self.adjacency.get_mut(src) {
-                    for (_, ids) in tgts {
+                    tgts.iter_mut().for_each(|(_, ids)| {
                         if let Some(index) = ids.iter().position(|v| *v == id) {
                             ids.swap_remove(index);
                         }
-                    }
+                    });
                 }
             }
         }
@@ -328,8 +328,7 @@ impl AdjacencyMatrix {
                 adj_map
                     .keys()
                     .filter(|e| !adj_map.get(*e).unwrap().is_empty())
-                    .cloned()
-                    .into_iter(),
+                    .cloned(),
             )
         } else {
             vec![]
@@ -338,7 +337,7 @@ impl AdjacencyMatrix {
 
     fn edges(&self, src: EntityId) -> Vec<EntityId> {
         if let Some(adj_map) = self.adjacency.get(&src) {
-            Vec::from_iter(adj_map.values().flatten().cloned().into_iter())
+            Vec::from_iter(adj_map.values().flatten().cloned())
         } else {
             vec![]
         }
@@ -471,24 +470,20 @@ impl BidirectionalMatrix {
 
     pub fn reach_forward_until(&self, src: EntityId, tgt: EntityId) -> bool {
         let reach = self.reach_forward(src);
-        reach
+        !reach
             .iter()
             .flatten()
             .filter(|t| *t == &tgt)
-            .collect::<Vec<_>>()
-            .len()
-            > 0
+            .collect::<Vec<_>>().is_empty()
     }
 
     pub fn reach_backward_until(&self, src: EntityId, tgt: EntityId) -> bool {
         let reach = self.reach_backward(src);
-        reach
+        !reach
             .iter()
             .flatten()
             .filter(|t| *t == &tgt)
-            .collect::<Vec<_>>()
-            .len()
-            > 0
+            .collect::<Vec<_>>().is_empty()
     }
 
     pub fn are_reachable(&self, src: EntityId, tgt: EntityId) -> bool {

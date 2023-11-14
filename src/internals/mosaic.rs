@@ -248,6 +248,7 @@ impl Tile {
     }
 }
 
+#[derive(Debug)]
 pub struct Mosaic {
     entity_counter: Arc<RelaxedCounter>,
     entity_registry: Arc<EntityRegistry>,
@@ -301,9 +302,15 @@ trait MosaicCRUD<Id> {
 
 impl MosaicCRUD<EntityId> for Mosaic {
     fn new_arrow(&self, source: &EntityId, target: &EntityId, component: S32) -> Tile {
+   
         let id = self.next_id();
-        self.dependent_ids_map.lock().unwrap().insert(*source, id);
-        self.dependent_ids_map.lock().unwrap().insert(*target, id);
+        if self.dependent_ids_map.lock().unwrap().get(source).is_none() {
+            self.dependent_ids_map.lock().unwrap().insert(*source, id);
+            self.dependent_ids_map.lock().unwrap().insert(*target, id);
+        } else {
+            self.dependent_ids_map.lock().unwrap().append(*source, id);
+            self.dependent_ids_map.lock().unwrap().append(*target, id);
+        }
         let tile = Tile {
             id,
             tile_type: TileType::Arrow {
@@ -320,7 +327,19 @@ impl MosaicCRUD<EntityId> for Mosaic {
 
     fn new_loop(&self, endpoint: &EntityId, component: S32) -> Tile {
         let id = self.next_id();
-        self.dependent_ids_map.lock().unwrap().insert(*endpoint, id);
+
+        if self
+            .dependent_ids_map
+            .lock()
+            .unwrap()
+            .get(endpoint)
+            .is_none()
+        {
+            self.dependent_ids_map.lock().unwrap().insert(*endpoint, id);
+        } else {
+            self.dependent_ids_map.lock().unwrap().append(*endpoint, id);
+        }
+
         let tile = Tile {
             id,
             tile_type: TileType::Loop {
@@ -337,6 +356,19 @@ impl MosaicCRUD<EntityId> for Mosaic {
     fn new_descriptor(&self, subject: &EntityId, component: S32) -> Tile {
         let id = self.next_id();
         self.dependent_ids_map.lock().unwrap().insert(*subject, id);
+
+        if self
+            .dependent_ids_map
+            .lock()
+            .unwrap()
+            .get(subject)
+            .is_none()
+        {
+            self.dependent_ids_map.lock().unwrap().insert(*subject, id);
+        } else {
+            self.dependent_ids_map.lock().unwrap().append(*subject, id);
+        }
+
         let tile = Tile {
             id,
             tile_type: TileType::Descriptor { subject: *subject },
@@ -350,6 +382,19 @@ impl MosaicCRUD<EntityId> for Mosaic {
 
     fn new_extension(&self, subject: &EntityId, component: S32) -> Tile {
         let id = self.next_id();
+
+        if self
+            .dependent_ids_map
+            .lock()
+            .unwrap()
+            .get(subject)
+            .is_none()
+        {
+            self.dependent_ids_map.lock().unwrap().insert(*subject, id);
+        } else {
+            self.dependent_ids_map.lock().unwrap().append(*subject, id);
+        }
+
         self.dependent_ids_map.lock().unwrap().insert(*subject, id);
         let tile = Tile {
             id,
@@ -530,7 +575,7 @@ impl Mosaic {
 
 #[cfg(test)]
 mod mosaic_tests {
-    use crate::internals::mosaic::{GetDependentTilesExtension, MosaicCreateObject};
+    use crate::internals::mosaic::MosaicCreateObject;
 
     use super::{Mosaic, MosaicCRUD};
 
@@ -540,10 +585,12 @@ mod mosaic_tests {
         let a = mosaic.new_object("Tile".into());
         let b = mosaic.new_object("Tile".into());
         let c = mosaic.new_arrow(&a, &b, "Tile".into());
-        //let d = mosaic.new_arrow(&b, &a, "Tile".into());
-        let mut p = mosaic.new_descriptor(&c, "Label".into());
+        println!("{:?}", mosaic.dependent_ids_map.lock().unwrap());
+
+        let d = mosaic.new_arrow(&b, &a, "Tile".into());
 
         println!("{:?}", mosaic.get_dependent_tiles(a.id));
+        // println!("{:?}", mosaic.dependent_ids_map.lock().unwrap());
         // for dep in vec![a].into_iter().get_dependent_tiles(mosaic) {
         //     println!("{:?}", dep);
         // }
