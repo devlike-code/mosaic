@@ -7,20 +7,14 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::byte_utilities::FromByteArray,
-    iterators::{
-        filter_with_component::FilterWithComponent, get_dependent_tiles::GetDependentTilesExtension,
-    },
+    internals::byte_utilities::FromByteArray, iterators::filter_with_component::FilterWithComponent,
 };
 use crate::{
     internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, B128},
     iterators::get_extensions::GetExtensions,
 };
 
-use crate::{
-    internals::get_entities::GetEntitiesExtension,
-    iterators::{get_dependent_tiles::GetDependentTiles, get_objects::GetObjects},
-};
+use crate::iterators::get_dependent_tiles::GetDependentTiles;
 
 pub trait StringFunnel {
     /// Hash a string into an entity identifier (basic hash string helper function)
@@ -84,7 +78,7 @@ impl StringFunnel for Arc<Mosaic> {
         self.tile_exists(str_hash)
     }
 
-    fn delete_string(&self, str: &str) {
+    fn delete_string(&self, _str: &str) {
         todo!()
     }
 }
