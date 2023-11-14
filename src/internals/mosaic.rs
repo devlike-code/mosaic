@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    ops::{Index, IndexMut},
     sync::{Arc, Mutex},
 };
 
@@ -95,14 +94,7 @@ impl Mosaic {
 
     pub fn new_specific_object(&self, id: EntityId, component: S32) -> anyhow::Result<Tile> {
         let mut registry = self.tile_registry.lock().unwrap();
-        if registry.contains_key(&id) {
-            format!(
-                "Cannot create specific object at id {}, it already exists:\n\t{:?}",
-                id,
-                self.index(id)
-            )
-            .to_error()
-        } else {
+        if let std::collections::hash_map::Entry::Vacant(e) = registry.entry(id) {
             let tile = Tile {
                 id,
                 tile_type: TileType::Object,
@@ -110,8 +102,15 @@ impl Mosaic {
                 data: HashMap::default(),
             };
             self.object_ids.lock().unwrap().add(id);
-            registry.insert(id, tile.clone());
+            e.insert(tile.clone());
             Ok(tile)
+        } else {
+            format!(
+                "Cannot create specific object at id {}, it already exists:\n\t{:?}",
+                id,
+                self.index(id)
+            )
+            .to_error()
         }
     }
 }
@@ -221,7 +220,7 @@ mod mosaic_tests {
     use itertools::Itertools;
 
     use crate::{
-        internals::get_entities::{GetEntities, GetEntitiesExtension},
+        internals::get_entities::GetEntities,
         iterators::{get_dependent_tiles::GetDependentTiles, get_objects::GetObjects},
     };
 
