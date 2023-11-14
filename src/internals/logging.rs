@@ -1,6 +1,21 @@
-use log::error;
+use anyhow::anyhow;
 
-pub(crate) fn report_error<A, S: AsRef<str>>(message: S) -> Result<A, String> {
-    error!("{}", message.as_ref());
-    Err(message.as_ref().to_owned())
+pub fn init_logging() {
+    env_logger::init();
+}
+
+pub trait Logging {
+    fn to_error<T>(self) -> anyhow::Result<T>;
+}
+
+impl<'a> Logging for &'a str {
+    fn to_error<T>(self) -> anyhow::Result<T> {
+        Err(anyhow!(self.to_string()))
+    }
+}
+
+impl Logging for String {
+    fn to_error<T>(self) -> anyhow::Result<T> {
+        Err(anyhow!(self))
+    }
 }

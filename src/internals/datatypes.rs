@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use fstr::FStr;
 
-use super::{logging::report_error, Bytesize, EntityRegistry};
+use super::{logging::Logging, Bytesize, EntityRegistry};
 
 pub type EntityId = usize;
 
@@ -147,27 +147,28 @@ impl ComponentType {
 pub fn try_read_component_type(
     engine: &EntityRegistry,
     input: &[u8],
-) -> Result<ComponentType, String> {
+) -> anyhow::Result<ComponentType> {
     let component_name_length = 32;
     let input_length = input.len();
 
     if input_length < component_name_length {
-        return report_error("Input not long enough to read type name.");
+        return "Input not long enough to read type name.".to_error();
     }
 
     let message_length = input.len() - component_name_length;
 
     let message_type = &input[0..component_name_length];
-    let utf8_name = std::str::from_utf8(message_type).map_err(|e| e.to_string())?;
+    let utf8_name = std::str::from_utf8(message_type)?;
     let component_name: S32 = utf8_name.into();
 
     let component_type = engine.get_component_type(component_name)?;
     let bytesize = component_type.bytesize(engine);
     if 8 * bytesize != message_length {
-        report_error(format!(
+        format!(
             "Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
             component_name, bytesize, message_length, input
-        ))
+        )
+        .to_error()
     } else {
         Ok(component_type)
     }

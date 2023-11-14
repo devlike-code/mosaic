@@ -1,8 +1,10 @@
+use super::{
+    datatypes::{ComponentField, ComponentType, Datatype},
+    logging::Logging,
+};
+use crate::pest::Parser;
 use pest::iterators::Pair;
 use pest_derive::*;
-
-use super::datatypes::{ComponentField, ComponentType, Datatype};
-use crate::pest::Parser;
 
 #[derive(Parser)]
 #[grammar = "internals/component_grammar.pest"]
@@ -32,7 +34,7 @@ impl ComponentParser {
         }
     }
 
-    fn parse_field(pair: Pair<'_, Rule>) -> Result<ComponentField, String> {
+    fn parse_field(pair: Pair<'_, Rule>) -> anyhow::Result<ComponentField> {
         let mut subs = pair.into_inner();
         let mut val = subs.next().unwrap();
         let name = val.as_str().trim().into();
@@ -58,23 +60,25 @@ impl ComponentParser {
                 datatype: Datatype::COMP(val.as_str().trim().into()),
             }),
 
-            e => {
-                Err(format!("[Error][component_grammar.rs][parse_field] Expected datatype or identifier when parsing field '{:?}', {:?} found.", name, e))
-            }
+            e => format!(
+                "Expected datatype or identifier when parsing field '{:?}', {:?} found.",
+                name, e
+            )
+            .to_error(),
         }
     }
 
-    fn check_keywords(name: &str) -> Result<(), String> {
+    fn check_keywords(name: &str) -> anyhow::Result<()> {
         if name == "product" {
-            Err("[Error][component_grammar.rs][check_keywords] Keyword 'product' can't be used as an identifier.".to_string())
+            "Keyword 'product' can't be used as an identifier.".to_error()
         } else if name == "sum" {
-            Err("[Error][component_grammar.rs][check_keywords] Keyword 'sum' can't be used as an identifier.".to_string())
+            "Keyword 'sum' can't be used as an identifier.".to_error()
         } else {
             Ok(())
         }
     }
 
-    fn parse_product(pair: Pair<'_, Rule>) -> Result<ComponentType, String> {
+    fn parse_product(pair: Pair<'_, Rule>) -> anyhow::Result<ComponentType> {
         let mut pairs = pair.into_inner();
         let mut val = pairs.next().unwrap();
         let name = val.as_str().trim();
@@ -85,7 +89,11 @@ impl ComponentParser {
             Rule::sum_type_expr => ComponentTypeKindNames::Sum,
             Rule::datatype_expr => ComponentTypeKindNames::Alias,
             e => {
-                return Err(format!("[Error][component_grammar.rs][parse_struct] Unexpected rule {:?} found where record, sum, or simple datatype expected.", e));
+                return format!(
+                    "Unexpected rule {:?} found where record, sum, or simple datatype expected.",
+                    e
+                )
+                .to_error();
             }
         };
 
@@ -113,11 +121,8 @@ impl ComponentParser {
             let mut fields = vec![];
 
             for n in subs {
-                let field = Self::parse_field(n.clone());
-                if field.is_err() {
-                    return Err(field.err().unwrap());
-                }
-                fields.push(field.unwrap());
+                let field = Self::parse_field(n.clone())?;
+                fields.push(field);
             }
 
             if kind == ComponentTypeKindNames::Product {
@@ -134,23 +139,20 @@ impl ComponentParser {
         };
     }
 
-    pub fn parse_type<S: AsRef<str>>(s: S) -> Result<ComponentType, String> {
+    pub fn parse_type<S: AsRef<str>>(s: S) -> anyhow::Result<ComponentType> {
         match Self::parse(Rule::struct_expr, s.as_ref()) {
             Ok(pairs) => {
                 let pair = pairs.into_iter().next().unwrap();
                 match pair.as_rule() {
                     Rule::struct_expr => Self::parse_product(pair),
-                    _ => Err(
-                        "[Error][component_grammar.rs][parse_type] Wrong structure found!"
-                            .to_string(),
-                    ),
+                    _ => "Wrong structure found!".to_error(),
                 }
             }
-            Err(err) => Err(err.to_string()),
+            Err(err) => err.to_string().to_error(),
         }
     }
 
-    pub fn parse_types<S: AsRef<str>>(s: S) -> Vec<Result<ComponentType, String>> {
+    pub fn parse_types<S: AsRef<str>>(s: S) -> Vec<anyhow::Result<ComponentType>> {
         match Self::parse(Rule::structures_expr, s.as_ref()) {
             Ok(pairs) => pairs
                 .into_iter()
@@ -160,29 +162,27 @@ impl ComponentParser {
                         Ok(typ)
                     }
 
-                    e => Err(format!(
-                        "[Error][component_grammar.rs][parse_types] Wrong structure found: {:?}!",
-                        e
-                    )),
+                    e => format!("Wrong structure found: {:?}!", e).to_error(),
                 })
                 .collect(),
 
-            Err(err) => vec![Err(err.to_string())],
+            Err(err) => vec![err.to_string().to_error()],
         }
     }
 
-    pub fn parse_all<S: AsRef<str>>(s: S) -> Result<Vec<ComponentType>, String> {
+    pub fn parse_all<S: AsRef<str>>(s: S) -> anyhow::Result<Vec<ComponentType>> {
         let result = Self::parse_types(s);
         if result.iter().all(|x| x.is_ok()) {
             let result: Vec<ComponentType> = result.into_iter().map(|x| x.unwrap()).collect();
             Ok(result)
         } else {
-            Err(result
+            result
                 .into_iter()
                 .filter(|x| x.is_err())
-                .map(|x| x.err().unwrap())
+                .map(|x| x.err().unwrap().to_string())
                 .collect::<Vec<String>>()
-                .join(";"))
+                .join(";")
+                .to_error()
         }
     }
 }
@@ -200,33 +200,33 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_basic_alias() {
         let input = "Float : f32;";
-        let expected = ComponentType::Alias({
+        let _expected = ComponentType::Alias({
             ComponentField {
                 name: "Float".into(),
                 datatype: Datatype::F32,
             }
         });
 
-        assert_eq!(Ok(expected), ComponentParser::parse_type(input));
+        assert!(matches!(ComponentParser::parse_type(input), Ok(_expected)));
     }
 
     #[test]
     fn test_parse_comp_alias() {
         let input = "Position : Point;";
-        let expected = ComponentType::Alias({
+        let _expected = ComponentType::Alias({
             ComponentField {
                 name: "Position".into(),
                 datatype: Datatype::COMP("Point".into()),
             }
         });
 
-        assert_eq!(Ok(expected), ComponentParser::parse_type(input));
+        assert!(matches!(ComponentParser::parse_type(input), Ok(_expected)));
     }
 
     #[test]
     fn test_parse_product_type() {
         let input = "Position : product { x: i32, y: i32 };";
-        let expected = ComponentType::Product {
+        let _expected = ComponentType::Product {
             name: "Position".into(),
             fields: vec![
                 ComponentField {
@@ -240,7 +240,7 @@ mod component_grammar_testing {
             ],
         };
 
-        assert_eq!(Ok(expected), ComponentParser::parse_type(input));
+        assert!(matches!(ComponentParser::parse_type(input), Ok(_expected)));
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod component_grammar_testing {
     #[test]
     fn test_parse_sum_type() {
         let input = "Position : sum { x: i32, y: i32 };";
-        let expected = ComponentType::Sum {
+        let _expected = ComponentType::Sum {
             name: "Position".into(),
             fields: vec![
                 ComponentField {
@@ -267,6 +267,6 @@ mod component_grammar_testing {
             ],
         };
 
-        assert_eq!(Ok(expected), ComponentParser::parse_type(input));
+        assert!(matches!(ComponentParser::parse_type(input), Ok(_expected)));
     }
 }

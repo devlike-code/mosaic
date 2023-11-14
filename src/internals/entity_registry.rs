@@ -3,7 +3,7 @@ use slab::Slab;
 use super::{
     component_grammar::ComponentParser,
     datatypes::{ComponentType, EntityId, S32 as ComponentName},
-    logging::report_error,
+    logging::Logging,
     Bytesize, ComponentField, Datatype, ToByteArray, Value,
 };
 
@@ -61,7 +61,7 @@ impl PartialEq for EntityRegistry {
 impl Eq for EntityRegistry {}
 
 impl EntityRegistry {
-    fn flatten_component_type(&self, definition: ComponentType) -> Result<ComponentType, String> {
+    fn flatten_component_type(&self, definition: ComponentType) -> anyhow::Result<ComponentType> {
         use ComponentType::*;
         match &definition {
             Alias(ComponentField {
@@ -141,7 +141,7 @@ impl EntityRegistry {
         Arc::new(EntityRegistry::default())
     }
 
-    pub fn add_component_types(&self, definition: &str) -> Result<(), String> {
+    pub fn add_component_types(&self, definition: &str) -> anyhow::Result<()> {
         let types = ComponentParser::parse_all(definition)?;
         for component_type in types {
             self.add_raw_component_type(self.flatten_component_type(component_type)?);
@@ -153,15 +153,15 @@ impl EntityRegistry {
         self.component_type_map.lock().unwrap().contains_key(name)
     }
 
-    pub fn get_component_type(&self, name: ComponentName) -> Result<ComponentType, String> {
+    pub fn get_component_type(&self, name: ComponentName) -> anyhow::Result<ComponentType> {
         if self.has_component_type(&name) {
             if let Some(typ) = self.component_type_map.lock().unwrap().get(&name).cloned() {
                 Ok(typ)
             } else {
-                report_error(format!("Component with name {} not found", name))
+                format!("Component with name {} not found", name).to_error()
             }
         } else {
-            report_error(format!("Component with name {} not found", name))
+            format!("Component with name {} not found", name).to_error()
         }
     }
 }
