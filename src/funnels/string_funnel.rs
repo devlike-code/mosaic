@@ -78,7 +78,8 @@ impl StringFunnel for Arc<Mosaic> {
         self.tile_exists(str_hash)
     }
 
-    fn delete_string(&self, _str: &str) {
-        todo!()
+    fn delete_string(&self, str: &str) {
+        let str_hash = Self::hash_string(str);
+        self.delete_tile(&str_hash);
     }
 }
