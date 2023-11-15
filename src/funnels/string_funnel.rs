@@ -58,7 +58,7 @@ impl StringFunnel for Arc<Mosaic> {
     }
 
     fn recover_string(&self, tile: &Tile) -> Option<String> {
-        if !self.tile_exists(tile.id) {
+        if !self.tile_exists(tile) {
             None
         } else {
             let parts = tile
@@ -75,11 +75,11 @@ impl StringFunnel for Arc<Mosaic> {
 
     fn string_exists(&self, str: &str) -> bool {
         let str_hash = Self::hash_string(str);
-        self.tile_exists(str_hash)
+        self.tile_exists(&str_hash)
     }
 
     fn delete_string(&self, str: &str) {
         let str_hash = Self::hash_string(str);
-        self.delete_tile(&str_hash);
+        self.delete_tile(str_hash);
     }
 }

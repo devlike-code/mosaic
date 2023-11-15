@@ -4,6 +4,7 @@ use std::{
 };
 
 use atomic_counter::{AtomicCounter, RelaxedCounter};
+use itertools::Itertools;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
@@ -33,7 +34,7 @@ impl PartialEq for Mosaic {
 impl Eq for Mosaic {}
 
 impl Mosaic {
-    fn new() -> Arc<Mosaic> {
+    pub fn new() -> Arc<Mosaic> {
         Arc::new(Mosaic {
             entity_counter: Arc::new(RelaxedCounter::default()),
             entity_registry: Arc::new(EntityRegistry::default()),
@@ -64,21 +65,17 @@ pub trait MosaicCRUD<Id> {
     fn new_loop(&self, endpoint: &Id, component: S32) -> Tile;
     fn new_descriptor(&self, subject: &Id, component: S32) -> Tile;
     fn new_extension(&self, subject: &Id, component: S32) -> Tile;
-
-    fn delete_tile(&self, tile: &Id);
+    fn tile_exists(&self, i: &Id) -> bool;
+    fn delete_tile(&self, tile: Id);
 }
 
 impl Mosaic {
-    pub fn index(&self, i: EntityId) -> Option<Tile> {
+    pub fn get(&self, i: EntityId) -> Option<Tile> {
         self.tile_registry.lock().unwrap().get(&i).cloned()
     }
 
     pub fn commit(&self, tile: &Tile) -> anyhow::Result<()> {
         tile.commit(Arc::clone(&self.entity_registry))
-    }
-
-    pub fn tile_exists(&self, i: EntityId) -> bool {
-        self.tile_registry.lock().unwrap().contains_key(&i)
     }
 
     pub fn new_object(&self, component: S32) -> Tile {
@@ -110,7 +107,7 @@ impl Mosaic {
             format!(
                 "Cannot create specific object at id {}, it already exists:\n\t{:?}",
                 id,
-                self.index(id)
+                self.get(id)
             )
             .to_error()
         }
@@ -128,6 +125,10 @@ impl MosaicGetEntities for Arc<Mosaic> {
 }
 
 impl MosaicCRUD<EntityId> for Mosaic {
+    fn tile_exists(&self, i: &EntityId) -> bool {
+        self.tile_registry.lock().unwrap().contains_key(i)
+    }
+
     fn new_arrow(&self, source: &EntityId, target: &EntityId, component: S32) -> Tile {
         let id = self.next_id();
         self.dependent_ids_map.lock().unwrap().append(*source, id);
@@ -194,38 +195,42 @@ impl MosaicCRUD<EntityId> for Mosaic {
         tile
     }
 
-    fn delete_tile(&self, id: &EntityId) {
-        self.dependent_ids_map
+    fn delete_tile(&self, id: EntityId) {
+        let dependents = self
+            .dependent_ids_map
             .lock()
             .unwrap()
-            .get(id)
-            .into_iter()
-            .for_each(|t| {
-                self.delete_tile(t);
-            });
+            .get_all(&id)
+            .cloned()
+            .collect_vec();
 
-        self.dependent_ids_map.lock().unwrap().remove(id);
+        dependents.into_iter().for_each(|t| {
+            self.delete_tile(t);
+        });
+
+        self.dependent_ids_map.lock().unwrap().remove(&id);
         let mut component = None;
-        if let Some(tile) = self.tile_registry.lock().unwrap().get(id) {
+        if let Some(tile) = self.tile_registry.lock().unwrap().get(&id) {
             component = Some(tile.component);
             match tile.tile_type {
-                TileType::Object => self.object_ids.lock().unwrap().remove(*id),
+                TileType::Object => self.object_ids.lock().unwrap().remove(id),
                 TileType::Arrow { .. } | TileType::Backlink { .. } => {
-                    self.arrow_ids.lock().unwrap().remove(*id)
+                    self.arrow_ids.lock().unwrap().remove(id)
                 }
-                TileType::Loop { .. } => self.loop_ids.lock().unwrap().remove(*id),
-                TileType::Descriptor { .. } => self.descriptor_ids.lock().unwrap().remove(*id),
-                TileType::Extension { .. } => self.extension_ids.lock().unwrap().remove(*id),
+                TileType::Loop { .. } => self.loop_ids.lock().unwrap().remove(id),
+                TileType::Descriptor { .. } => self.descriptor_ids.lock().unwrap().remove(id),
+                TileType::Extension { .. } => self.extension_ids.lock().unwrap().remove(id),
             }
         }
 
-        self.tile_registry.lock().unwrap().remove(id);
+        self.tile_registry.lock().unwrap().remove(&id);
+
         if let Some(alloc) = self
             .entity_registry
             .id_allocation_index
             .lock()
             .unwrap()
-            .get(id)
+            .get(&id)
         {
             self.entity_registry
                 .component_slabs
@@ -240,11 +245,15 @@ impl MosaicCRUD<EntityId> for Mosaic {
             .id_allocation_index
             .lock()
             .unwrap()
-            .remove(id);
+            .remove(&id);
     }
 }
 
 impl MosaicCRUD<Tile> for Mosaic {
+    fn tile_exists(&self, i: &Tile) -> bool {
+        <Mosaic as MosaicCRUD<EntityId>>::tile_exists(self, &i.id)
+    }
+
     fn new_arrow(&self, source: &Tile, target: &Tile, component: S32) -> Tile {
         <Mosaic as MosaicCRUD<EntityId>>::new_arrow(self, &source.id, &target.id, component)
     }
@@ -261,47 +270,11 @@ impl MosaicCRUD<Tile> for Mosaic {
         <Mosaic as MosaicCRUD<EntityId>>::new_extension(self, &subject.id, component)
     }
 
-    fn delete_tile(&self, tile: &Tile) {
-        <Mosaic as MosaicCRUD<EntityId>>::delete_tile(self, &tile.id);
+    fn delete_tile(&self, tile: Tile) {
+        <Mosaic as MosaicCRUD<EntityId>>::delete_tile(self, tile.id);
     }
 }
 
 pub trait WithMosaic {
     fn get_mosaic(&self) -> Arc<Mosaic>;
-}
-
-#[cfg(test)]
-mod mosaic_tests {
-    use itertools::Itertools;
-
-    use crate::{
-        funnels::ParentFunnel,
-        internals::get_entities::GetEntities,
-        iterators::{get_dependents::GetDependentTiles, get_objects::GetObjects},
-    };
-
-    use super::{Mosaic, MosaicCRUD};
-
-    #[test]
-    fn test() {
-        let mosaic = Mosaic::new();
-        let a = mosaic.new_object("Tile".into());
-        let b = mosaic.new_object("Tile".into());
-        let c = mosaic.new_arrow(&a, &b, "Tile".into());
-        let d = mosaic.new_arrow(&b, &a, "Tile".into());
-        let _ = mosaic.set_parent(&a, &b).unwrap();
-        let _ = mosaic.set_parent(&c, &b).unwrap();
-        let _ = mosaic.set_parent(&d, &b).unwrap();
-        println!("{:?}", mosaic.get_parent(&a));
-        println!("{:?}", mosaic.get_children(&b).collect_vec());
-        for dep in a
-            .iter_with(&mosaic)
-            .get_entities()
-            .get_objects()
-            .get_dependents()
-            .unique()
-        {
-            println!("{:?}", dep);
-        }
-    }
 }

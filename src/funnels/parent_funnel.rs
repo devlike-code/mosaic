@@ -40,7 +40,7 @@ impl ParentFunnel for Arc<Mosaic> {
 
     fn get_parent(&self, child: &Tile) -> Option<Tile> {
         self.get_parenting_relation(child)
-            .and_then(|p| self.index(p.source_id()))
+            .and_then(|p| self.get(p.source_id()))
     }
 
     fn get_children(&self, parent: &Tile) -> GetTilesIterator {
@@ -55,7 +55,7 @@ impl ParentFunnel for Arc<Mosaic> {
 
     fn unparent(&self, child: &Tile) {
         if let Some(rel) = self.get_parenting_relation(child) {
-            self.delete_tile(&rel);
+            self.delete_tile(rel);
         }
     }
 }
