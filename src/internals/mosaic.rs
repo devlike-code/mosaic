@@ -64,6 +64,8 @@ pub trait MosaicCRUD<Id> {
     fn new_loop(&self, endpoint: &Id, component: S32) -> Tile;
     fn new_descriptor(&self, subject: &Id, component: S32) -> Tile;
     fn new_extension(&self, subject: &Id, component: S32) -> Tile;
+
+    fn delete_tile(&self, tile: &Id);
 }
 
 impl Mosaic {
@@ -191,6 +193,55 @@ impl MosaicCRUD<EntityId> for Mosaic {
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
+
+    fn delete_tile(&self, id: &EntityId) {
+        self.dependent_ids_map
+            .lock()
+            .unwrap()
+            .get(id)
+            .into_iter()
+            .for_each(|t| {
+                self.delete_tile(t);
+            });
+
+        self.dependent_ids_map.lock().unwrap().remove(id);
+        let mut component = None;
+        if let Some(tile) = self.tile_registry.lock().unwrap().get(id) {
+            component = Some(tile.component);
+            match tile.tile_type {
+                TileType::Object => self.object_ids.lock().unwrap().remove(*id),
+                TileType::Arrow { .. } | TileType::Backlink { .. } => {
+                    self.arrow_ids.lock().unwrap().remove(*id)
+                }
+                TileType::Loop { .. } => self.loop_ids.lock().unwrap().remove(*id),
+                TileType::Descriptor { .. } => self.descriptor_ids.lock().unwrap().remove(*id),
+                TileType::Extension { .. } => self.extension_ids.lock().unwrap().remove(*id),
+            }
+        }
+
+        self.tile_registry.lock().unwrap().remove(id);
+        if let Some(alloc) = self
+            .entity_registry
+            .id_allocation_index
+            .lock()
+            .unwrap()
+            .get(id)
+        {
+            self.entity_registry
+                .component_slabs
+                .lock()
+                .unwrap()
+                .get_mut(&component.unwrap())
+                .unwrap()
+                .remove(*alloc);
+        }
+
+        self.entity_registry
+            .id_allocation_index
+            .lock()
+            .unwrap()
+            .remove(id);
+    }
 }
 
 impl MosaicCRUD<Tile> for Mosaic {
@@ -208,6 +259,10 @@ impl MosaicCRUD<Tile> for Mosaic {
 
     fn new_extension(&self, subject: &Tile, component: S32) -> Tile {
         <Mosaic as MosaicCRUD<EntityId>>::new_extension(self, &subject.id, component)
+    }
+
+    fn delete_tile(&self, tile: &Tile) {
+        <Mosaic as MosaicCRUD<EntityId>>::delete_tile(self, &tile.id);
     }
 }
 
