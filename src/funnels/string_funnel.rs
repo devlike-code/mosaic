@@ -14,7 +14,7 @@ use crate::{
     iterators::get_extensions::GetExtensions,
 };
 
-use crate::iterators::get_dependent_tiles::GetDependentTiles;
+use crate::iterators::get_dependents::GetDependentTiles;
 
 pub trait StringFunnel {
     /// Hash a string into an entity identifier (basic hash string helper function)

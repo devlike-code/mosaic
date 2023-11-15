@@ -275,8 +275,9 @@ mod mosaic_tests {
     use itertools::Itertools;
 
     use crate::{
+        funnels::ParentFunnel,
         internals::get_entities::GetEntities,
-        iterators::{get_dependent_tiles::GetDependentTiles, get_objects::GetObjects},
+        iterators::{get_dependents::GetDependentTiles, get_objects::GetObjects},
     };
 
     use super::{Mosaic, MosaicCRUD};
@@ -286,9 +287,13 @@ mod mosaic_tests {
         let mosaic = Mosaic::new();
         let a = mosaic.new_object("Tile".into());
         let b = mosaic.new_object("Tile".into());
-        let _c = mosaic.new_arrow(&a, &b, "Tile".into());
-        let _d = mosaic.new_arrow(&b, &a, "Tile".into());
-
+        let c = mosaic.new_arrow(&a, &b, "Tile".into());
+        let d = mosaic.new_arrow(&b, &a, "Tile".into());
+        let _ = mosaic.set_parent(&a, &b).unwrap();
+        let _ = mosaic.set_parent(&c, &b).unwrap();
+        let _ = mosaic.set_parent(&d, &b).unwrap();
+        println!("{:?}", mosaic.get_parent(&a));
+        println!("{:?}", mosaic.get_children(&b).collect_vec());
         for dep in a
             .iter_with(&mosaic)
             .get_entities()

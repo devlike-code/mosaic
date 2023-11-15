@@ -6,7 +6,7 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::iterators::get_tile::JustTileIterator;
+use crate::iterators::just_tile::JustTileIterator;
 
 use super::{
     logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId,

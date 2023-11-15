@@ -3,6 +3,7 @@
 pub mod byte_utilities;
 pub mod component_grammar;
 pub mod datatypes;
+pub mod either;
 pub mod entity_registry;
 pub mod get_entities;
 pub mod logging;
