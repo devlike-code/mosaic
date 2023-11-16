@@ -1,3 +1,4 @@
+pub mod deletion;
 pub mod exclude_component;
 pub mod exclude_components;
 pub mod get_arrows;

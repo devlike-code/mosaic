@@ -48,7 +48,8 @@ impl Mosaic {
         });
 
         mosaic.new_type("String: b128;").unwrap();
-        mosaic.new_type("Parent: void;").unwrap();
+        mosaic.new_type("Group: s32;").unwrap();
+        mosaic.new_type("GroupOwner: s32;").unwrap();
         mosaic.new_type("DEBUG: void;").unwrap();
 
         mosaic

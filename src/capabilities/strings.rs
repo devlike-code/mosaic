@@ -17,7 +17,7 @@ use crate::{
 
 use crate::iterators::get_dependents::GetDependentTiles;
 
-pub trait StringFunnel {
+pub trait StringCapability {
     fn hash_string(str: &str) -> EntityId;
     fn create_string_object(&self, str: &str) -> anyhow::Result<Tile>;
     fn get_string_value(&self, tile: &Tile) -> Option<String>;
@@ -25,7 +25,7 @@ pub trait StringFunnel {
     fn delete_string(&self, str: &str);
 }
 
-impl StringFunnel for Arc<Mosaic> {
+impl StringCapability for Arc<Mosaic> {
     fn hash_string(str: &str) -> EntityId {
         let mut hasher = DefaultHasher::new();
         str.hash(&mut hasher);

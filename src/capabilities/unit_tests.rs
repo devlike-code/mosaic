@@ -2,7 +2,7 @@
 mod string_tests {
     use itertools::Itertools;
 
-    use crate::{capabilities::StringFunnel, internals::Mosaic};
+    use crate::{capabilities::StringCapability, internals::Mosaic};
 
     #[test]
     fn test_string_funnel() {
@@ -37,7 +37,7 @@ mod traversal_tests {
     #[test]
     fn test_neighborhoods() {
         let t = Traversal::Exclude {
-            components: &["Parent", "Child"],
+            components: &["GroupOwner", "Group"],
         };
 
         let mosaic = Mosaic::new();
@@ -48,14 +48,14 @@ mod traversal_tests {
 
         /*
                       /----> b
-           a ----parent----> c
+           a ----group ----> c
                       \----> d
 
            a ----> b <----> c -----> d
         */
-        mosaic.new_arrow(&a, &b, "Parent");
-        mosaic.new_arrow(&a, &c, "Parent");
-        mosaic.new_arrow(&a, &d, "Parent");
+        mosaic.new_arrow(&a, &b, "GroupOwner");
+        mosaic.new_arrow(&a, &c, "GroupOwner");
+        mosaic.new_arrow(&a, &d, "GroupOwner");
         mosaic.new_arrow(&a, &b, "DEBUG");
         mosaic.new_arrow(&b, &c, "DEBUG");
         mosaic.new_arrow(&c, &b, "DEBUG");
@@ -108,7 +108,7 @@ mod traversal_tests {
 
         /*
                       /----> b
-           a ----parent----> c
+           a ----group ----> c
                       \----> d
 
            4
