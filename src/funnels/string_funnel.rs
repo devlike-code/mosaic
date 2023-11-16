@@ -7,7 +7,8 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::byte_utilities::FromByteArray, iterators::filter_with_component::FilterWithComponent,
+    internals::{byte_utilities::FromByteArray, TileCommit},
+    iterators::filter_with_component::FilterWithComponent,
 };
 use crate::{
     internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, B128},

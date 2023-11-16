@@ -10,7 +10,7 @@ use crate::iterators::just_tile::JustTileIterator;
 
 use super::{
     logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId,
-    EntityRegistry, Mosaic, Value, S32,
+    EntityRegistry, Mosaic, MosaicCRUD, Value, S32,
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
@@ -202,12 +202,16 @@ impl Tile {
         data
     }
 
-    pub fn commit(&self, entity_registry: Arc<EntityRegistry>) -> anyhow::Result<()> {
-        let component = entity_registry.get_component_type(self.component)?;
-        let mut slab_storage = entity_registry.component_slabs.lock().unwrap();
+    pub fn commit(&self, mosaic: Arc<Mosaic>) -> anyhow::Result<()> {
+        if !mosaic.tile_exists(&self.id) {
+            return format!("Tile {} isn't valid.", self.id).to_error();
+        }
+
+        let component = mosaic.entity_registry.get_component_type(self.component)?;
+        let mut slab_storage = mosaic.entity_registry.component_slabs.lock().unwrap();
         let slab = slab_storage.get_mut(&self.component).unwrap();
 
-        let id_alloc = entity_registry.id_allocation_index.lock();
+        let id_alloc = mosaic.entity_registry.id_allocation_index.lock();
 
         if let Some(alloc) = id_alloc.unwrap().get(&self.id) {
             let brick = slab.get_mut(*alloc).unwrap();
@@ -224,7 +228,8 @@ impl Tile {
 
             let alloc = slab.insert(brick);
 
-            entity_registry
+            mosaic
+                .entity_registry
                 .id_allocation_index
                 .lock()
                 .unwrap()

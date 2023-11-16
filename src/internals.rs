@@ -6,6 +6,7 @@ pub mod datatypes;
 pub mod either;
 pub mod entity_registry;
 pub mod get_entities;
+pub mod get_tiles;
 pub mod logging;
 pub mod mosaic;
 pub mod sparse_matrix;
@@ -22,9 +23,9 @@ pub use tile::*;
 
 #[cfg(test)]
 mod internals_tests {
-    use crate::internals::TileType;
+    use crate::internals::{Mosaic, TileCommit, TileType};
 
-    use super::{Mosaic, MosaicCRUD};
+    use super::MosaicCRUD;
 
     #[test]
     fn test_basic_mosaic_usage() {
@@ -49,16 +50,49 @@ mod internals_tests {
             assert_eq!(b.id, target);
         }
 
+        // Let's cache the IDs to check them after deletion
         let a_id = a.id;
         let a_b_id = a_b.id;
 
+        // Delete and check that this ID no longer exists
         mosaic.delete_tile(a_b);
         assert!(!mosaic.tile_exists(&a_b_id));
 
+        // Create new arrow with the same endpoints, and then
+        // delete one of those endpoints; we're expecting the arrows
+        // to disappear as well
         let a_b = mosaic.new_arrow(&a, &b, "A -> B".into());
         let a_b_id = a_b.id;
         mosaic.delete_tile(a);
         assert!(!mosaic.tile_exists(&a_id));
         assert!(!mosaic.tile_exists(&a_b_id));
+    }
+
+    #[test]
+    fn test_cloning_isnt_affecting_mosaic() {
+        let mosaic = Mosaic::new();
+
+        let a = mosaic.new_object("A".into());
+        let b = mosaic.new_object("B".into());
+        let a_b = mosaic.new_arrow(&a, &b, "A -> B".into());
+
+        let a_b_id = a_b.id;
+        mosaic.delete_tile(a_b.clone());
+        assert!(!mosaic.tile_exists(&a_b_id));
+    }
+
+    #[test]
+    fn test_cannot_commit_invalid_tile() {
+        let mosaic = Mosaic::new();
+
+        let a = mosaic.new_object("A".into());
+        let b = mosaic.new_object("B".into());
+        let a_b = mosaic.new_arrow(&a, &b, "A -> B".into());
+
+        let a_b_id = a_b.id;
+        let cloned_a_b = a_b.clone();
+        mosaic.delete_tile(a_b);
+        assert!(!mosaic.tile_exists(&a_b_id));
+        assert!(mosaic.commit(&cloned_a_b).is_err());
     }
 }

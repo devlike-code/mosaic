@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
-    internals::{either::EitherByAge, Mosaic, MosaicCRUD, Tile},
+    internals::{either::EitherByAge, get_tiles::GetTilesIterator, Mosaic, MosaicCRUD, Tile},
     iterators::{
         filter_with_component::FilterWithComponent, get_arrows_from::GetArrowsFromTiles,
-        get_arrows_into::GetArrowsIntoTiles, get_tiles::GetTilesIterator,
+        get_arrows_into::GetArrowsIntoTiles,
     },
 };
 

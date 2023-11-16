@@ -14,8 +14,8 @@ use super::{
 
 #[derive(Debug)]
 pub struct Mosaic {
-    entity_counter: Arc<RelaxedCounter>,
-    entity_registry: Arc<EntityRegistry>,
+    pub(crate) entity_counter: Arc<RelaxedCounter>,
+    pub(crate) entity_registry: Arc<EntityRegistry>,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
     pub(crate) dependent_ids_map: Mutex<ListOrderedMultimap<EntityId, EntityId>>,
     object_ids: Mutex<SparseSet>,
@@ -69,13 +69,19 @@ pub trait MosaicCRUD<Id> {
     fn delete_tile(&self, tile: Id);
 }
 
+pub trait TileCommit {
+    fn commit(&self, tile: &Tile) -> anyhow::Result<()>;
+}
+
+impl TileCommit for Arc<Mosaic> {
+    fn commit(&self, tile: &Tile) -> anyhow::Result<()> {
+        tile.commit(Arc::clone(self))
+    }
+}
+
 impl Mosaic {
     pub fn get(&self, i: EntityId) -> Option<Tile> {
         self.tile_registry.lock().unwrap().get(&i).cloned()
-    }
-
-    pub fn commit(&self, tile: &Tile) -> anyhow::Result<()> {
-        tile.commit(Arc::clone(&self.entity_registry))
     }
 
     pub fn new_object(&self, component: S32) -> Tile {
