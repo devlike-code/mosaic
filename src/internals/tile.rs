@@ -29,12 +29,26 @@ pub enum TileType {
     Backlink { source: EntityId, target: EntityId },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Tile {
     pub id: EntityId,
     pub tile_type: TileType,
     pub component: S32,
     pub data: HashMap<S32, Value>,
+}
+
+impl std::fmt::Debug for Tile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mark = match self.tile_type {
+            TileType::Object => "x",
+            TileType::Arrow { .. } => ">",
+            TileType::Loop { .. } => "o",
+            TileType::Descriptor { .. } => "d",
+            TileType::Extension { .. } => "e",
+            TileType::Backlink { .. } => "<",
+        };
+        f.write_fmt(format_args!("({}|{})", mark, self.id))
+    }
 }
 
 impl PartialEq for Tile {

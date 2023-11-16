@@ -14,7 +14,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{get_tiles::GetTilesIterator, EntityId, Mosaic, Tile, TileGetById, WithMosaic},
+    internals::{get_tiles::GetTilesIterator, Mosaic, Tile, TileGetById, WithMosaic},
     iterators::{
         exclude_components::ExcludeComponents,
         get_arrows_from::GetArrowsFromTiles,
@@ -71,72 +71,72 @@ impl TraversalOperator {
         GetTilesIterator::new(result.into_iter(), Arc::clone(&self.mosaic))
     }
 
-    pub fn depth_first_search(&self, src: &Tile, direction: TraversalDirection) -> Vec<Vec<Tile>> {
-        fn depth_first_search_rec(
-            mosaic: &Arc<Mosaic>,
-            operator: &TraversalOperator,
-            direction: &TraversalDirection,
-            results: &mut Vec<Vec<Tile>>,
-            freelist: &mut VecDeque<EntityId>,
-            finished: &mut HashSet<EntityId>,
-            history: &mut Vec<EntityId>,
-        ) {
-            while let Some(current_id) = freelist.pop_back() {
-                let current_node = mosaic.get(current_id).unwrap();
-                finished.insert(current_node.id);
-                history.push(current_node.id);
+    pub fn depth_first_search(&self, from: &Tile) -> Vec<Vec<Tile>> {
+        let mut result = Vec::new();
+        let mut queue = VecDeque::new();
+        queue.push_back((vec![], HashSet::new(), from.id));
 
-                let neighbors = match direction {
-                    TraversalDirection::Forward => {
-                        operator.get_forward_neighbors(&current_node).collect_vec()
-                    }
+        while let Some((mut trek, visited, current_id)) = queue.pop_front() {
+            let current = self.mosaic.get(current_id).unwrap();
+            // println!(
+            //     "Trek: {:?}, Visited: {:?}, Current: {:?}",
+            //     trek, visited, current
+            // );
+            trek.push(current.id);
 
-                    TraversalDirection::Backward => {
-                        operator.get_backward_neighbors(&current_node).collect_vec()
-                    }
+            let neighbors = self.get_forward_neighbors(&current).collect_vec();
+            // println!("Neighbors of {:?}: {:?}", current, neighbors);
 
-                    TraversalDirection::Both => operator.get_neighbors(&current_node).collect_vec(),
-                };
-
-                if neighbors.is_empty() {
-                    results.push(mosaic.get_tiles(history.clone()).collect_vec());
-                } else {
-                    for neighbor in neighbors {
-                        if !finished.contains(&neighbor.id) {
-                            freelist.push_back(neighbor.id);
-                            depth_first_search_rec(
-                                mosaic, operator, direction, results, freelist, finished, history,
-                            );
-                            freelist.pop_back();
-                        } else {
-                            results.push(mosaic.get_tiles(history.clone()).collect_vec());
-                            history.pop();
-                        }
+            if !neighbors.is_empty() {
+                let mut recursive = false;
+                for neighbor in neighbors {
+                    if !visited.contains(&neighbor.id) {
+                        recursive = true;
+                        let mut next_visited = visited.clone();
+                        next_visited.insert(current.id);
+                        queue.push_back((trek.clone(), next_visited, neighbor.id));
                     }
                 }
 
-                if let Some(popped) = history.pop() {
-                    finished.remove(&popped);
+                if !recursive {
+                    // println!("RESULT FOUND: {:?}", trek);
+                    result.push(trek.clone());
                 }
+            } else {
+                // println!("RESULT FOUND: {:?}", trek);
+                result.push(trek.clone());
             }
+
+            // println!("QUEUE: {:?}", queue);
         }
 
-        let mut results: Vec<Vec<Tile>> = vec![];
-        let mut freelist: VecDeque<usize> = VecDeque::default();
-        let mut finished = HashSet::new();
-        let mut history = vec![];
-        freelist.push_back(src.id);
+        result
+            .into_iter()
+            .map(|path| self.mosaic.get_tiles(path).collect_vec())
+            .collect_vec()
+    }
 
-        depth_first_search_rec(
-            &Arc::clone(&self.mosaic),
-            self,
-            &direction,
-            &mut results,
-            &mut freelist,
-            &mut finished,
-            &mut history,
-        );
-        results
+    pub fn get_forward_paths(&self, from: &Tile) -> Vec<Vec<Tile>> {
+        self.depth_first_search(from)
+    }
+
+    pub fn get_forward_path_between(&self, src: &Tile, tgt: &Tile) -> Option<Vec<Tile>> {
+        let reach = self.get_forward_paths(src);
+        let path = reach
+            .into_iter()
+            .flatten()
+            .filter(|t| t == tgt)
+            .collect_vec();
+
+        if !path.is_empty() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub fn are_reachable(&self, src: &Tile, tgt: &Tile) -> bool {
+        self.get_forward_path_between(src, tgt).is_some()
     }
 }
 

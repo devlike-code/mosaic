@@ -31,7 +31,7 @@ mod traversal_tests {
 
     use crate::{
         capabilities::{traversal::Traverse, Traversal},
-        internals::{Mosaic, MosaicCRUD},
+        internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD},
     };
 
     #[test]
@@ -85,5 +85,77 @@ mod traversal_tests {
 
         let d_bwd_neighbors = p.get_backward_neighbors(&d).collect_vec();
         assert!(d_bwd_neighbors.contains(&c));
+    }
+
+    #[test]
+    fn test_dfs() {
+        let t = Traversal::Exclude { components: &[] };
+
+        let mosaic = Mosaic::new();
+        let a = mosaic.new_object("DEBUG");
+        let b = mosaic.new_object("DEBUG");
+        let c = mosaic.new_object("DEBUG");
+        let d = mosaic.new_object("DEBUG");
+        let e = mosaic.new_object("DEBUG");
+
+        /*
+                      /----> b
+           a ----parent----> c
+                      \----> d
+
+           4
+           e ---------------|
+           ^                v
+           |       1        2        3
+         0 a ----> b <----> c -----> d
+                            2 -----> 3
+                   1 <----- 2
+                   1 -----> 2
+
+        */
+        mosaic.new_arrow(&a, &b, "DEBUG");
+        mosaic.new_arrow(&e, &c, "DEBUG");
+        mosaic.new_arrow(&a, &e, "DEBUG");
+        mosaic.new_arrow(&b, &c, "DEBUG");
+        mosaic.new_arrow(&c, &b, "DEBUG");
+        mosaic.new_arrow(&c, &d, "DEBUG");
+
+        let op = mosaic.traverse(t);
+
+        println!("FORWARD FROM A: {:?}", op.get_forward_paths(&a));
+        println!("FORWARD FROM C: {:?}", op.get_forward_paths(&c));
+    }
+
+    #[test]
+    fn test_simple_reachability() {
+        let mosaic = Mosaic::new();
+
+        let _ = mosaic.new_type("Object: void; Arrow: void;");
+
+        let a = mosaic.new_object("Object");
+        let b = mosaic.new_object("Object");
+        let d = mosaic.new_object("Object");
+        let e = mosaic.new_object("Object");
+        /*
+            a -- x ---> b ----- y
+                        |       |
+                        |       |
+                        v ----> d -- z --> e
+
+        */
+        let _x = mosaic.new_arrow(&a, &b, "Arrow");
+        let y = mosaic.new_arrow(&b, &d, "Arrow");
+        let v = mosaic.new_arrow(&b, &d, "Arrow");
+        let _z = mosaic.new_arrow(&d, &e, "Arrow");
+
+        let t = Traversal::Exclude { components: &[] };
+
+        let op = mosaic.traverse(t);
+
+        assert!(op.are_reachable(&a, &e));
+        mosaic.delete_tile(v);
+        assert!(op.are_reachable(&a, &e));
+        mosaic.delete_tile(y);
+        assert!(!op.are_reachable(&a, &e));
     }
 }
