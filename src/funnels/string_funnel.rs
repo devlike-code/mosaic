@@ -20,7 +20,7 @@ use crate::iterators::get_dependents::GetDependentTiles;
 pub trait StringFunnel {
     fn hash_string(str: &str) -> EntityId;
     fn create_string_object(&self, str: &str) -> anyhow::Result<Tile>;
-    fn recover_string(&self, tile: &Tile) -> Option<String>;
+    fn get_string_value(&self, tile: &Tile) -> Option<String>;
     fn string_exists(&self, str: &str) -> bool;
     fn delete_string(&self, str: &str);
 }
@@ -43,16 +43,18 @@ impl StringFunnel for Arc<Mosaic> {
         let str_hash = Self::hash_string(str);
 
         let tile = self.new_specific_object(str_hash, "String".into())?;
+
         for part in split_str_into_parts(str, 128) {
             let mut ext = self.new_extension(&str_hash, "String".into());
             ext["self"] = Value::B128(B128::from_byte_array(part.as_bytes()));
+            println!("NEW VALUE = {:?}", ext["self"]);
             self.commit(&ext)?;
         }
 
         Ok(tile)
     }
 
-    fn recover_string(&self, tile: &Tile) -> Option<String> {
+    fn get_string_value(&self, tile: &Tile) -> Option<String> {
         if !self.tile_exists(tile) {
             None
         } else {
@@ -61,10 +63,11 @@ impl StringFunnel for Arc<Mosaic> {
                 .get_dependents()
                 .get_extensions()
                 .filter_component("String")
-                .flat_map(|t| t["self"].as_b128())
+                .map(|t| t["self"].clone())
                 .collect_vec();
 
-            Some(String::from_utf8_lossy(&parts).to_string())
+            println!("{:?}", parts);
+            None //Some(String::from_utf8_lossy(&parts).to_string())
         }
     }
 

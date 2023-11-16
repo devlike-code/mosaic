@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    internals::{either::EitherByAge, get_tiles::GetTilesIterator, Mosaic, MosaicCRUD, Tile},
+    internals::{either::EntryExistsResult, get_tiles::GetTilesIterator, Mosaic, MosaicCRUD, Tile},
     iterators::{
         filter_with_component::FilterWithComponent, get_arrows_from::GetArrowsFromTiles,
         get_arrows_into::GetArrowsIntoTiles,
@@ -10,7 +10,7 @@ use crate::{
 
 pub trait ParentFunnel {
     fn get_parenting_relation(&self, child: &Tile) -> Option<Tile>;
-    fn set_parent(&self, child: &Tile, parent: &Tile) -> EitherByAge<Tile>;
+    fn set_parent(&self, child: &Tile, parent: &Tile) -> EntryExistsResult<Tile>;
     fn get_parent(&self, child: &Tile) -> Option<Tile>;
     fn get_children(&self, parent: &Tile) -> GetTilesIterator;
     fn unparent(&self, child: &Tile);
@@ -29,12 +29,12 @@ impl ParentFunnel for Arc<Mosaic> {
         parent
     }
 
-    fn set_parent(&self, child: &Tile, parent: &Tile) -> EitherByAge<Tile> {
+    fn set_parent(&self, child: &Tile, parent: &Tile) -> EntryExistsResult<Tile> {
         if let Some(parenting_relation) = self.get_parenting_relation(child) {
-            EitherByAge::Old(parenting_relation)
+            EntryExistsResult::Existed(parenting_relation)
         } else {
             self.new_arrow(parent, child, "Parent".into());
-            EitherByAge::New(parent.clone())
+            EntryExistsResult::Inserted(parent.clone())
         }
     }
 

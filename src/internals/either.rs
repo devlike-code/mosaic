@@ -1,13 +1,15 @@
-pub enum EitherByAge<T> {
-    Old(T),
-    New(T),
+/// A structure denoting whether an entry had previously existed
+/// in the map that's being indexed, or not.
+pub enum EntryExistsResult<T> {
+    Existed(T),
+    Inserted(T),
 }
 
-impl<T: Clone> EitherByAge<T> {
+impl<T: Clone> EntryExistsResult<T> {
     pub fn unwrap(&self) -> T {
         match self {
-            EitherByAge::Old(t) => t,
-            EitherByAge::New(t) => t,
+            EntryExistsResult::Existed(t) => t,
+            EntryExistsResult::Inserted(t) => t,
         }
         .clone()
     }

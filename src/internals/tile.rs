@@ -15,8 +15,8 @@ use crate::iterators::{
 };
 
 use super::{
-    logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId,
-    EntityRegistry, Mosaic, MosaicCRUD, Value, S32,
+    logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId, Mosaic,
+    MosaicCRUD, Value, S32,
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
@@ -46,7 +46,9 @@ impl PartialEq for Tile {
 impl Eq for Tile {}
 
 impl PartialOrd for Tile {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {Some(self.cmp(other))}
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Ord for Tile {
@@ -72,18 +74,18 @@ impl Index<&str> for Tile {
 
 impl IndexMut<&str> for Tile {
     fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut Value {
-        println!("{:?}", self.data);
-        self.data.entry(i.into()).or_insert(Value::VOID)
+        self.data.get_mut(&i.into()).unwrap()
     }
 }
 
 impl Tile {
     fn get_field_offset(
-        entity_registry: Arc<EntityRegistry>,
+        mosaic: &Mosaic,
         component_type: &ComponentType,
         field_name: S32,
     ) -> Option<Range<usize>> {
-        entity_registry
+        mosaic
+            .entity_registry
             .component_offset_size_map
             .lock()
             .unwrap()
@@ -91,11 +93,8 @@ impl Tile {
             .cloned()
     }
 
-    fn create_fields_from_data_brick(
-        entity_registry: Arc<EntityRegistry>,
-        brick: &DataBrick,
-    ) -> anyhow::Result<HashMap<S32, Value>> {
-        let component_type = entity_registry.get_component_type(brick.component)?;
+    pub(crate) fn create_data_fields(&mut self, mosaic: &Mosaic) -> anyhow::Result<()> {
+        let component_type = mosaic.entity_registry.get_component_type(self.component)?;
         let component_fields = component_type
             .get_fields()
             .iter()
@@ -103,11 +102,54 @@ impl Tile {
                 (
                     field.name,
                     field.datatype.to_owned(),
-                    Self::get_field_offset(
-                        Arc::clone(&entity_registry),
-                        &component_type,
-                        field.name,
-                    ),
+                    Self::get_field_offset(mosaic, &component_type, field.name),
+                )
+            })
+            .collect_vec();
+
+        for (field_name, datatype, _) in component_fields {
+            let value: Value = match datatype {
+                Datatype::VOID => Value::VOID,
+                // COMP fields will disappear when the component is added to the engine state,
+                // so this situation should never arise. However, we'll leave a log here just in case.
+                Datatype::COMP(_) => Value::VOID,
+                Datatype::I32 => Value::I32(0),
+                Datatype::U32 => Value::U32(0),
+                Datatype::F32 => Value::F32(0.0),
+                Datatype::S32 => Value::S32("".into()),
+                Datatype::I64 => Value::I64(0),
+                Datatype::U64 => Value::U64(0),
+                Datatype::F64 => Value::F64(0.0),
+                Datatype::EID => Value::EID(0),
+                Datatype::B128 => Value::B128(vec![]),
+            };
+
+            self.data.insert(
+                if component_type.is_alias() {
+                    "self".into()
+                } else {
+                    field_name
+                },
+                value,
+            );
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn read_fields_from_data_brick(
+        mosaic: &Mosaic,
+        brick: &DataBrick,
+    ) -> anyhow::Result<HashMap<S32, Value>> {
+        let component_type = mosaic.entity_registry.get_component_type(brick.component)?;
+        let component_fields = component_type
+            .get_fields()
+            .iter()
+            .map(|field| {
+                (
+                    field.name,
+                    field.datatype.to_owned(),
+                    Self::get_field_offset(mosaic, &component_type, field.name),
                 )
             })
             .collect_vec();
@@ -172,7 +214,13 @@ impl Tile {
         let data = component
             .get_fields()
             .into_iter()
-            .map(|f| self.data.get(&f.name).unwrap())
+            .map(|f| {
+                if component.is_alias() {
+                    self.data.get(&"self".into()).unwrap()
+                } else {
+                    self.data.get(&f.name).unwrap()
+                }
+            })
             .fold(vec![], |old: Vec<u8>, value| {
                 let mut temp = old.clone();
                 let value_bytes: Vec<u8> = match value {
@@ -205,9 +253,9 @@ impl Tile {
         let mut slab_storage = mosaic.entity_registry.component_slabs.lock().unwrap();
         let slab = slab_storage.get_mut(&self.component).unwrap();
 
-        let id_alloc = mosaic.entity_registry.id_allocation_index.lock();
+        let mut id_alloc = mosaic.entity_registry.id_allocation_index.lock().unwrap();
 
-        if let Some(alloc) = id_alloc.unwrap().get(&self.id) {
+        if let Some(alloc) = id_alloc.get(&self.id) {
             let brick = slab.get_mut(*alloc).unwrap();
 
             brick
@@ -222,12 +270,7 @@ impl Tile {
 
             let alloc = slab.insert(brick);
 
-            mosaic
-                .entity_registry
-                .id_allocation_index
-                .lock()
-                .unwrap()
-                .insert(self.id, alloc);
+            id_alloc.insert(self.id, alloc);
         }
 
         Ok(())
@@ -235,6 +278,20 @@ impl Tile {
 }
 
 impl Tile {
+    pub fn new(mosaic: &Mosaic, id: EntityId, tile_type: TileType, component: S32) -> Tile {
+        let mut tile = Tile {
+            id,
+            tile_type,
+            component,
+            data: HashMap::default(),
+        };
+
+        tile.create_data_fields(mosaic)
+            .expect("Cannot create data fields, panicking!");
+
+        tile
+    }
+
     pub fn iter_with(&self, mosaic: &Arc<Mosaic>) -> JustTileIterator {
         JustTileIterator::new(Some(self.clone()), Arc::clone(mosaic))
     }

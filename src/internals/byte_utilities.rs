@@ -214,7 +214,7 @@ impl Bytesize for Datatype {
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,
             Datatype::I64 | Datatype::U64 | Datatype::F64 | Datatype::EID => 8usize,
             Datatype::S32 => 32usize,
-            Datatype::B128 => 256usize,
+            Datatype::B128 => 128usize,
             Datatype::COMP(component_name) => engine
                 .get_component_type(*component_name)
                 .map(|t| t.bytesize(engine))

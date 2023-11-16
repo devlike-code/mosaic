@@ -26,7 +26,7 @@ impl GetArrowsFromIterator {
                     .unwrap()
                     .get_all(&id)
                     .filter_map(|id| tile_storage.get(id))
-                    .filter(|tile| tile.is_arrow() &&  tile.source_id() == id)                  
+                    .filter(|tile| tile.is_arrow() && tile.source_id() == id)
                     .cloned()
                     .collect_vec(),
             )
