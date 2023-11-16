@@ -1,11 +1,22 @@
 #[cfg(test)]
 mod internals_tests {
-    use crate::internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD, TileCommit, TileType, Value};
+    use crate::internals::{
+        Mosaic, MosaicCRUD, MosaicGetEntities, MosaicTypelevelCRUD, TileCommit, TileType, Value,
+    };
 
     #[test]
     fn test_commit() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG".into());
+        mosaic.new_type("I: i32;").unwrap();
+        {
+            let mut a = mosaic.new_object("I");
+            a["self"] = Value::I32(12);
+            mosaic.commit(&a).unwrap();
+        }
+
+        if let Some(a) = mosaic.get_entities().next() {
+            assert_eq!(Value::I32(12), a["self"]);
+        }
     }
 
     #[test]
@@ -15,9 +26,9 @@ mod internals_tests {
         mosaic.new_type("B: void;").unwrap();
         mosaic.new_type("A_to_B: void;").unwrap();
         // We make two objects and an arrow: A --A_to_B--> B
-        let a = mosaic.new_object("A".into());
-        let b = mosaic.new_object("B".into());
-        let a_b = mosaic.new_arrow(&a, &b, "A_to_B".into());
+        let a = mosaic.new_object("A");
+        let b = mosaic.new_object("B");
+        let a_b = mosaic.new_arrow(&a, &b, "A_to_B");
 
         // Check whether everything exists
         assert!(mosaic.tile_exists(&a));
@@ -44,7 +55,7 @@ mod internals_tests {
         // Create new arrow with the same endpoints, and then
         // delete one of those endpoints; we're expecting the arrows
         // to disappear as well
-        let a_b = mosaic.new_arrow(&a, &b, "A_to_B".into());
+        let a_b = mosaic.new_arrow(&a, &b, "A_to_B");
         let a_b_id = a_b.id;
         mosaic.delete_tile(a);
         assert!(!mosaic.tile_exists(&a_id));
@@ -57,9 +68,9 @@ mod internals_tests {
         mosaic.new_type("A: void;").unwrap();
         mosaic.new_type("B: void;").unwrap();
         mosaic.new_type("A_to_B: void;").unwrap();
-        let a = mosaic.new_object("A".into());
-        let b = mosaic.new_object("B".into());
-        let a_b = mosaic.new_arrow(&a, &b, "A_to_B".into());
+        let a = mosaic.new_object("A");
+        let b = mosaic.new_object("B");
+        let a_b = mosaic.new_arrow(&a, &b, "A_to_B");
 
         let a_b_id = a_b.id;
         mosaic.delete_tile(a_b.clone());
@@ -70,9 +81,9 @@ mod internals_tests {
     fn test_cannot_commit_invalid_tile() {
         let mosaic = Mosaic::new();
 
-        let a = mosaic.new_object("DEBUG".into());
-        let b = mosaic.new_object("DEBUG".into());
-        let a_b = mosaic.new_arrow(&a, &b, "DEBUG".into());
+        let a = mosaic.new_object("DEBUG");
+        let b = mosaic.new_object("DEBUG");
+        let a_b = mosaic.new_arrow(&a, &b, "DEBUG");
 
         let a_b_id = a_b.id;
         let cloned_a_b = a_b.clone();
@@ -86,7 +97,7 @@ mod internals_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Foo: product { x: i32, y: f32 };").unwrap();
 
-        let mut a = mosaic.new_object("Foo".into());
+        let mut a = mosaic.new_object("Foo");
         assert_eq!(Value::I32(0), a["x"]);
         assert_eq!(Value::F32(0.0), a["y"]);
 
@@ -99,7 +110,7 @@ mod internals_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Foo: i32;").unwrap();
 
-        let mut a = mosaic.new_object("Foo".into());
+        let mut a = mosaic.new_object("Foo");
         assert_eq!(Value::I32(0), a["self"]);
 
         a["self"] = Value::I32(7);

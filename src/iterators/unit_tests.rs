@@ -12,9 +12,9 @@ mod test_iterators {
     #[test]
     fn test_get_entities() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG".into());
-        let b = mosaic.new_object("DEBUG".into());
-        let _a_b = mosaic.new_arrow(&a, &b, "DEBUG".into());
+        let a = mosaic.new_object("DEBUG");
+        let b = mosaic.new_object("DEBUG");
+        let _a_b = mosaic.new_arrow(&a, &b, "DEBUG");
         // We want to select everything
         let all_entities = mosaic.get_entities().collect_vec();
         assert_eq!(3, all_entities.len());
@@ -23,9 +23,9 @@ mod test_iterators {
     #[test]
     fn test_get_dependents() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG".into());
-        let b = mosaic.new_object("DEBUG".into());
-        let a_b = mosaic.new_arrow(&a, &b, "DEBUG".into());
+        let a = mosaic.new_object("DEBUG");
+        let b = mosaic.new_object("DEBUG");
+        let a_b = mosaic.new_arrow(&a, &b, "DEBUG");
 
         let mut dependents = a.iter_with(&mosaic).get_dependents();
         assert_eq!(dependents.next(), Some(a_b));
@@ -39,13 +39,13 @@ mod test_iterators {
         mosaic.new_type("P: void;").unwrap(); // Property
         mosaic.new_type("C_to_C: void;").unwrap(); // C -> C
         mosaic.new_type("C_to_C_sqr: void;").unwrap(); // (C -> C) -> (C -> C)
-        let a = mosaic.new_object("C".into());
-        let b = mosaic.new_object("C".into());
-        let c = mosaic.new_object("C".into());
-        let a_p = mosaic.new_descriptor(&a, "P".into());
-        let a_b = mosaic.new_arrow(&a, &b, "C_to_C".into());
-        let a_c = mosaic.new_arrow(&a, &c, "C_to_C".into());
-        let ab_ac = mosaic.new_arrow(&a_b, &a_c, "C_to_C_sqr".into());
+        let a = mosaic.new_object("C");
+        let b = mosaic.new_object("C");
+        let c = mosaic.new_object("C");
+        let a_p = mosaic.new_descriptor(&a, "P");
+        let a_b = mosaic.new_arrow(&a, &b, "C_to_C");
+        let a_c = mosaic.new_arrow(&a, &c, "C_to_C");
+        let ab_ac = mosaic.new_arrow(&a_b, &a_c, "C_to_C_sqr");
 
         let a_arrows = a.get_arrows_with(&mosaic).collect_vec();
         assert_eq!(2, a_arrows.len());

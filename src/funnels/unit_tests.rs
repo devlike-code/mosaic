@@ -8,6 +8,7 @@ mod test_funnels {
     fn test_string_funnel() {
         let mosaic = Mosaic::new();
         let hello_world = mosaic.create_string_object("hello world").unwrap();
+        assert!(mosaic.string_exists("hello world"));
         assert!(hello_world.is_object());
         assert!(!hello_world
             .get_extensions_with(&mosaic)
@@ -17,5 +18,8 @@ mod test_funnels {
             Some("hello world".to_string()),
             mosaic.get_string_value(&hello_world)
         );
+
+        mosaic.delete_string("hello world");
+        assert!(!mosaic.string_exists("hello world"));
     }
 }

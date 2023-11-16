@@ -33,7 +33,7 @@ impl ParentFunnel for Arc<Mosaic> {
         if let Some(parenting_relation) = self.get_parenting_relation(child) {
             EntryExistsResult::Existed(parenting_relation)
         } else {
-            self.new_arrow(parent, child, "Parent".into());
+            self.new_arrow(parent, child, "Parent");
             EntryExistsResult::Inserted(parent.clone())
         }
     }

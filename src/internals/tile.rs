@@ -249,6 +249,12 @@ impl Tile {
             return format!("Tile {} isn't valid.", self.id).to_error();
         }
 
+        mosaic
+            .tile_registry
+            .lock()
+            .unwrap()
+            .insert(self.id, self.clone());
+
         let component = mosaic.entity_registry.get_component_type(self.component)?;
         let mut slab_storage = mosaic.entity_registry.component_slabs.lock().unwrap();
         let slab = slab_storage.get_mut(&self.component).unwrap();

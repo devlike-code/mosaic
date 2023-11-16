@@ -42,12 +42,11 @@ impl StringFunnel for Arc<Mosaic> {
 
         let str_hash = Self::hash_string(str);
 
-        let tile = self.new_specific_object(str_hash, "String".into())?;
+        let tile = self.new_specific_object(str_hash, "String")?;
 
         for part in split_str_into_parts(str, 128) {
-            let mut ext = self.new_extension(&str_hash, "String".into());
+            let mut ext = self.new_extension(&str_hash, "String");
             ext["self"] = Value::B128(B128::from_byte_array(part.as_bytes()));
-            println!("NEW VALUE = {:?}", ext["self"]);
             self.commit(&ext)?;
         }
 
@@ -63,11 +62,10 @@ impl StringFunnel for Arc<Mosaic> {
                 .get_dependents()
                 .get_extensions()
                 .filter_component("String")
-                .map(|t| t["self"].clone())
+                .flat_map(|t| t["self"].as_b128())
                 .collect_vec();
 
-            println!("{:?}", parts);
-            None //Some(String::from_utf8_lossy(&parts).to_string())
+            Some(String::from_utf8_lossy(&parts).to_string())
         }
     }
 
