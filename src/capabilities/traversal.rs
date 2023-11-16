@@ -6,10 +6,7 @@ pub enum TraversalDirection {
     Both,
 }
 
-use std::{
-    collections::{HashSet, VecDeque},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use itertools::Itertools;
 
@@ -152,7 +149,6 @@ impl Traverse for Arc<Mosaic> {
 
 #[cfg(test)]
 mod quick_test {
-    use std::default;
 
     use itertools::Itertools;
 
