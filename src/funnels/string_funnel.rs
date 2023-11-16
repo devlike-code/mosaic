@@ -18,16 +18,10 @@ use crate::{
 use crate::iterators::get_dependents::GetDependentTiles;
 
 pub trait StringFunnel {
-    /// Hash a string into an entity identifier (basic hash string helper function)
     fn hash_string(str: &str) -> EntityId;
-    /// Creates a string object and attached outgoing properties returning the same id
-    /// if called multiple times, without creating new morphisms
     fn create_string_object(&self, str: &str) -> anyhow::Result<Tile>;
-    /// Recovers the string value from the entity by joining together all of the string parts
     fn recover_string(&self, tile: &Tile) -> Option<String>;
-    /// Checks whether a string exists in the system
     fn string_exists(&self, str: &str) -> bool;
-    /// Deletes the string from the system (will be reconstructed in the same way next time)
     fn delete_string(&self, str: &str);
 }
 

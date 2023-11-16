@@ -6,7 +6,13 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::iterators::just_tile::JustTileIterator;
+use crate::iterators::{
+    get_arrows::{GetArrows, GetArrowsIterator},
+    get_dependents::{GetDependentTiles, GetDependentsIterator},
+    get_descriptors::{GetDescriptors, GetDescriptorsIterator},
+    get_extensions::{GetExtensions, GetExtensionsIterator},
+    just_tile::JustTileIterator,
+};
 
 use super::{
     logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId,
@@ -79,7 +85,8 @@ impl Index<&str> for Tile {
 
 impl IndexMut<&str> for Tile {
     fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut Value {
-        self.data.get_mut(&i.into()).unwrap()
+        println!("{:?}", self.data);
+        self.data.entry(i.into()).or_insert(Value::VOID)
     }
 }
 
@@ -289,5 +296,23 @@ impl Tile {
 
     pub fn is_backlink(&self) -> bool {
         matches!(self.tile_type, TileType::Backlink { .. })
+    }
+}
+
+impl Tile {
+    pub fn get_arrows_with(&self, mosaic: &Arc<Mosaic>) -> GetArrowsIterator {
+        self.iter_with(mosaic).get_dependents().get_arrows()
+    }
+
+    pub fn get_dependents_with(&self, mosaic: &Arc<Mosaic>) -> GetDependentsIterator {
+        self.iter_with(mosaic).get_dependents()
+    }
+
+    pub fn get_descriptors_with(&self, mosaic: &Arc<Mosaic>) -> GetDescriptorsIterator {
+        self.iter_with(mosaic).get_dependents().get_descriptors()
+    }
+
+    pub fn get_extensions_with(&self, mosaic: &Arc<Mosaic>) -> GetExtensionsIterator {
+        self.iter_with(mosaic).get_dependents().get_extensions()
     }
 }
