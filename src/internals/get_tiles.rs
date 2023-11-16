@@ -4,19 +4,25 @@ use array_tool::vec::Shift;
 
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
+use super::EntityId;
+
 pub struct GetTilesIterator {
     mosaic: Arc<Mosaic>,
     items: Vec<Tile>,
 }
 
 impl GetTilesIterator {
-    pub fn new<I>(iter: I, mosaic: Arc<Mosaic>) -> Self
-    where
-        I: Iterator<Item = Tile>,
-    {
+    pub fn new<I: Iterator<Item = Tile>>(iter: I, mosaic: Arc<Mosaic>) -> Self {
         GetTilesIterator {
             mosaic: Arc::clone(&mosaic),
             items: iter.collect(),
+        }
+    }
+
+    pub fn new_from_ids<I: Iterator<Item = EntityId>>(iter: I, mosaic: Arc<Mosaic>) -> Self {
+        GetTilesIterator {
+            mosaic: Arc::clone(&mosaic),
+            items: iter.into_iter().flat_map(|id| mosaic.get(id)).collect(),
         }
     }
 }
@@ -43,20 +49,14 @@ pub trait GetTilesExtension: Iterator {
     fn get_tiles_with(self, mosaic: Arc<Mosaic>) -> GetTilesIterator;
 }
 
-impl<I> GetTiles for I
-where
-    I: Iterator<Item = Tile> + WithMosaic,
-{
+impl<I: Iterator<Item = Tile> + WithMosaic> GetTiles for I {
     fn get_tiles(self) -> GetTilesIterator {
         let mosaic = Arc::clone(&self.get_mosaic());
         GetTilesIterator::new(self, mosaic)
     }
 }
 
-impl<I> GetTilesExtension for I
-where
-    I: Iterator<Item = Tile>,
-{
+impl<I: Iterator<Item = Tile>> GetTilesExtension for I {
     fn get_tiles_with(self, mosaic: Arc<Mosaic>) -> GetTilesIterator {
         GetTilesIterator::new(self, mosaic)
     }

@@ -8,7 +8,8 @@ use itertools::Itertools;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    get_entities::GetEntitiesIterator, EntityId, EntityRegistry, Logging, SparseSet, Tile, TileType,
+    get_entities::GetEntitiesIterator, get_tiles::GetTilesIterator, EntityId, EntityRegistry,
+    Logging, SparseSet, Tile, TileType,
 };
 
 #[derive(Debug)]
@@ -85,6 +86,16 @@ pub trait TileCommit {
 impl TileCommit for Arc<Mosaic> {
     fn commit(&self, tile: &Tile) -> anyhow::Result<()> {
         tile.commit(Arc::clone(self))
+    }
+}
+
+pub trait TileGetById {
+    fn get_tiles(&self, iter: Vec<EntityId>) -> GetTilesIterator;
+}
+
+impl TileGetById for Arc<Mosaic> {
+    fn get_tiles(&self, iter: Vec<EntityId>) -> GetTilesIterator {
+        GetTilesIterator::new_from_ids(iter.into_iter(), Arc::clone(self))
     }
 }
 
