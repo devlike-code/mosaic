@@ -24,10 +24,9 @@ impl GetArrowsFromIterator {
                     .dependent_ids_map
                     .lock()
                     .unwrap()
-                    .get_all(&item.id)
+                    .get_all(&id)
                     .filter_map(|id| tile_storage.get(id))
-                    .filter(|tile| tile.is_arrow())
-                    .filter(|tile| tile.source_id() == id)
+                    .filter(|tile| tile.is_arrow() &&  tile.source_id() == id)                  
                     .cloned()
                     .collect_vec(),
             )

@@ -46,20 +46,7 @@ impl PartialEq for Tile {
 impl Eq for Tile {}
 
 impl PartialOrd for Tile {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.id.partial_cmp(&other.id) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.tile_type.partial_cmp(&other.tile_type) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        match self.component.partial_cmp(&other.component) {
-            Some(core::cmp::Ordering::Equal) => None,
-            ord => ord,
-        }
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {Some(self.cmp(other))}
 }
 
 impl Ord for Tile {
