@@ -2,7 +2,7 @@
 mod test_funnels {
     use itertools::Itertools;
 
-    use crate::{funnels::StringFunnel, internals::Mosaic};
+    use crate::{capabilities::StringFunnel, internals::Mosaic};
 
     #[test]
     fn test_string_funnel() {

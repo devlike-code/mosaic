@@ -47,7 +47,7 @@ impl Eq for Tile {}
 
 impl PartialOrd for Tile {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+        Some(self.id.cmp(&other.id))
     }
 }
 
@@ -60,8 +60,6 @@ impl Ord for Tile {
 impl std::hash::Hash for Tile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-        self.tile_type.hash(state);
-        self.component.hash(state);
     }
 }
 

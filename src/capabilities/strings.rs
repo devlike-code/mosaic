@@ -8,7 +8,7 @@ use itertools::Itertools;
 
 use crate::{
     internals::{byte_utilities::FromByteArray, TileCommit},
-    iterators::filter_with_component::FilterWithComponent,
+    iterators::include_component::IncludeComponent,
 };
 use crate::{
     internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, B128},
@@ -61,7 +61,7 @@ impl StringFunnel for Arc<Mosaic> {
                 .iter_with(self)
                 .get_dependents()
                 .get_extensions()
-                .filter_component("String")
+                .include_component("String")
                 .flat_map(|t| t["self"].as_b128())
                 .collect_vec();
 

@@ -1,11 +1,16 @@
 #[cfg(test)]
 mod test_iterators {
+    use std::sync::Arc;
+
     use itertools::Itertools;
 
     use crate::{
         internals::{Mosaic, MosaicCRUD, MosaicGetEntities, MosaicTypelevelCRUD},
         iterators::{
-            filter_with_component::FilterWithComponent, get_dependents::GetDependentTiles,
+            get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
+            get_dependents::GetDependentTiles, get_objects::GetObjects,
+            get_sources::GetSourcesExtension, get_targets::GetTargets,
+            include_component::IncludeComponent, include_components::IncludeComponents,
         },
     };
 
@@ -68,10 +73,81 @@ mod test_iterators {
 
         let direct_arrows = mosaic
             .get_entities()
-            .filter_component("C_to_C")
+            .include_component("C_to_C")
             .collect_vec();
         assert_eq!(2, direct_arrows.len());
         assert!(direct_arrows.contains(&a_b));
         assert!(direct_arrows.contains(&a_c));
+    }
+
+    /*
+           Src --a1---> Tgt1
+            |
+            |
+            a2
+            |
+            v
+           Tgt2
+    */
+    #[test]
+    fn test_get_arrows_into() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Src: void;").unwrap();
+        mosaic.new_type("Tgt: void;").unwrap();
+        mosaic.new_type("Arr: void;").unwrap();
+        let src = mosaic.new_object("Src"); // 0
+        let tgt1 = mosaic.new_object("Tgt"); // 1
+        let tgt2 = mosaic.new_object("Tgt"); // 2
+        let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr"); // 3
+        let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr"); // 4
+
+        let into_tgt1 = tgt1.iter_with(&mosaic).get_arrows_into().collect_vec();
+        let into_tgt2 = tgt2.iter_with(&mosaic).get_arrows_into().collect_vec();
+        assert_eq!(1, into_tgt1.len());
+        assert_eq!(1, into_tgt2.len());
+        assert_ne!(into_tgt1.first(), into_tgt2.first());
+        let src1 = into_tgt1
+            .into_iter()
+            .get_sources_with(Arc::clone(&mosaic))
+            .next();
+
+        let src2 = into_tgt2
+            .into_iter()
+            .get_sources_with(Arc::clone(&mosaic))
+            .next();
+
+        assert_eq!(src1, src2);
+    }
+
+    #[test]
+    fn test_filtering_by_arrow_type() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Src: void;").unwrap();
+        mosaic.new_type("Tgt: void;").unwrap();
+        mosaic.new_type("Arr1: void;").unwrap();
+        mosaic.new_type("Arr2: void;").unwrap();
+        mosaic.new_type("Arr3: void;").unwrap();
+        let src = mosaic.new_object("Src");
+        let src2 = mosaic.new_object("Src");
+        let tgt1 = mosaic.new_object("Tgt");
+        let tgt2 = mosaic.new_object("Tgt");
+        let tgt3 = mosaic.new_object("Tgt");
+        let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr1");
+        let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr2");
+        let _a3 = mosaic.new_arrow(&src, &tgt3, "Arr3");
+        let _a4 = mosaic.new_arrow(&src2, &src, "Arr2");
+        let mut p = mosaic
+            .get_entities() // [ src, src2, tgt1, tgt2, tgt3, a1, a2, a3, a4 ]
+            .get_objects() // [ src, src2, tgt1, tgt2, tgt3 ]
+            .get_arrows_from() // treba: [ [ a1, a2, a3 ], [ a4 ], [], [], [] ],  mislim: [ a1, a2, a3, a4 ]
+            .include_components(&["Arr2", "Arr3"]) // [ a2, a3, a4 ]
+            .get_targets() // [ tgt2, tgt3, src ]
+            .collect_vec();
+        p.sort();
+        let mut p = p.into_iter();
+        assert_eq!(Some(src), p.next());
+        assert_eq!(Some(tgt2), p.next());
+        assert_eq!(Some(tgt3), p.next());
+        assert_eq!(None, p.next());
     }
 }

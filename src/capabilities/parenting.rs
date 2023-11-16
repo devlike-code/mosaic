@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::{
     internals::{either::EntryExistsResult, get_tiles::GetTilesIterator, Mosaic, MosaicCRUD, Tile},
     iterators::{
-        filter_with_component::FilterWithComponent, get_arrows_from::GetArrowsFromTiles,
-        get_arrows_into::GetArrowsIntoTiles,
+        get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
+        include_component::IncludeComponent,
     },
 };
 
@@ -21,7 +21,7 @@ impl ParentFunnel for Arc<Mosaic> {
         let mut it = child
             .iter_with(self)
             .get_arrows_into()
-            .filter_component("Parent");
+            .include_component("Parent");
 
         let parent = it.next();
         assert_eq!(0, it.count());
@@ -48,7 +48,7 @@ impl ParentFunnel for Arc<Mosaic> {
             parent
                 .iter_with(self)
                 .get_arrows_from()
-                .filter_component("Parent"),
+                .include_component("Parent"),
             Arc::clone(self),
         )
     }
