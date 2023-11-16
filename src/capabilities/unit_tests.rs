@@ -31,7 +31,7 @@ mod traversal_tests {
 
     use crate::{
         capabilities::{traversal::Traverse, Traversal},
-        internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD},
+        internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile},
     };
 
     #[test]
@@ -89,6 +89,14 @@ mod traversal_tests {
 
     #[test]
     fn test_dfs() {
+        fn stringify_paths(paths: Vec<Vec<Tile>>) -> Vec<String> {
+            paths.into_iter().map(stringify_path).collect_vec()
+        }
+
+        fn stringify_path(path: Vec<Tile>) -> String {
+            path.into_iter().map(|t| format!("{:?}", t)).join("-")
+        }
+
         let t = Traversal::Exclude { components: &[] };
 
         let mosaic = Mosaic::new();
@@ -108,9 +116,11 @@ mod traversal_tests {
            ^                v
            |       1        2        3
          0 a ----> b <----> c -----> d
+
                             2 -----> 3
+
                    1 <----- 2
-                   1 -----> 2
+                   1 -----> x
 
         */
         mosaic.new_arrow(&a, &b, "DEBUG");
@@ -122,8 +132,17 @@ mod traversal_tests {
 
         let op = mosaic.traverse(t);
 
-        println!("FORWARD FROM A: {:?}", op.get_forward_paths(&a));
-        println!("FORWARD FROM C: {:?}", op.get_forward_paths(&c));
+        let paths_from_a = stringify_paths(op.get_forward_paths(&a));
+        let paths_from_c = stringify_paths(op.get_forward_paths(&c));
+
+        assert_eq!(3, paths_from_a.len());
+        assert!(paths_from_a.contains(&"(x|0)-(x|1)-(x|2)-(x|3)".to_string()));
+        assert!(paths_from_a.contains(&"(x|0)-(x|4)-(x|2)-(x|3)".to_string()));
+        assert!(paths_from_a.contains(&"(x|0)-(x|4)-(x|2)-(x|1)".to_string()));
+
+        assert_eq!(2, paths_from_c.len());
+        assert!(paths_from_c.contains(&"(x|2)-(x|1)".to_string()));
+        assert!(paths_from_c.contains(&"(x|2)-(x|3)".to_string()));
     }
 
     #[test]
@@ -152,10 +171,10 @@ mod traversal_tests {
 
         let op = mosaic.traverse(t);
 
-        assert!(op.are_reachable(&a, &e));
+        assert!(op.forward_path_exists_between(&a, &e));
         mosaic.delete_tile(v);
-        assert!(op.are_reachable(&a, &e));
+        assert!(op.forward_path_exists_between(&a, &e));
         mosaic.delete_tile(y);
-        assert!(!op.are_reachable(&a, &e));
+        assert!(!op.forward_path_exists_between(&a, &e));
     }
 }

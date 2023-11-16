@@ -28,6 +28,7 @@ use crate::{
 pub enum Traversal {
     Exclude { components: &'static [&'static str] },
     Include { components: &'static [&'static str] },
+    Default,
 }
 
 pub struct TraversalOperator {
@@ -40,6 +41,7 @@ impl TraversalOperator {
         match self.traversal {
             Traversal::Exclude { components } => iter.exclude_components(components).collect_vec(),
             Traversal::Include { components } => iter.include_components(components).collect_vec(),
+            Traversal::Default => iter.collect_vec(),
         }
     }
 
@@ -71,21 +73,20 @@ impl TraversalOperator {
         GetTilesIterator::new(result.into_iter(), Arc::clone(&self.mosaic))
     }
 
-    pub fn depth_first_search(&self, from: &Tile) -> Vec<Vec<Tile>> {
+    pub fn depth_first_search(&self, from: &Tile, direction: TraversalDirection) -> Vec<Vec<Tile>> {
         let mut result = Vec::new();
         let mut queue = VecDeque::new();
         queue.push_back((vec![], HashSet::new(), from.id));
 
         while let Some((mut trek, visited, current_id)) = queue.pop_front() {
             let current = self.mosaic.get(current_id).unwrap();
-            // println!(
-            //     "Trek: {:?}, Visited: {:?}, Current: {:?}",
-            //     trek, visited, current
-            // );
             trek.push(current.id);
 
-            let neighbors = self.get_forward_neighbors(&current).collect_vec();
-            // println!("Neighbors of {:?}: {:?}", current, neighbors);
+            let neighbors = match direction {
+                TraversalDirection::Forward => self.get_forward_neighbors(&current).collect_vec(),
+                TraversalDirection::Backward => self.get_backward_neighbors(&current).collect_vec(),
+                TraversalDirection::Both => self.get_neighbors(&current).collect_vec(),
+            };
 
             if !neighbors.is_empty() {
                 let mut recursive = false;
@@ -99,15 +100,11 @@ impl TraversalOperator {
                 }
 
                 if !recursive {
-                    // println!("RESULT FOUND: {:?}", trek);
                     result.push(trek.clone());
                 }
             } else {
-                // println!("RESULT FOUND: {:?}", trek);
                 result.push(trek.clone());
             }
-
-            // println!("QUEUE: {:?}", queue);
         }
 
         result
@@ -117,7 +114,7 @@ impl TraversalOperator {
     }
 
     pub fn get_forward_paths(&self, from: &Tile) -> Vec<Vec<Tile>> {
-        self.depth_first_search(from)
+        self.depth_first_search(from, TraversalDirection::Forward)
     }
 
     pub fn get_forward_path_between(&self, src: &Tile, tgt: &Tile) -> Option<Vec<Tile>> {
@@ -135,8 +132,54 @@ impl TraversalOperator {
         }
     }
 
-    pub fn are_reachable(&self, src: &Tile, tgt: &Tile) -> bool {
+    pub fn forward_path_exists_between(&self, src: &Tile, tgt: &Tile) -> bool {
         self.get_forward_path_between(src, tgt).is_some()
+    }
+
+    pub fn get_backward_paths(&self, from: &Tile) -> Vec<Vec<Tile>> {
+        self.depth_first_search(from, TraversalDirection::Backward)
+    }
+
+    pub fn get_backward_path_between(&self, src: &Tile, tgt: &Tile) -> Option<Vec<Tile>> {
+        let reach = self.get_backward_paths(src);
+        let path = reach
+            .into_iter()
+            .flatten()
+            .filter(|t| t == tgt)
+            .collect_vec();
+
+        if !path.is_empty() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub fn backward_path_exists_between(&self, src: &Tile, tgt: &Tile) -> bool {
+        self.get_backward_path_between(src, tgt).is_some()
+    }
+
+    pub fn get_paths(&self, from: &Tile) -> Vec<Vec<Tile>> {
+        self.depth_first_search(from, TraversalDirection::Both)
+    }
+
+    pub fn get_path_between(&self, src: &Tile, tgt: &Tile) -> Option<Vec<Tile>> {
+        let reach = self.get_paths(src);
+        let path = reach
+            .into_iter()
+            .flatten()
+            .filter(|t| t == tgt)
+            .collect_vec();
+
+        if !path.is_empty() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub fn path_exists_between(&self, src: &Tile, tgt: &Tile) -> bool {
+        self.get_path_between(src, tgt).is_some()
     }
 }
 
