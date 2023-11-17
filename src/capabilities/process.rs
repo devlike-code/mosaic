@@ -20,13 +20,16 @@ trait ProcessCapability: GroupingCapability {
         value: &Tile,
     ) -> anyhow::Result<()>;
 
-    fn get_process_parameter(
+    fn get_process_parameter_value(
         &self,
         process: &Tile,
         param_name: &str,
     ) -> anyhow::Result<Option<Tile>>;
 
-    fn get_process_parameters(&self, process: &Tile) -> anyhow::Result<HashMap<S32, Option<Tile>>>;
+    fn get_process_parameter_values(
+        &self,
+        process: &Tile,
+    ) -> anyhow::Result<HashMap<S32, Option<Tile>>>;
 }
 
 impl ProcessCapability for Arc<Mosaic> {
@@ -79,7 +82,7 @@ impl ProcessCapability for Arc<Mosaic> {
         Ok(())
     }
 
-    fn get_process_parameter(
+    fn get_process_parameter_value(
         &self,
         process: &Tile,
         param_name: &str,
@@ -116,7 +119,10 @@ impl ProcessCapability for Arc<Mosaic> {
             .cloned())
     }
 
-    fn get_process_parameters(&self, process: &Tile) -> anyhow::Result<HashMap<S32, Option<Tile>>> {
+    fn get_process_parameter_values(
+        &self,
+        process: &Tile,
+    ) -> anyhow::Result<HashMap<S32, Option<Tile>>> {
         if process.component != "Process".into() {
             return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
         }
@@ -168,7 +174,7 @@ mod process_tests {
         mosaic.pass_process_parameter(&add, "b", &y).unwrap();
 
         fn do_add(mosaic: &Arc<Mosaic>, add_instance: &Tile) -> anyhow::Result<u32> {
-            let args = mosaic.get_process_parameters(add_instance)?;
+            let args = mosaic.get_process_parameter_values(add_instance)?;
             let a = args.get(&"a".into()).unwrap();
             let b = args.get(&"b".into()).unwrap();
 
