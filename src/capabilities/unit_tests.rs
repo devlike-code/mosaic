@@ -179,3 +179,48 @@ mod traversal_tests {
         assert!(!op.forward_path_exists_between(&a, &e));
     }
 }
+
+#[cfg(test)]
+mod grouping_tests {
+
+    use crate::{
+        capabilities::GroupingCapability,
+        internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD},
+    };
+
+    #[test]
+    fn group_owner_test() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Group: s32;").unwrap();
+
+        let o = mosaic.new_object("DEBUG");
+        let b = mosaic.new_object("DEBUG");
+        let c = mosaic.new_object("DEBUG");
+        let d = mosaic.new_object("DEBUG");
+
+        /*
+                         /----> b
+           o ----group(p) ----> c
+                         \----> d
+
+        */
+
+        mosaic.group("Parent", &o, &[&b, &c, &d]);
+        let e = mosaic.get_group_owner_descriptor("Parent", &o).unwrap();
+
+        mosaic.group("Parent2", &o, &[&b, &c, &d]);
+        mosaic.group("Parent", &o, &[&b, &d]);
+
+        let _p = mosaic.get_group_owner_descriptor("Parent", &b);
+        assert!(!mosaic.is_tile_valid(&e));
+
+        let c_memberships = mosaic.get_group_memberships(&c);
+        assert!(c_memberships.len() == 1);
+        assert_eq!(
+            c_memberships.first().unwrap()["self"].as_s32(),
+            "Parent2".into()
+        );
+
+        assert_eq!(mosaic.get_group_owner("Parent", &b), Some(o));
+    }
+}
