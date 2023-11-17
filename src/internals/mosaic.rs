@@ -76,7 +76,7 @@ pub trait MosaicCRUD<Id> {
     fn new_loop(&self, endpoint: &Id, component: &str) -> Tile;
     fn new_descriptor(&self, subject: &Id, component: &str) -> Tile;
     fn new_extension(&self, subject: &Id, component: &str) -> Tile;
-    fn tile_exists(&self, i: &Id) -> bool;
+    fn is_tile_valid(&self, i: &Id) -> bool;
     fn delete_tile(&self, tile: Id);
 }
 
@@ -153,7 +153,7 @@ impl MosaicTypelevelCRUD for Arc<Mosaic> {
 }
 
 impl MosaicCRUD<EntityId> for Mosaic {
-    fn tile_exists(&self, i: &EntityId) -> bool {
+    fn is_tile_valid(&self, i: &EntityId) -> bool {
         self.tile_registry.lock().unwrap().contains_key(i)
     }
 
@@ -278,8 +278,8 @@ impl MosaicCRUD<EntityId> for Mosaic {
 }
 
 impl MosaicCRUD<Tile> for Mosaic {
-    fn tile_exists(&self, i: &Tile) -> bool {
-        <Mosaic as MosaicCRUD<EntityId>>::tile_exists(self, &i.id)
+    fn is_tile_valid(&self, i: &Tile) -> bool {
+        <Mosaic as MosaicCRUD<EntityId>>::is_tile_valid(self, &i.id)
     }
 
     fn new_arrow(&self, source: &Tile, target: &Tile, component: &str) -> Tile {

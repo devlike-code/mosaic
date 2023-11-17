@@ -47,7 +47,10 @@ impl std::fmt::Debug for Tile {
             TileType::Extension { .. } => "e",
             TileType::Backlink { .. } => "<",
         };
-        f.write_fmt(format_args!("({}|{}|{}|{:?})", mark, self.id, self.component, self.data))
+        f.write_fmt(format_args!(
+            "({}|{}|{}|{:?})",
+            mark, self.id, self.component, self.data
+        ))
     }
 }
 
@@ -257,7 +260,7 @@ impl Tile {
     }
 
     pub fn commit(&self, mosaic: Arc<Mosaic>) -> anyhow::Result<()> {
-        if !mosaic.tile_exists(&self.id) {
+        if !mosaic.is_tile_valid(&self.id) {
             return format!("Tile {} isn't valid.", self.id).to_error();
         }
 

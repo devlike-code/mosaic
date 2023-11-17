@@ -31,9 +31,9 @@ mod internals_tests {
         let a_b = mosaic.new_arrow(&a, &b, "A_to_B");
 
         // Check whether everything exists
-        assert!(mosaic.tile_exists(&a));
-        assert!(mosaic.tile_exists(&b));
-        assert!(mosaic.tile_exists(&a_b));
+        assert!(mosaic.is_tile_valid(&a));
+        assert!(mosaic.is_tile_valid(&b));
+        assert!(mosaic.is_tile_valid(&a_b));
         assert!(a.is_object());
         assert!(b.is_object());
         assert!(a_b.is_arrow());
@@ -50,7 +50,7 @@ mod internals_tests {
 
         // Delete and check that this ID no longer exists
         mosaic.delete_tile(a_b);
-        assert!(!mosaic.tile_exists(&a_b_id));
+        assert!(!mosaic.is_tile_valid(&a_b_id));
 
         // Create new arrow with the same endpoints, and then
         // delete one of those endpoints; we're expecting the arrows
@@ -58,8 +58,8 @@ mod internals_tests {
         let a_b = mosaic.new_arrow(&a, &b, "A_to_B");
         let a_b_id = a_b.id;
         mosaic.delete_tile(a);
-        assert!(!mosaic.tile_exists(&a_id));
-        assert!(!mosaic.tile_exists(&a_b_id));
+        assert!(!mosaic.is_tile_valid(&a_id));
+        assert!(!mosaic.is_tile_valid(&a_b_id));
     }
 
     #[test]
@@ -74,7 +74,7 @@ mod internals_tests {
 
         let a_b_id = a_b.id;
         mosaic.delete_tile(a_b.clone());
-        assert!(!mosaic.tile_exists(&a_b_id));
+        assert!(!mosaic.is_tile_valid(&a_b_id));
     }
 
     #[test]
@@ -88,7 +88,7 @@ mod internals_tests {
         let a_b_id = a_b.id;
         let cloned_a_b = a_b.clone();
         mosaic.delete_tile(a_b);
-        assert!(!mosaic.tile_exists(&a_b_id));
+        assert!(!mosaic.is_tile_valid(&a_b_id));
         assert!(mosaic.commit(&cloned_a_b).is_err());
     }
 

@@ -54,7 +54,7 @@ impl StringCapability for Arc<Mosaic> {
     }
 
     fn get_string_value(&self, tile: &Tile) -> Option<String> {
-        if !self.tile_exists(tile) {
+        if !self.is_tile_valid(tile) {
             None
         } else {
             let parts = tile
@@ -71,7 +71,7 @@ impl StringCapability for Arc<Mosaic> {
 
     fn string_exists(&self, str: &str) -> bool {
         let str_hash = Self::hash_string(str);
-        self.tile_exists(&str_hash)
+        self.is_tile_valid(&str_hash)
     }
 
     fn delete_string(&self, str: &str) {

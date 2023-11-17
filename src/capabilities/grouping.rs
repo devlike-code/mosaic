@@ -8,14 +8,12 @@ use crate::{
         Mosaic, MosaicCRUD, Tile, TileCommit, Value,
     },
     iterators::{
-        filter_descriptors::FilterDescriptors,
-        get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
-       
-        get_sources::{GetSources, GetSourcesExtension},
-        get_targets::GetTargets,
-        include_component::IncludeComponent,
+        get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,       
+        get_sources::GetSourcesExtension,
+        include_component::IncludeComponent, get_descriptors::GetDescriptors,
     },
 };
+use crate::iterators::get_targets::GetTargets;
 
 pub trait GroupingCapability {
     fn get_group_memberships(&self, tile: &Tile) -> Vec<Tile>;
@@ -31,7 +29,7 @@ impl GroupingCapability for Arc<Mosaic> {
         if let Some(current_owner_descriptor) = self.get_existing_owner_descriptor(group, tile) {
             Some(current_owner_descriptor)
         } else {
-            tile.iter_with(&self)
+            tile.iter_with(self)
                 .get_arrows_into()
                 .include_component("Group")
                 .map(|s| (s["self"].as_s32(), s))
@@ -103,12 +101,7 @@ impl GroupingCapability for Arc<Mosaic> {
 #[cfg(test)]
 mod grouping_tests {
     
-
-    
-
-    use itertools::Itertools;
-
-    use crate::internals::{Mosaic, MosaicTypelevelCRUD};
+    use crate::internals::{Mosaic, MosaicTypelevelCRUD, MosaicCRUD};
 
     use super::GroupingCapability;
 
@@ -131,15 +124,23 @@ mod grouping_tests {
   
         mosaic.group("Parent", &o, &[&b, &c, &d]);       
      
-        let e = mosaic.get_existing_owner_descriptor("Parent", &o);
+        let e = mosaic.get_existing_owner_descriptor("Parent", &o).unwrap();
         println!("EXISTING OWNER Descriptor: {:?}", e);
      
         mosaic.group("Parent2", &o, &[&b, &c, &d]);
-        mosaic.group("Parent", &o, &[&b, &c, &d]);
+        
+        mosaic.group("Parent", &o, &[&b, &d]);
   
       
         let p = mosaic.get_group_owner_descriptor("Parent", &b);
-        println!("OWNER Descriptor: {:?}", p);
+        println!("New OWNER Descriptor: {:?}", p);
+        assert!(!mosaic.is_tile_valid(&e));
+        let c_memberships =  mosaic.get_group_memberships(&c);
+        println!("group membership {:?}", c_memberships);
+
+        assert!(c_memberships.len() == 1);
+        assert_eq!(c_memberships.first().unwrap()["self"].as_s32(), "Parent2".into());
+        
         //assert_eq!(o, p);
     }
 }
