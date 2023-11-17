@@ -4,19 +4,24 @@ use array_tool::vec::Shift;
 
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
+use super::get_dependents::GetDependentTiles;
+
 pub struct GetDescriptorsIterator {
     mosaic: Arc<Mosaic>,
     items: Vec<Tile>,
 }
 
 impl GetDescriptorsIterator {
-    fn new<I>(iter: I, mosaic: Arc<Mosaic>) -> Self
+    fn new<I: GetDependentTiles>(iter: I, mosaic: Arc<Mosaic>) -> Self
     where
         I: Iterator<Item = Tile>,
     {
         GetDescriptorsIterator {
             mosaic: Arc::clone(&mosaic),
-            items: iter.filter(|t| t.is_descriptor()).collect(),
+            items: iter
+                .get_dependents()
+                .filter(|t| t.is_descriptor())
+                .collect(),
         }
     }
 }
@@ -55,7 +60,7 @@ where
 
 impl<I> GetDescriptorsExtension for I
 where
-    I: Iterator<Item = Tile>,
+    I: Iterator<Item = Tile> + GetDependentTiles,
 {
     fn get_descriptors_with(self, mosaic: Arc<Mosaic>) -> GetDescriptorsIterator {
         GetDescriptorsIterator::new(self, mosaic)

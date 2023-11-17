@@ -12,7 +12,7 @@ use crate::{
 };
 use crate::{
     internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, B128},
-    iterators::get_extensions::GetExtensions,
+    iterators::filter_extensions::FilterExtensions,
 };
 
 use crate::iterators::get_dependents::GetDependentTiles;
@@ -60,7 +60,7 @@ impl StringCapability for Arc<Mosaic> {
             let parts = tile
                 .iter_with(self)
                 .get_dependents()
-                .get_extensions()
+                .filter_extensions()
                 .include_component("String")
                 .flat_map(|t| t["self"].as_b128())
                 .collect_vec();

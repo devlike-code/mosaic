@@ -4,19 +4,21 @@ use array_tool::vec::Shift;
 
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
+use super::get_dependents::GetDependentTiles;
+
 pub struct GetExtensionsIterator {
     mosaic: Arc<Mosaic>,
     items: Vec<Tile>,
 }
 
 impl GetExtensionsIterator {
-    fn new<I>(iter: I, mosaic: Arc<Mosaic>) -> Self
+    fn new<I: GetDependentTiles>(iter: I, mosaic: Arc<Mosaic>) -> Self
     where
         I: Iterator<Item = Tile>,
     {
         GetExtensionsIterator {
             mosaic: Arc::clone(&mosaic),
-            items: iter.filter(|t| t.is_extension()).collect(),
+            items: iter.get_dependents().filter(|t| t.is_extension()).collect(),
         }
     }
 }
@@ -55,7 +57,7 @@ where
 
 impl<I> GetExtensionsExtension for I
 where
-    I: Iterator<Item = Tile>,
+    I: Iterator<Item = Tile> + GetDependentTiles,
 {
     fn get_extensions_with(self, mosaic: Arc<Mosaic>) -> GetExtensionsIterator {
         GetExtensionsIterator::new(self, mosaic)

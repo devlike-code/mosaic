@@ -4,30 +4,30 @@ use array_tool::vec::Shift;
 
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
-pub struct GetObjectsIterator {
+pub struct FilterObjectsIterator {
     mosaic: Arc<Mosaic>,
     items: Vec<Tile>,
 }
 
-impl GetObjectsIterator {
+impl FilterObjectsIterator {
     fn new<I>(iter: I, mosaic: Arc<Mosaic>) -> Self
     where
         I: Iterator<Item = Tile>,
     {
-        GetObjectsIterator {
+        FilterObjectsIterator {
             mosaic: Arc::clone(&mosaic),
             items: iter.filter(|t| t.is_object()).collect(),
         }
     }
 }
 
-impl WithMosaic for GetObjectsIterator {
+impl WithMosaic for FilterObjectsIterator {
     fn get_mosaic(&self) -> Arc<Mosaic> {
         Arc::clone(&self.mosaic)
     }
 }
 
-impl Iterator for GetObjectsIterator {
+impl Iterator for FilterObjectsIterator {
     type Item = Tile;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -35,29 +35,29 @@ impl Iterator for GetObjectsIterator {
     }
 }
 
-pub trait GetObjects: Iterator {
-    fn get_objects(self) -> GetObjectsIterator;
+pub trait FilterObjects: Iterator {
+    fn get_objects(self) -> FilterObjectsIterator;
 }
 
-pub trait GetObjectsExtension: Iterator {
-    fn get_objects_with(self, mosaic: Arc<Mosaic>) -> GetObjectsIterator;
+pub trait FilterObjectsExtension: Iterator {
+    fn get_objects_with(self, mosaic: Arc<Mosaic>) -> FilterObjectsIterator;
 }
 
-impl<I> GetObjects for I
+impl<I> FilterObjects for I
 where
     I: Iterator<Item = Tile> + WithMosaic,
 {
-    fn get_objects(self) -> GetObjectsIterator {
+    fn get_objects(self) -> FilterObjectsIterator {
         let mosaic = Arc::clone(&self.get_mosaic());
-        GetObjectsIterator::new(self, mosaic)
+        FilterObjectsIterator::new(self, mosaic)
     }
 }
 
-impl<I> GetObjectsExtension for I
+impl<I> FilterObjectsExtension for I
 where
     I: Iterator<Item = Tile>,
 {
-    fn get_objects_with(self, mosaic: Arc<Mosaic>) -> GetObjectsIterator {
-        GetObjectsIterator::new(self, mosaic)
+    fn get_objects_with(self, mosaic: Arc<Mosaic>) -> FilterObjectsIterator {
+        FilterObjectsIterator::new(self, mosaic)
     }
 }

@@ -8,8 +8,8 @@ use crate::{
         Mosaic, MosaicCRUD, Tile, TileCommit, Value,
     },
     iterators::{
-        deletion::DeleteTiles, get_arrows_from::GetArrowsFromTiles,
-        get_arrows_into::GetArrowsIntoTiles, get_descriptors::GetDescriptors,
+        deletion::DeleteTiles, filter_descriptors::FilterDescriptors,
+        get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
         include_component::IncludeComponent,
     },
 };
@@ -34,7 +34,7 @@ impl GroupingCapability for Arc<Mosaic> {
     fn group(&self, group: &str, owner: &Tile, members: &[&Tile]) {
         let existing_owners = owner
             .get_dependents_with(self)
-            .get_descriptors()
+            .filter_descriptors()
             .include_component("GroupOwner")
             .map(|t| (t["self"].as_s32(), t))
             .collect::<HashMap<_, _>>();
@@ -73,7 +73,7 @@ impl GroupingCapability for Arc<Mosaic> {
     fn get_group_members(&self, group: &str, tile: &Tile) -> GetTilesIterator {
         if let Some(owner) = tile
             .iter_with(self)
-            .get_descriptors()
+            .filter_descriptors()
             .include_component("GroupOwner")
             .filter(|t| t["self"].as_s32() == group.into())
             .collect_vec()
@@ -92,7 +92,7 @@ impl GroupingCapability for Arc<Mosaic> {
     fn ungroup(&self, group: &str, tile: &Tile) {
         if let Some(owner) = tile
             .iter_with(self)
-            .get_descriptors()
+            .filter_descriptors()
             .include_component("GroupOwner")
             .filter(|t| t["self"].as_s32() == group.into())
             .collect_vec()

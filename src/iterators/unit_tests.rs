@@ -7,8 +7,9 @@ mod test_iterators {
     use crate::{
         internals::{Mosaic, MosaicCRUD, MosaicGetEntities, MosaicTypelevelCRUD},
         iterators::{
+            filter_descriptors::FilterDescriptors, filter_objects::FilterObjects,
             get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
-            get_dependents::GetDependentTiles, get_objects::GetObjects,
+            get_dependents::GetDependentTiles, get_descriptors::GetDescriptors,
             get_sources::GetSourcesExtension, get_targets::GetTargets,
             include_component::IncludeComponent, include_components::IncludeComponents,
         },
@@ -35,6 +36,27 @@ mod test_iterators {
         let mut dependents = a.iter_with(&mosaic).get_dependents();
         assert_eq!(dependents.next(), Some(a_b));
         assert_eq!(dependents.next(), None);
+    }
+
+    #[test]
+    fn test_descriptor_directly_or_indirectly() {
+        let mosaic = Mosaic::new();
+
+        let a = mosaic.new_object("DEBUG");
+        let a_p = mosaic.new_descriptor(&a, "DEBUG");
+        let a_desc = a.iter_with(&mosaic).get_descriptors().collect_vec();
+
+        assert_eq!(Some(&a_p), a_desc.first());
+
+        let a_desc2 = a
+            .iter_with(&mosaic)
+            .get_dependents()
+            .filter_descriptors()
+            .collect_vec();
+        assert_eq!(Some(&a_p), a_desc2.first());
+
+        let a_desc3 = a.get_descriptors_with(&mosaic).collect_vec();
+        assert_eq!(Some(&a_p), a_desc3.first());
     }
 
     #[test]
