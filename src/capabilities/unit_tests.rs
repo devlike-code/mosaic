@@ -94,7 +94,7 @@ mod traversal_tests {
         }
 
         fn stringify_path(path: Vec<Tile>) -> String {
-            path.into_iter().map(|t| format!("{:?}", t)).join("-")
+            path.into_iter().map(|t| format!("{}", t)).join("-")
         }
 
         let t = Traversal::Exclude { components: &[] };
@@ -136,6 +136,7 @@ mod traversal_tests {
         let paths_from_c = stringify_paths(op.get_forward_paths(&c));
 
         assert_eq!(3, paths_from_a.len());
+        println!("{:?}", paths_from_a);
         assert!(paths_from_a.contains(&"(x|0)-(x|1)-(x|2)-(x|3)".to_string()));
         assert!(paths_from_a.contains(&"(x|0)-(x|4)-(x|2)-(x|3)".to_string()));
         assert!(paths_from_a.contains(&"(x|0)-(x|4)-(x|2)-(x|1)".to_string()));

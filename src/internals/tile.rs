@@ -37,6 +37,20 @@ pub struct Tile {
     pub data: HashMap<S32, Value>,
 }
 
+impl std::fmt::Display for Tile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mark = match self.tile_type {
+            TileType::Object => "x",
+            TileType::Arrow { .. } => ">",
+            TileType::Loop { .. } => "o",
+            TileType::Descriptor { .. } => "d",
+            TileType::Extension { .. } => "e",
+            TileType::Backlink { .. } => "<",
+        };
+        f.write_fmt(format_args!("({}|{})", mark, self.id))
+    }
+}
+
 impl std::fmt::Debug for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mark = match self.tile_type {
