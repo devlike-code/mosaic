@@ -10,7 +10,7 @@ mod test_iterators {
             get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
             get_dependents::GetDependentTiles, get_objects::GetObjects,
             get_sources::GetSourcesExtension, get_targets::GetTargets,
-            include_component::IncludeComponent, include_components::IncludeComponents,
+            include_component::IncludeComponent, include_components::IncludeComponents, get_descriptors::GetDescriptors,
         },
     };
 
@@ -67,8 +67,12 @@ mod test_iterators {
         assert_eq!(1, ab_arrows.len());
         assert!(ab_arrows.contains(&ab_ac));
 
+        let zzz = a.iter_with(&mosaic).collect_vec();
+        
+        let a_desc_1 = a.iter_with(&mosaic).get_descriptors().collect_vec();
         let a_desc = a.get_descriptors_with(&mosaic).collect_vec();
         assert_eq!(1, a_desc.len());
+        
         assert!(a_desc.contains(&a_p));
 
         let direct_arrows = mosaic
@@ -108,12 +112,12 @@ mod test_iterators {
         assert_ne!(into_tgt1.first(), into_tgt2.first());
         let src1 = into_tgt1
             .into_iter()
-            .get_sources_with(Arc::clone(&mosaic))
+            .get_sources_with(&Arc::clone(&mosaic))
             .next();
 
         let src2 = into_tgt2
             .into_iter()
-            .get_sources_with(Arc::clone(&mosaic))
+            .get_sources_with(&Arc::clone(&mosaic))
             .next();
 
         assert_eq!(src1, src2);

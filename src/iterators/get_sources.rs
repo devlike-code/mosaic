@@ -10,12 +10,12 @@ pub struct GetSourcesIterator {
 }
 
 impl GetSourcesIterator {
-    fn new<I>(iter: I, mosaic: Arc<Mosaic>) -> Self
+    fn new<I>(iter: I, mosaic: &Arc<Mosaic>) -> Self
     where
         I: Iterator<Item = Tile>,
     {
         GetSourcesIterator {
-            mosaic: Arc::clone(&mosaic),
+            mosaic: Arc::clone(mosaic),
             items: iter.flat_map(|t| mosaic.get(t.source_id())).collect(),
         }
     }
@@ -40,7 +40,7 @@ pub trait GetSources: Iterator {
 }
 
 pub trait GetSourcesExtension: Iterator {
-    fn get_sources_with(self, mosaic: Arc<Mosaic>) -> GetSourcesIterator;
+    fn get_sources_with(self, mosaic: &Arc<Mosaic>) -> GetSourcesIterator;
 }
 
 impl<I> GetSources for I
@@ -48,7 +48,7 @@ where
     I: Iterator<Item = Tile> + WithMosaic,
 {
     fn get_sources(self) -> GetSourcesIterator {
-        let mosaic = Arc::clone(&self.get_mosaic());
+        let mosaic = &Arc::clone(&self.get_mosaic());
         GetSourcesIterator::new(self, mosaic)
     }
 }
@@ -57,7 +57,7 @@ impl<I> GetSourcesExtension for I
 where
     I: Iterator<Item = Tile>,
 {
-    fn get_sources_with(self, mosaic: Arc<Mosaic>) -> GetSourcesIterator {
+    fn get_sources_with(self, mosaic: &Arc<Mosaic>) -> GetSourcesIterator {
         GetSourcesIterator::new(self, mosaic)
     }
 }

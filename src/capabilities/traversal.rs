@@ -64,7 +64,7 @@ impl TraversalOperator {
     pub fn get_backward_neighbors(&self, tile: &Tile) -> GetSourcesIterator {
         self.filter_traversal(tile.iter_with(&self.mosaic).get_arrows_into())
             .into_iter()
-            .get_sources_with(Arc::clone(&self.mosaic))
+            .get_sources_with(&self.mosaic)
     }
 
     pub fn get_neighbors(&self, tile: &Tile) -> GetTilesIterator {

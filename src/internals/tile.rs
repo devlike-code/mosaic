@@ -47,7 +47,7 @@ impl std::fmt::Debug for Tile {
             TileType::Extension { .. } => "e",
             TileType::Backlink { .. } => "<",
         };
-        f.write_fmt(format_args!("({}|{})", mark, self.id))
+        f.write_fmt(format_args!("({}|{}|{}|{:?})", mark, self.id, self.component, self.data))
     }
 }
 
