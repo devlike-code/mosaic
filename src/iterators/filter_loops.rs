@@ -4,30 +4,30 @@ use array_tool::vec::Shift;
 
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
-pub struct GetLoopsIterator {
+pub struct FilterLoopsIterator {
     mosaic: Arc<Mosaic>,
     items: Vec<Tile>,
 }
 
-impl GetLoopsIterator {
+impl FilterLoopsIterator {
     fn new<I>(iter: I, mosaic: Arc<Mosaic>) -> Self
     where
         I: Iterator<Item = Tile>,
     {
-        GetLoopsIterator {
+        FilterLoopsIterator {
             mosaic: Arc::clone(&mosaic),
             items: iter.filter(|t| t.is_loop()).collect(),
         }
     }
 }
 
-impl WithMosaic for GetLoopsIterator {
+impl WithMosaic for FilterLoopsIterator {
     fn get_mosaic(&self) -> Arc<Mosaic> {
         Arc::clone(&self.mosaic)
     }
 }
 
-impl Iterator for GetLoopsIterator {
+impl Iterator for FilterLoopsIterator {
     type Item = Tile;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -35,29 +35,29 @@ impl Iterator for GetLoopsIterator {
     }
 }
 
-pub trait GetLoops: Iterator {
-    fn get_loops(self) -> GetLoopsIterator;
+pub trait FilterLoops: Iterator {
+    fn get_loops(self) -> FilterLoopsIterator;
 }
 
-pub trait GetLoopsExtension: Iterator {
-    fn get_loops_with(self, mosaic: Arc<Mosaic>) -> GetLoopsIterator;
+pub trait FilterLoopsExtension: Iterator {
+    fn get_loops_with(self, mosaic: Arc<Mosaic>) -> FilterLoopsIterator;
 }
 
-impl<I> GetLoops for I
+impl<I> FilterLoops for I
 where
     I: Iterator<Item = Tile> + WithMosaic,
 {
-    fn get_loops(self) -> GetLoopsIterator {
+    fn get_loops(self) -> FilterLoopsIterator {
         let mosaic = Arc::clone(&self.get_mosaic());
-        GetLoopsIterator::new(self, mosaic)
+        FilterLoopsIterator::new(self, mosaic)
     }
 }
 
-impl<I> GetLoopsExtension for I
+impl<I> FilterLoopsExtension for I
 where
     I: Iterator<Item = Tile>,
 {
-    fn get_loops_with(self, mosaic: Arc<Mosaic>) -> GetLoopsIterator {
-        GetLoopsIterator::new(self, mosaic)
+    fn get_loops_with(self, mosaic: Arc<Mosaic>) -> FilterLoopsIterator {
+        FilterLoopsIterator::new(self, mosaic)
     }
 }

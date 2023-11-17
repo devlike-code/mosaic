@@ -8,9 +8,9 @@ use crate::{
         Mosaic, MosaicCRUD, Tile, TileCommit, Value,
     },
     iterators::{
-        get_arrows_from::GetArrowsFromTiles,
-        get_arrows_into::GetArrowsIntoTiles,
-        get_descriptors::GetDescriptors,
+        filter_descriptors::FilterDescriptors,
+        get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
+       
         get_sources::{GetSources, GetSourcesExtension},
         get_targets::GetTargets,
         include_component::IncludeComponent,

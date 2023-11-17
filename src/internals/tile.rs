@@ -7,10 +7,10 @@ use std::{
 use itertools::Itertools;
 
 use crate::iterators::{
-    get_arrows::{GetArrows, GetArrowsIterator},
+    filter_arrows::{FilterArrows, FilterArrowsIterator},
+    filter_descriptors::{FilterDescriptors, FilterDescriptorsIterator},
+    filter_extensions::{FilterExtensions, FilterExtensionsIterator},
     get_dependents::{GetDependentTiles, GetDependentsIterator},
-    get_descriptors::{GetDescriptors, GetDescriptorsIterator},
-    get_extensions::{GetExtensions, GetExtensionsIterator},
     just_tile::JustTileIterator,
 };
 
@@ -362,19 +362,19 @@ impl Tile {
 }
 
 impl Tile {
-    pub fn get_arrows_with(&self, mosaic: &Arc<Mosaic>) -> GetArrowsIterator {
-        self.iter_with(mosaic).get_dependents().get_arrows()
+    pub fn get_arrows_with(&self, mosaic: &Arc<Mosaic>) -> FilterArrowsIterator {
+        self.iter_with(mosaic).get_dependents().filter_arrows()
     }
 
     pub fn get_dependents_with(&self, mosaic: &Arc<Mosaic>) -> GetDependentsIterator {
         self.iter_with(mosaic).get_dependents()
     }
 
-    pub fn get_descriptors_with(&self, mosaic: &Arc<Mosaic>) -> GetDescriptorsIterator {
-        self.iter_with(mosaic).get_dependents().get_descriptors()
+    pub fn get_descriptors_with(&self, mosaic: &Arc<Mosaic>) -> FilterDescriptorsIterator {
+        self.iter_with(mosaic).get_dependents().filter_descriptors()
     }
 
-    pub fn get_extensions_with(&self, mosaic: &Arc<Mosaic>) -> GetExtensionsIterator {
-        self.iter_with(mosaic).get_dependents().get_extensions()
+    pub fn get_extensions_with(&self, mosaic: &Arc<Mosaic>) -> FilterExtensionsIterator {
+        self.iter_with(mosaic).get_dependents().filter_extensions()
     }
 }
