@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{byte_utilities::FromByteArray, TileCommit},
+    internals::{byte_utilities::FromByteArray, self_val},
     iterators::include_component::IncludeComponent,
 };
 use crate::{
@@ -45,9 +45,11 @@ impl StringCapability for Arc<Mosaic> {
         let tile = self.new_specific_object(str_hash, "String")?;
 
         for part in split_str_into_parts(str, 128) {
-            let mut ext = self.new_extension(&str_hash, "String");
-            ext["self"] = Value::B128(B128::from_byte_array(part.as_bytes()));
-            self.commit(&ext)?;
+            self.new_extension(
+                &str_hash,
+                "String",
+                self_val(Value::B128(B128::from_byte_array(part.as_bytes()))),
+            );
         }
 
         Ok(tile)

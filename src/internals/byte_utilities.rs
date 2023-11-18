@@ -2,12 +2,12 @@ use fstr::FStr;
 use std::convert::AsMut;
 
 use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
-use super::entity_registry::EntityRegistry;
+use super::entity_registry::ComponentRegistry;
 use super::{Value, B128};
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
 pub(crate) trait Bytesize {
-    fn bytesize(&self, engine: &EntityRegistry) -> usize;
+    fn bytesize(&self, engine: &ComponentRegistry) -> usize;
 }
 
 /// Representation for anything that can be deserialized from a byte array
@@ -189,7 +189,7 @@ impl ToByteArray for Str {
 
 /// A bytesize check for complex component datatypes
 impl Bytesize for ComponentType {
-    fn bytesize(&self, engine: &EntityRegistry) -> usize {
+    fn bytesize(&self, engine: &ComponentRegistry) -> usize {
         match self {
             ComponentType::Alias(field) => field.datatype.bytesize(engine),
             ComponentType::Sum { fields, .. } => fields
@@ -208,7 +208,7 @@ impl Bytesize for ComponentType {
 
 /// A bytesize check for all basic component datatypes
 impl Bytesize for Datatype {
-    fn bytesize(&self, engine: &EntityRegistry) -> usize {
+    fn bytesize(&self, engine: &ComponentRegistry) -> usize {
         match self {
             Datatype::VOID => 0usize,
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,

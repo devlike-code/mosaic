@@ -8,14 +8,14 @@ use itertools::Itertools;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    get_entities::GetEntitiesIterator, get_tiles::GetTilesIterator, EntityId, EntityRegistry,
-    Logging, SparseSet, Tile, TileType,
+    get_entities::GetEntitiesIterator, get_tiles::GetTilesIterator, ComponentRegistry,
+    ComponentValues, EntityId, Logging, SparseSet, Tile, TileType,
 };
 
 #[derive(Debug)]
 pub struct Mosaic {
     pub(crate) entity_counter: Arc<RelaxedCounter>,
-    pub(crate) entity_registry: Arc<EntityRegistry>,
+    pub(crate) entity_registry: Arc<ComponentRegistry>,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
     pub(crate) dependent_ids_map: Mutex<ListOrderedMultimap<EntityId, EntityId>>,
     object_ids: Mutex<SparseSet>,
@@ -37,7 +37,7 @@ impl Mosaic {
     pub fn new() -> Arc<Mosaic> {
         let mosaic = Arc::new(Mosaic {
             entity_counter: Arc::new(RelaxedCounter::default()),
-            entity_registry: Arc::new(EntityRegistry::default()),
+            entity_registry: Arc::new(ComponentRegistry::default()),
             tile_registry: Mutex::new(HashMap::default()),
             dependent_ids_map: Mutex::new(ListOrderedMultimap::default()),
             object_ids: Mutex::new(SparseSet::default()),
@@ -80,22 +80,17 @@ pub trait MosaicTypelevelCRUD {
 pub trait MosaicCRUD<Id> {
     // not generic in Id, but still a part:
     // fn new_object(&self, component: &str) -> Tile
-    fn new_arrow(&self, source: &Id, target: &Id, component: &str) -> Tile;
-    fn new_loop(&self, endpoint: &Id, component: &str) -> Tile;
-    fn new_descriptor(&self, subject: &Id, component: &str) -> Tile;
-    fn new_extension(&self, subject: &Id, component: &str) -> Tile;
+    fn new_arrow(
+        &self,
+        source: &Id,
+        target: &Id,
+        component: &str,
+        defaults: ComponentValues,
+    ) -> Tile;
+    fn new_descriptor(&self, subject: &Id, component: &str, defaults: ComponentValues) -> Tile;
+    fn new_extension(&self, subject: &Id, component: &str, defaults: ComponentValues) -> Tile;
     fn is_tile_valid(&self, i: &Id) -> bool;
     fn delete_tile(&self, tile: Id);
-}
-
-pub trait TileCommit {
-    fn commit(&self, tile: &Tile) -> anyhow::Result<()>;
-}
-
-impl TileCommit for Arc<Mosaic> {
-    fn commit(&self, tile: &Tile) -> anyhow::Result<()> {
-        tile.commit(Arc::clone(self))
-    }
 }
 
 pub trait TileGetById {
@@ -113,9 +108,9 @@ impl Mosaic {
         self.tile_registry.lock().unwrap().get(&i).cloned()
     }
 
-    pub fn new_object(&self, component: &str) -> Tile {
+    pub fn new_object(&self, component: &str, defaults: ComponentValues) -> Tile {
         let id = self.next_id();
-        let tile = Tile::new(self, id, TileType::Object, component.into());
+        let tile = Tile::new(self, id, TileType::Object, component.into(), defaults);
         self.object_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
@@ -165,7 +160,13 @@ impl MosaicCRUD<EntityId> for Mosaic {
         self.tile_registry.lock().unwrap().contains_key(i)
     }
 
-    fn new_arrow(&self, source: &EntityId, target: &EntityId, component: &str) -> Tile {
+    fn new_arrow(
+        &self,
+        source: &EntityId,
+        target: &EntityId,
+        component: &str,
+        defaults: ComponentValues,
+    ) -> Tile {
         let id = self.next_id();
         self.dependent_ids_map.lock().unwrap().append(*source, id);
         self.dependent_ids_map.lock().unwrap().append(*target, id);
@@ -178,30 +179,19 @@ impl MosaicCRUD<EntityId> for Mosaic {
                 target: *target,
             },
             component.into(),
+            defaults,
         );
         self.arrow_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 
-    fn new_loop(&self, endpoint: &EntityId, component: &str) -> Tile {
-        let id = self.next_id();
-        self.dependent_ids_map.lock().unwrap().append(*endpoint, id);
-
-        let tile = Tile::new(
-            self,
-            id,
-            TileType::Loop {
-                endpoint: *endpoint,
-            },
-            component.into(),
-        );
-        self.loop_ids.lock().unwrap().add(id);
-        self.tile_registry.lock().unwrap().insert(id, tile.clone());
-        tile
-    }
-
-    fn new_descriptor(&self, subject: &EntityId, component: &str) -> Tile {
+    fn new_descriptor(
+        &self,
+        subject: &EntityId,
+        component: &str,
+        defaults: ComponentValues,
+    ) -> Tile {
         let id = self.next_id();
         self.dependent_ids_map.lock().unwrap().append(*subject, id);
 
@@ -210,13 +200,19 @@ impl MosaicCRUD<EntityId> for Mosaic {
             id,
             TileType::Descriptor { subject: *subject },
             component.into(),
+            defaults,
         );
         self.descriptor_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 
-    fn new_extension(&self, subject: &EntityId, component: &str) -> Tile {
+    fn new_extension(
+        &self,
+        subject: &EntityId,
+        component: &str,
+        defaults: ComponentValues,
+    ) -> Tile {
         let id = self.next_id();
         self.dependent_ids_map.lock().unwrap().append(*subject, id);
 
@@ -225,6 +221,7 @@ impl MosaicCRUD<EntityId> for Mosaic {
             id,
             TileType::Extension { subject: *subject },
             component.into(),
+            defaults,
         );
         self.extension_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
@@ -245,9 +242,7 @@ impl MosaicCRUD<EntityId> for Mosaic {
         });
 
         self.dependent_ids_map.lock().unwrap().remove(&id);
-        let mut component = None;
         if let Some(tile) = self.tile_registry.lock().unwrap().get(&id) {
-            component = Some(tile.component);
             match tile.tile_type {
                 TileType::Object => self.object_ids.lock().unwrap().remove(id),
                 TileType::Arrow { .. } | TileType::Backlink { .. } => {
@@ -260,28 +255,6 @@ impl MosaicCRUD<EntityId> for Mosaic {
         }
 
         self.tile_registry.lock().unwrap().remove(&id);
-
-        if let Some(alloc) = self
-            .entity_registry
-            .id_allocation_index
-            .lock()
-            .unwrap()
-            .get(&id)
-        {
-            self.entity_registry
-                .component_slabs
-                .lock()
-                .unwrap()
-                .get_mut(&component.unwrap())
-                .unwrap()
-                .remove(*alloc);
-        }
-
-        self.entity_registry
-            .id_allocation_index
-            .lock()
-            .unwrap()
-            .remove(&id);
     }
 }
 
@@ -290,20 +263,24 @@ impl MosaicCRUD<Tile> for Mosaic {
         <Mosaic as MosaicCRUD<EntityId>>::is_tile_valid(self, &i.id)
     }
 
-    fn new_arrow(&self, source: &Tile, target: &Tile, component: &str) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_arrow(self, &source.id, &target.id, component)
+    fn new_arrow(
+        &self,
+        source: &Tile,
+        target: &Tile,
+        component: &str,
+        defaults: ComponentValues,
+    ) -> Tile {
+        <Mosaic as MosaicCRUD<EntityId>>::new_arrow(
+            self, &source.id, &target.id, component, defaults,
+        )
     }
 
-    fn new_loop(&self, endpoint: &Tile, component: &str) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_loop(self, &endpoint.id, component)
+    fn new_descriptor(&self, subject: &Tile, component: &str, defaults: ComponentValues) -> Tile {
+        <Mosaic as MosaicCRUD<EntityId>>::new_descriptor(self, &subject.id, component, defaults)
     }
 
-    fn new_descriptor(&self, subject: &Tile, component: &str) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_descriptor(self, &subject.id, component)
-    }
-
-    fn new_extension(&self, subject: &Tile, component: &str) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_extension(self, &subject.id, component)
+    fn new_extension(&self, subject: &Tile, component: &str, defaults: ComponentValues) -> Tile {
+        <Mosaic as MosaicCRUD<EntityId>>::new_extension(self, &subject.id, component, defaults)
     }
 
     fn delete_tile(&self, tile: Tile) {

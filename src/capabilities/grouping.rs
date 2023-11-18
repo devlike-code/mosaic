@@ -7,7 +7,7 @@ use crate::iterators::get_targets::GetTargets;
 use crate::{
     internals::{
         get_tiles::{GetTiles, GetTilesExtension, GetTilesIterator},
-        Mosaic, MosaicCRUD, Tile, TileCommit, Value,
+        Mosaic, MosaicCRUD, Tile, Value,
     },
     iterators::{
         get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
@@ -51,22 +51,30 @@ impl GroupingCapability for Arc<Mosaic> {
             self.delete_tile(previous_owner_descriptor.id);
         }
 
-        let mut desc = self.new_descriptor(owner, "GroupOwner");
-        desc["self"] = Value::S32(group.into());
-        self.commit(&desc).unwrap();
+        let desc = self.new_descriptor(
+            owner,
+            "GroupOwner",
+            vec![("self".into(), Value::S32(group.into()))],
+        );
 
         for &member in members {
-            let mut group_arrow = self.new_arrow(&desc, member, "Group");
-            group_arrow["self"] = Value::S32(group.into());
-            self.commit(&group_arrow).unwrap();
+            self.new_arrow(
+                &desc,
+                member,
+                "Group",
+                vec![("self".into(), Value::S32(group.into()))],
+            );
         }
     }
 
     fn add_group_member(&self, group: &str, owner: &Tile, member: &Tile) -> anyhow::Result<()> {
         if let Some(owner_descriptor) = get_existing_owner_descriptor(self, group, owner) {
-            let mut group_arrow = self.new_arrow(&owner_descriptor, member, "Group");
-            group_arrow["self"] = Value::S32(group.into());
-            self.commit(&group_arrow).unwrap();
+            self.new_arrow(
+                &owner_descriptor,
+                member,
+                "Group",
+                vec![("self".into(), Value::S32(group.into()))],
+            );
             Ok(())
         } else {
             format!(

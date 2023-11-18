@@ -1,10 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops::{Index, IndexMut, Range},
-    sync::Arc,
-};
-
-use itertools::Itertools;
+use std::{collections::HashMap, ops::Index, sync::Arc};
 
 use crate::iterators::{
     filter_arrows::{FilterArrows, FilterArrowsIterator},
@@ -14,10 +8,7 @@ use crate::iterators::{
     just_tile::JustTileIterator,
 };
 
-use super::{
-    logging::Logging, slice_into_array, ComponentType, DataBrick, Datatype, EntityId, Mosaic,
-    MosaicCRUD, Value, S32,
-};
+use super::{ComponentType, ComponentValues, EntityId, Mosaic, Value, S32};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
 pub enum TileType {
@@ -101,143 +92,116 @@ impl Index<&str> for Tile {
     }
 }
 
-impl IndexMut<&str> for Tile {
-    fn index_mut<'a>(&'a mut self, i: &str) -> &'a mut Value {
-        self.data.get_mut(&i.into()).unwrap()
-    }
-}
-
 impl Tile {
-    fn get_field_offset(
-        mosaic: &Mosaic,
-        component_type: &ComponentType,
-        field_name: S32,
-    ) -> Option<Range<usize>> {
+    pub fn set_field(&mut self, mosaic: &Arc<Mosaic>, index: &str, value: Value) {
+        self.data.insert(index.into(), value);
         mosaic
-            .entity_registry
-            .component_offset_size_map
+            .tile_registry
             .lock()
             .unwrap()
-            .get(&(component_type.name(), field_name))
-            .cloned()
+            .insert(self.id, self.clone());
     }
 
-    pub(crate) fn create_data_fields(&mut self, mosaic: &Mosaic) -> anyhow::Result<()> {
+    pub(crate) fn create_data_fields(
+        &mut self,
+        mosaic: &Mosaic,
+        defaults: ComponentValues,
+    ) -> anyhow::Result<()> {
+        let defaults = defaults.into_iter().collect::<HashMap<_, _>>();
         let component_type = mosaic.entity_registry.get_component_type(self.component)?;
-        let component_fields = component_type
+        component_type
             .get_fields()
             .iter()
-            .map(|field| {
-                (
-                    field.name,
-                    field.datatype.to_owned(),
-                    Self::get_field_offset(mosaic, &component_type, field.name),
-                )
-            })
-            .collect_vec();
-
-        for (field_name, datatype, _) in component_fields {
-            let value: Value = match datatype {
-                Datatype::VOID => Value::VOID,
-                // COMP fields will disappear when the component is added to the engine state,
-                // so this situation should never arise. However, we'll leave a log here just in case.
-                Datatype::COMP(_) => Value::VOID,
-                Datatype::I32 => Value::I32(0),
-                Datatype::U32 => Value::U32(0),
-                Datatype::F32 => Value::F32(0.0),
-                Datatype::S32 => Value::S32("".into()),
-                Datatype::I64 => Value::I64(0),
-                Datatype::U64 => Value::U64(0),
-                Datatype::F64 => Value::F64(0.0),
-                Datatype::EID => Value::EID(0),
-                Datatype::B128 => Value::B128(vec![]),
-            };
-
-            self.data.insert(
-                if component_type.is_alias() {
+            .map(|field| (field.name, field.datatype.to_owned()))
+            .for_each(|(field_name, datatype)| {
+                let name = if component_type.is_alias() {
                     "self".into()
                 } else {
                     field_name
-                },
-                value,
-            );
-        }
+                };
 
+                let value = defaults
+                    .get(&name)
+                    .cloned()
+                    .unwrap_or(datatype.get_default());
+
+                self.data.insert(name, value);
+            });
         Ok(())
     }
 
-    pub(crate) fn read_fields_from_data_brick(
-        mosaic: &Mosaic,
-        brick: &DataBrick,
-    ) -> anyhow::Result<HashMap<S32, Value>> {
-        let component_type = mosaic.entity_registry.get_component_type(brick.component)?;
-        let component_fields = component_type
-            .get_fields()
-            .iter()
-            .map(|field| {
-                (
-                    field.name,
-                    field.datatype.to_owned(),
-                    Self::get_field_offset(mosaic, &component_type, field.name),
-                )
-            })
-            .collect_vec();
+    // pub(crate) fn read_fields_from_data_brick(
+    //     mosaic: &Mosaic,
+    //     brick: &DataBrick,
+    // ) -> anyhow::Result<HashMap<S32, Value>> {
+    //     let component_type = mosaic.entity_registry.get_component_type(brick.component)?;
+    //     let component_fields = component_type
+    //         .get_fields()
+    //         .iter()
+    //         .map(|field| {
+    //             (
+    //                 field.name,
+    //                 field.datatype.to_owned(),
+    //                 Self::get_field_offset(mosaic, &component_type, field.name),
+    //             )
+    //         })
+    //         .collect_vec();
 
-        let mut result = HashMap::default();
-        for (field_name, datatype, field_offset) in component_fields {
-            if let Some(offset) = field_offset {
-                let field_data_raw = &brick.data[offset.clone()];
+    //     let mut result = HashMap::default();
+    //     for (field_name, datatype, field_offset) in component_fields {
+    //         if let Some(offset) = field_offset {
+    //             let field_data_raw = &brick.data[offset.clone()];
 
-                let value: Value = match datatype {
-                    Datatype::VOID => Value::VOID,
-                    // COMP fields will disappear when the component is added to the engine state,
-                    // so this situation should never arise. However, we'll leave a log here just in case.
-                    Datatype::COMP(_) => Value::VOID,
-                    Datatype::I32 => {
-                        Value::I32(i32::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::U32 => {
-                        Value::U32(u32::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::F32 => {
-                        Value::F32(f32::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::S32 => Value::S32(field_data_raw.into()),
-                    Datatype::I64 => {
-                        Value::I64(i64::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::U64 => {
-                        Value::U64(u64::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::F64 => {
-                        Value::F64(f64::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::EID => {
-                        Value::EID(usize::from_be_bytes(slice_into_array(field_data_raw)))
-                    }
-                    Datatype::B128 => Value::B128(slice_into_array(field_data_raw)),
-                };
+    //             let value: Value = match datatype {
+    //                 Datatype::VOID => Value::VOID,
+    //                 // COMP fields will disappear when the component is added to the engine state,
+    //                 // so this situation should never arise. However, we'll leave a log here just in case.
+    //                 Datatype::COMP(_) => Value::VOID,
+    //                 Datatype::I32 => {
+    //                     Value::I32(i32::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::U32 => {
+    //                     Value::U32(u32::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::F32 => {
+    //                     Value::F32(f32::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::S32 => Value::S32(field_data_raw.into()),
+    //                 Datatype::I64 => {
+    //                     Value::I64(i64::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::U64 => {
+    //                     Value::U64(u64::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::F64 => {
+    //                     Value::F64(f64::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::EID => {
+    //                     Value::EID(usize::from_be_bytes(slice_into_array(field_data_raw)))
+    //                 }
+    //                 Datatype::B128 => Value::B128(slice_into_array(field_data_raw)),
+    //             };
 
-                result.insert(
-                    if component_type.is_alias() {
-                        "self".into()
-                    } else {
-                        field_name
-                    },
-                    value,
-                );
-            } else {
-                return format!(
-                    "Cannot create field {} from component data - field missing in component {}.",
-                    field_name,
-                    component_type.name()
-                )
-                .to_error();
-            }
-        }
+    //             result.insert(
+    //                 if component_type.is_alias() {
+    //                     "self".into()
+    //                 } else {
+    //                     field_name
+    //                 },
+    //                 value,
+    //             );
+    //         } else {
+    //             return format!(
+    //                 "Cannot create field {} from component data - field missing in component {}.",
+    //                 field_name,
+    //                 component_type.name()
+    //             )
+    //             .to_error();
+    //         }
+    //     }
 
-        Ok(result)
-    }
+    //     Ok(result)
+    // }
 
     fn create_binary_data_from_fields(&self, component: &ComponentType) -> Vec<u8> {
         let data = component
@@ -273,47 +237,53 @@ impl Tile {
         data
     }
 
-    pub fn commit(&self, mosaic: Arc<Mosaic>) -> anyhow::Result<()> {
-        if !mosaic.is_tile_valid(&self.id) {
-            return format!("Tile {} isn't valid.", self.id).to_error();
-        }
+    // pub fn commit(&self, mosaic: Arc<Mosaic>) -> anyhow::Result<()> {
+    //     if !mosaic.is_tile_valid(&self.id) {
+    //         return format!("Tile {} isn't valid.", self.id).to_error();
+    //     }
 
-        mosaic
-            .tile_registry
-            .lock()
-            .unwrap()
-            .insert(self.id, self.clone());
+    //     mosaic
+    //         .tile_registry
+    //         .lock()
+    //         .unwrap()
+    //         .insert(self.id, self.clone());
 
-        let component = mosaic.entity_registry.get_component_type(self.component)?;
-        let mut slab_storage = mosaic.entity_registry.component_slabs.lock().unwrap();
-        let slab = slab_storage.get_mut(&self.component).unwrap();
+    //     let component = mosaic.entity_registry.get_component_type(self.component)?;
+    //     let mut slab_storage = mosaic.entity_registry.component_slabs.lock().unwrap();
+    //     let slab = slab_storage.get_mut(&self.component).unwrap();
 
-        let mut id_alloc = mosaic.entity_registry.id_allocation_index.lock().unwrap();
+    //     let mut id_alloc = mosaic.entity_registry.id_allocation_index.lock().unwrap();
 
-        if let Some(alloc) = id_alloc.get(&self.id) {
-            let brick = slab.get_mut(*alloc).unwrap();
+    //     if let Some(alloc) = id_alloc.get(&self.id) {
+    //         let brick = slab.get_mut(*alloc).unwrap();
 
-            brick
-                .data
-                .copy_from_slice(self.create_binary_data_from_fields(&component).as_slice());
-        } else {
-            let mut brick =
-                DataBrick::new(self.id, self.source_id(), self.target_id(), self.component);
-            brick
-                .data
-                .copy_from_slice(self.create_binary_data_from_fields(&component).as_slice());
+    //         brick
+    //             .data
+    //             .copy_from_slice(self.create_binary_data_from_fields(&component).as_slice());
+    //     } else {
+    //         let mut brick =
+    //             DataBrick::new(self.id, self.source_id(), self.target_id(), self.component);
+    //         brick
+    //             .data
+    //             .copy_from_slice(self.create_binary_data_from_fields(&component).as_slice());
 
-            let alloc = slab.insert(brick);
+    //         let alloc = slab.insert(brick);
 
-            id_alloc.insert(self.id, alloc);
-        }
+    //         id_alloc.insert(self.id, alloc);
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
 
 impl Tile {
-    pub fn new(mosaic: &Mosaic, id: EntityId, tile_type: TileType, component: S32) -> Tile {
+    pub fn new(
+        mosaic: &Mosaic,
+        id: EntityId,
+        tile_type: TileType,
+        component: S32,
+        defaults: ComponentValues,
+    ) -> Tile {
         let mut tile = Tile {
             id,
             tile_type,
@@ -321,9 +291,14 @@ impl Tile {
             data: HashMap::default(),
         };
 
-        tile.create_data_fields(mosaic)
+        tile.create_data_fields(mosaic, defaults)
             .expect("Cannot create data fields, panicking!");
 
+        mosaic
+            .tile_registry
+            .lock()
+            .unwrap()
+            .insert(id, tile.clone());
         tile
     }
 

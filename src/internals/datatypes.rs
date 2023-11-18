@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use fstr::FStr;
 
-use super::{logging::Logging, Bytesize, EntityRegistry};
+use super::{logging::Logging, Bytesize, ComponentRegistry};
 
 pub type EntityId = usize;
 
@@ -59,6 +59,34 @@ pub enum Datatype {
     S32,
     B128,
     COMP(S32),
+}
+
+pub fn self_val(value: Value) -> Vec<(S32, Value)> {
+    vec![("self".into(), value)]
+}
+
+pub fn default_vals() -> Vec<(S32, Value)> {
+    vec![]
+}
+
+impl Datatype {
+    pub fn get_default(&self) -> Value {
+        match self {
+            Datatype::VOID => Value::VOID,
+            // COMP fields will disappear when the component is added to the engine state,
+            // so this situation should never arise. However, we'll leave a log here just in case.
+            Datatype::COMP(_) => Value::VOID,
+            Datatype::I32 => Value::I32(0),
+            Datatype::U32 => Value::U32(0),
+            Datatype::F32 => Value::F32(0.0),
+            Datatype::S32 => Value::S32("".into()),
+            Datatype::I64 => Value::I64(0),
+            Datatype::U64 => Value::U64(0),
+            Datatype::F64 => Value::F64(0.0),
+            Datatype::EID => Value::EID(0),
+            Datatype::B128 => Value::B128(vec![]),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -145,7 +173,7 @@ impl ComponentType {
 }
 
 pub fn try_read_component_type(
-    engine: &EntityRegistry,
+    engine: &ComponentRegistry,
     input: &[u8],
 ) -> anyhow::Result<ComponentType> {
     let component_name_length = 32;
@@ -175,6 +203,8 @@ pub fn try_read_component_type(
 }
 
 pub type B128 = Vec<u8>;
+
+pub type ComponentValues = Vec<(S32, Value)>;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(clippy::large_enum_variant)]

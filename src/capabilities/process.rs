@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{Logging, Mosaic, MosaicCRUD, Tile, TileCommit, Value, S32},
+    internals::{self_val, Logging, Mosaic, MosaicCRUD, Tile, Value, S32},
     iterators::{
         deletion::DeleteTiles, get_arrows_from::GetArrowsFromTiles, get_targets::GetTargets,
     },
@@ -34,17 +34,12 @@ trait ProcessCapability: GroupingCapability {
 
 impl ProcessCapability for Arc<Mosaic> {
     fn create_process(&self, name: &str, params: &[&str]) -> anyhow::Result<Tile> {
-        let mut process = self.new_object("Process");
-        process["self"] = Value::S32(name.into());
-        process.commit(Arc::clone(self))?;
+        let process = self.new_object("Process", self_val(Value::S32(name.into())));
 
         self.group(name, &process, &[]);
 
         for &param in params {
-            let mut param_obj = self.new_object("ProcessParameter");
-            param_obj["self"] = Value::S32(param.into());
-            param_obj.commit(Arc::clone(self))?;
-
+            let param_obj = self.new_object("ProcessParameter", self_val(Value::S32(param.into())));
             self.add_group_member(name, &process, &param_obj)?;
         }
 
@@ -75,9 +70,12 @@ impl ProcessCapability for Arc<Mosaic> {
 
         let param = param.first().unwrap();
         param.iter_with(self).get_arrows_from().delete();
-        let mut binding = self.new_arrow(param, value, "ParameterBinding");
-        binding["self"] = Value::S32(param_name.into());
-        self.commit(&binding)?;
+        self.new_arrow(
+            param,
+            value,
+            "ParameterBinding",
+            self_val(Value::S32(param_name.into())),
+        );
 
         Ok(())
     }
@@ -151,7 +149,7 @@ impl ProcessCapability for Arc<Mosaic> {
 mod process_tests {
     use std::sync::Arc;
 
-    use crate::internals::{Logging, Mosaic, MosaicTypelevelCRUD, Tile, TileCommit, Value};
+    use crate::internals::{self_val, Logging, Mosaic, MosaicTypelevelCRUD, Tile, Value};
 
     use super::ProcessCapability;
 
@@ -161,14 +159,8 @@ mod process_tests {
         mosaic.new_type("Number: u32;").unwrap();
 
         let add = mosaic.create_process("add", &["a", "b"]).unwrap();
-
-        let mut x = mosaic.new_object("Number");
-        x["self"] = Value::U32(7);
-        mosaic.commit(&x).unwrap();
-
-        let mut y = mosaic.new_object("Number");
-        y["self"] = Value::U32(5);
-        mosaic.commit(&y).unwrap();
+        let x = mosaic.new_object("Number", self_val(Value::U32(7)));
+        let y = mosaic.new_object("Number", self_val(Value::U32(5)));
 
         mosaic.pass_process_parameter(&add, "a", &x).unwrap();
         mosaic.pass_process_parameter(&add, "b", &y).unwrap();

@@ -31,7 +31,7 @@ mod traversal_tests {
 
     use crate::{
         capabilities::{traversal::Traverse, Traversal},
-        internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile},
     };
 
     #[test]
@@ -41,10 +41,10 @@ mod traversal_tests {
         };
 
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG");
-        let b = mosaic.new_object("DEBUG");
-        let c = mosaic.new_object("DEBUG");
-        let d = mosaic.new_object("DEBUG");
+        let a = mosaic.new_object("DEBUG", default_vals());
+        let b = mosaic.new_object("DEBUG", default_vals());
+        let c = mosaic.new_object("DEBUG", default_vals());
+        let d = mosaic.new_object("DEBUG", default_vals());
 
         /*
                       /----> b
@@ -53,13 +53,13 @@ mod traversal_tests {
 
            a ----> b <----> c -----> d
         */
-        mosaic.new_arrow(&a, &b, "GroupOwner");
-        mosaic.new_arrow(&a, &c, "GroupOwner");
-        mosaic.new_arrow(&a, &d, "GroupOwner");
-        mosaic.new_arrow(&a, &b, "DEBUG");
-        mosaic.new_arrow(&b, &c, "DEBUG");
-        mosaic.new_arrow(&c, &b, "DEBUG");
-        mosaic.new_arrow(&c, &d, "DEBUG");
+        mosaic.new_arrow(&a, &b, "GroupOwner", default_vals());
+        mosaic.new_arrow(&a, &c, "GroupOwner", default_vals());
+        mosaic.new_arrow(&a, &d, "GroupOwner", default_vals());
+        mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        mosaic.new_arrow(&c, &b, "DEBUG", default_vals());
+        mosaic.new_arrow(&c, &d, "DEBUG", default_vals());
 
         let p = mosaic.traverse(t);
         assert_eq!(1, p.out_degree(&a));
@@ -100,11 +100,11 @@ mod traversal_tests {
         let t = Traversal::Exclude { components: &[] };
 
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG");
-        let b = mosaic.new_object("DEBUG");
-        let c = mosaic.new_object("DEBUG");
-        let d = mosaic.new_object("DEBUG");
-        let e = mosaic.new_object("DEBUG");
+        let a = mosaic.new_object("DEBUG", default_vals());
+        let b = mosaic.new_object("DEBUG", default_vals());
+        let c = mosaic.new_object("DEBUG", default_vals());
+        let d = mosaic.new_object("DEBUG", default_vals());
+        let e = mosaic.new_object("DEBUG", default_vals());
 
         /*
                       /----> b
@@ -123,12 +123,12 @@ mod traversal_tests {
                    1 -----> x
 
         */
-        mosaic.new_arrow(&a, &b, "DEBUG");
-        mosaic.new_arrow(&e, &c, "DEBUG");
-        mosaic.new_arrow(&a, &e, "DEBUG");
-        mosaic.new_arrow(&b, &c, "DEBUG");
-        mosaic.new_arrow(&c, &b, "DEBUG");
-        mosaic.new_arrow(&c, &d, "DEBUG");
+        mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        mosaic.new_arrow(&e, &c, "DEBUG", default_vals());
+        mosaic.new_arrow(&a, &e, "DEBUG", default_vals());
+        mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        mosaic.new_arrow(&c, &b, "DEBUG", default_vals());
+        mosaic.new_arrow(&c, &d, "DEBUG", default_vals());
 
         let op = mosaic.traverse(t);
 
@@ -152,10 +152,10 @@ mod traversal_tests {
 
         let _ = mosaic.new_type("Object: void; Arrow: void;");
 
-        let a = mosaic.new_object("Object");
-        let b = mosaic.new_object("Object");
-        let d = mosaic.new_object("Object");
-        let e = mosaic.new_object("Object");
+        let a = mosaic.new_object("Object", default_vals());
+        let b = mosaic.new_object("Object", default_vals());
+        let d = mosaic.new_object("Object", default_vals());
+        let e = mosaic.new_object("Object", default_vals());
         /*
             a -- x ---> b ----- y
                         |       |
@@ -163,10 +163,10 @@ mod traversal_tests {
                         v ----> d -- z --> e
 
         */
-        let _x = mosaic.new_arrow(&a, &b, "Arrow");
-        let y = mosaic.new_arrow(&b, &d, "Arrow");
-        let v = mosaic.new_arrow(&b, &d, "Arrow");
-        let _z = mosaic.new_arrow(&d, &e, "Arrow");
+        let _x = mosaic.new_arrow(&a, &b, "Arrow", default_vals());
+        let y = mosaic.new_arrow(&b, &d, "Arrow", default_vals());
+        let v = mosaic.new_arrow(&b, &d, "Arrow", default_vals());
+        let _z = mosaic.new_arrow(&d, &e, "Arrow", default_vals());
 
         let t = Traversal::Exclude { components: &[] };
 
@@ -185,7 +185,7 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{Mosaic, MosaicCRUD, MosaicTypelevelCRUD},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD},
     };
 
     #[test]
@@ -193,10 +193,10 @@ mod grouping_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Group: s32;").unwrap();
 
-        let o = mosaic.new_object("DEBUG");
-        let b = mosaic.new_object("DEBUG");
-        let c = mosaic.new_object("DEBUG");
-        let d = mosaic.new_object("DEBUG");
+        let o = mosaic.new_object("DEBUG", default_vals());
+        let b = mosaic.new_object("DEBUG", default_vals());
+        let c = mosaic.new_object("DEBUG", default_vals());
+        let d = mosaic.new_object("DEBUG", default_vals());
 
         /*
                          /----> b

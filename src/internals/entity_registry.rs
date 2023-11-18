@@ -1,8 +1,6 @@
-use slab::Slab;
-
 use super::{
     component_grammar::ComponentParser,
-    datatypes::{ComponentType, EntityId, S32 as ComponentName},
+    datatypes::{ComponentType, S32 as ComponentName},
     logging::Logging,
     Bytesize, ComponentField, Datatype, ToByteArray, Value,
 };
@@ -15,52 +13,21 @@ use std::{
 
 type FieldName = ComponentName;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub(crate) struct DataBrick {
-    // Structural data (24 bytes)
-    pub(crate) id: EntityId,
-    pub(crate) source: EntityId,
-    pub(crate) target: EntityId,
-    // Component (32 bytes)
-    pub(crate) component: ComponentName,
-    // Data (fills to 256 bytes)
-    pub(crate) data: [u8; 200],
-}
-
-impl DataBrick {
-    pub(crate) fn new(
-        id: EntityId,
-        source: EntityId,
-        target: EntityId,
-        component: ComponentName,
-    ) -> DataBrick {
-        DataBrick {
-            id,
-            source,
-            target,
-            component,
-            data: [0; 200],
-        }
-    }
-}
-
 #[derive(Default, Debug)]
-pub struct EntityRegistry {
+pub struct ComponentRegistry {
     pub component_type_map: Mutex<HashMap<ComponentName, ComponentType>>,
     pub component_offset_size_map: Mutex<HashMap<(String, FieldName), Range<usize>>>,
-    pub id_allocation_index: Mutex<HashMap<EntityId, usize>>,
-    pub(crate) component_slabs: Mutex<HashMap<ComponentName, Slab<DataBrick>>>,
 }
 
-impl PartialEq for EntityRegistry {
+impl PartialEq for ComponentRegistry {
     fn eq(&self, _: &Self) -> bool {
         true
     }
 }
 
-impl Eq for EntityRegistry {}
+impl Eq for ComponentRegistry {}
 
-impl EntityRegistry {
+impl ComponentRegistry {
     fn flatten_component_type(&self, definition: ComponentType) -> anyhow::Result<ComponentType> {
         use ComponentType::*;
         match &definition {
@@ -90,11 +57,6 @@ impl EntityRegistry {
             offset_size_index.insert((definition.name().to_string(), field.name), range);
             offset += size;
         }
-
-        self.component_slabs
-            .lock()
-            .unwrap()
-            .insert(definition.name().into(), Slab::new());
     }
 
     fn unify_fields_and_values_into_data(
@@ -136,9 +98,9 @@ impl EntityRegistry {
     }
 }
 
-impl EntityRegistry {
-    pub fn new() -> Arc<EntityRegistry> {
-        Arc::new(EntityRegistry::default())
+impl ComponentRegistry {
+    pub fn new() -> Arc<ComponentRegistry> {
+        Arc::new(ComponentRegistry::default())
     }
 
     pub fn add_component_types(&self, definition: &str) -> anyhow::Result<()> {
