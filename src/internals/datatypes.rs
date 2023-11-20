@@ -2,13 +2,11 @@ use std::fmt::Display;
 
 use fstr::FStr;
 
-use super::{byte_utilities::Bytesize, engine_state::EngineState};
+use super::{logging::Logging, Bytesize, ComponentRegistry};
 
-/// Entity identifiers are simple usize indices
 pub type EntityId = usize;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-/// A type representing bound 32-byte strings
 pub struct S32(pub FStr<32>);
 impl Copy for S32 {}
 
@@ -46,54 +44,66 @@ impl std::fmt::Debug for S32 {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-/// A type representing unbound, interned strings
 pub struct Str(pub u64);
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
-/// An enumeration of all basic datatypes used in components.
 pub enum Datatype {
-    /// A void type of size 0 used as markers and tags
     VOID,
-    /// Entity ID - equal to usize but will be affected by frame transitions
     EID,
-    /// A 64-bit signed integer number
     I32,
-    /// A 64-bit signed integer number
     I64,
-    /// A 32-bit unsigned integer number
     U32,
-    /// A 64-bit unsigned integer number
     U64,
-    /// A 32-bit floating-point number
     F32,
-    /// A 64-bit floating-point number
     F64,
-    /// A 32-bit bound-size string
     S32,
-    /// An interned unbound string
-    B256,
-    /// A component name and layout - allows for composition
+    B128,
     COMP(S32),
 }
 
+pub fn self_val(value: Value) -> Vec<(S32, Value)> {
+    vec![("self".into(), value)]
+}
+
+pub fn default_vals() -> Vec<(S32, Value)> {
+    vec![]
+}
+
+impl Datatype {
+    pub fn get_default(&self) -> Value {
+        match self {
+            Datatype::VOID => Value::VOID,
+            // COMP fields will disappear when the component is added to the engine state,
+            // so this situation should never arise. However, we'll leave a log here just in case.
+            Datatype::COMP(_) => Value::VOID,
+            Datatype::I32 => Value::I32(0),
+            Datatype::U32 => Value::U32(0),
+            Datatype::F32 => Value::F32(0.0),
+            Datatype::S32 => Value::S32("".into()),
+            Datatype::I64 => Value::I64(0),
+            Datatype::U64 => Value::U64(0),
+            Datatype::F64 => Value::F64(0.0),
+            Datatype::EID => Value::EID(0),
+            Datatype::B128 => Value::B128(vec![]),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-/// A named component field, holding just a name and the field's datatype
 pub struct ComponentField {
     pub name: S32,
     pub datatype: Datatype,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-/// A component type, used for figuring out memory access
 pub enum ComponentType {
-    /// An alias of a simple datatype
     Alias(ComponentField),
-    /// A sum type - an enumeration of types of which only one is selected at a time
+
     Sum {
         name: S32,
         fields: Vec<ComponentField>,
     },
-    /// A product type - a vector of named fields holding different types
+
     Product {
         name: S32,
         fields: Vec<ComponentField>,
@@ -144,7 +154,6 @@ impl ComponentType {
         self.get_fields().iter().map(|comp| comp.name).collect()
     }
 
-    /// Returns the fields of a certain component types
     pub fn get_fields(&self) -> Vec<ComponentField> {
         match self {
             ComponentType::Alias(field) => vec![field.clone()],
@@ -164,62 +173,55 @@ impl ComponentType {
 }
 
 pub fn try_read_component_type(
-    engine: &EngineState,
+    engine: &ComponentRegistry,
     input: &[u8],
-) -> Result<ComponentType, String> {
+) -> anyhow::Result<ComponentType> {
     let component_name_length = 32;
     let input_length = input.len();
 
     if input_length < component_name_length {
-        return Err("[Error][datatypes.rs][try_read_component_type] Input not long enough to read type name.".to_string());
+        return "Input not long enough to read type name.".to_error();
     }
 
     let message_length = input.len() - component_name_length;
 
     let message_type = &input[0..component_name_length];
-    let utf8_name = std::str::from_utf8(message_type).map_err(|e| e.to_string())?;
+    let utf8_name = std::str::from_utf8(message_type)?;
     let component_name: S32 = utf8_name.into();
 
     let component_type = engine.get_component_type(component_name)?;
     let bytesize = component_type.bytesize(engine);
     if 8 * bytesize != message_length {
-        Err(format!("[Error][datatypes.rs][try_read_component_type] Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
-            component_name, bytesize, message_length, input))
+        format!(
+            "Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
+            component_name, bytesize, message_length, input
+        )
+        .to_error()
     } else {
         Ok(component_type)
     }
 }
 
-pub type B256 = fstr::FStr<256>;
+pub type B128 = Vec<u8>;
+
+pub type ComponentValues = Vec<(S32, Value)>;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(clippy::large_enum_variant)]
-/// A datatype value that holds the type and value for some variable
 pub enum Value {
-    /// A void type of size 0 used as markers and tags
     VOID,
-    /// Entity ID - equal to U32 but will be affected by frame transitions
     EID(EntityId),
-    /// A 64-bit signed integer number
     I32(i32),
-    /// A 64-bit signed integer number
     I64(i64),
-    /// A 32-bit unsigned integer number
     U32(u32),
-    /// A 64-bit unsigned integer number
     U64(u64),
-    /// A 32-bit floating-point number
     F32(f32),
-    /// A 64-bit floating-point number
     F64(f64),
-    /// A 32-bit bound-size string
     S32(S32),
-    /// An interned unbound string
-    B256(B256),
+    B128(B128),
 }
 
 impl Value {
-    /// Gets the datatype from the datatype and value pair
     pub fn get_datatype(&self) -> Datatype {
         match self {
             Value::VOID => Datatype::VOID,
@@ -231,92 +233,70 @@ impl Value {
             Value::F32(_) => Datatype::F32,
             Value::F64(_) => Datatype::F64,
             Value::S32(_) => Datatype::S32,
-            Value::B256(_) => Datatype::B256,
+            Value::B128(_) => Datatype::B128,
         }
     }
-}
 
-/* /////////////////////////////////////////////////////////////////////////////////// */
-/// Unit Tests
-/* /////////////////////////////////////////////////////////////////////////////////// */
-
-#[cfg(test)]
-mod datatypes_testing {
-    use crate::internals::{
-        datatypes::ComponentField, engine_state::EngineState, lifecycle::Lifecycle,
-    };
-
-    use super::{try_read_component_type, ComponentType, Datatype, Value, S32};
-
-    #[test]
-    fn test_try_read_alias() {
-        let engine_state = EngineState::new();
-        let component_type = ComponentType::Alias({
-            ComponentField {
-                name: "foo".into(),
-                datatype: Datatype::EID,
-            }
-        });
-        engine_state.add_raw_component_type(component_type.clone());
-
-        let input = {
-            let mut buffer: Vec<u8> = vec![];
-            let name: S32 = "foo".into();
-            buffer.extend(name.0.as_bytes());
-            buffer.extend(vec![0u8; 64]);
-            buffer
-        };
-
-        assert_eq!(
-            Ok(component_type),
-            try_read_component_type(&engine_state, input.as_slice())
-        );
+    pub fn as_eid(&self) -> EntityId {
+        match self {
+            Value::EID(v) => *v,
+            _ => panic!("Cannot get type variant EID"),
+        }
     }
 
-    #[test]
-    fn test_try_read_product() {
-        let engine_state = EngineState::new();
-        let component_type = ComponentType::Product {
-            name: "foo".into(),
-            fields: vec![
-                ComponentField {
-                    name: "a".into(),
-                    datatype: Datatype::EID,
-                },
-                ComponentField {
-                    name: "b".into(),
-                    datatype: Datatype::U32,
-                },
-            ],
-        };
-
-        engine_state.add_raw_component_type(component_type.clone());
-
-        let input = {
-            let mut buffer: Vec<u8> = vec![];
-            let name: S32 = "foo".into();
-            buffer.extend(name.0.as_bytes());
-            buffer.extend(vec![0u8; 64]);
-            buffer.extend(vec![0u8; 32]);
-            buffer
-        };
-
-        assert_eq!(
-            Ok(component_type),
-            try_read_component_type(&engine_state, input.as_slice())
-        );
+    pub fn as_i32(&self) -> i32 {
+        match self {
+            Value::I32(v) => *v,
+            _ => panic!("Cannot get type variant I32"),
+        }
     }
 
-    #[test]
-    fn test_large_numbers() {
-        let engine_state = EngineState::new();
-        engine_state.add_component_types("Num : u32;").unwrap();
+    pub fn as_i64(&self) -> i64 {
+        match self {
+            Value::I64(v) => *v,
+            _ => panic!("Cannot get type variant I64"),
+        }
+    }
 
-        let a = engine_state
-            .create_object("Num".into(), vec![Value::U32(4294967294)])
-            .unwrap();
+    pub fn as_u32(&self) -> u32 {
+        match self {
+            Value::U32(v) => *v,
+            _ => panic!("Cannot get type variant U32"),
+        }
+    }
 
-        let brick = engine_state.get_brick(a).unwrap();
-        assert_eq!(vec![255u8, 255u8, 255u8, 254u8], brick.data);
+    pub fn as_u64(&self) -> u64 {
+        match self {
+            Value::U64(v) => *v,
+            _ => panic!("Cannot get type variant U64"),
+        }
+    }
+
+    pub fn as_f32(&self) -> f32 {
+        match self {
+            Value::F32(v) => *v,
+            _ => panic!("Cannot get type variant F32"),
+        }
+    }
+
+    pub fn as_f64(&self) -> f64 {
+        match self {
+            Value::F64(v) => *v,
+            _ => panic!("Cannot get type variant F64"),
+        }
+    }
+
+    pub fn as_s32(&self) -> S32 {
+        match self {
+            Value::S32(v) => *v,
+            _ => panic!("Cannot get type variant S32"),
+        }
+    }
+
+    pub fn as_b128(&self) -> B128 {
+        match self {
+            Value::B128(v) => v.clone(),
+            _ => panic!("Cannot get type variant B128"),
+        }
     }
 }

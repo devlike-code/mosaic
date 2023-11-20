@@ -1,13 +1,13 @@
 use fstr::FStr;
 use std::convert::AsMut;
 
+use super::component_registry::ComponentRegistry;
 use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
-use super::engine_state::EngineState;
-use super::{Value, B256};
+use super::{Value, B128};
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
 pub(crate) trait Bytesize {
-    fn bytesize(&self, engine: &EngineState) -> usize;
+    fn bytesize(&self, engine: &ComponentRegistry) -> usize;
 }
 
 /// Representation for anything that can be deserialized from a byte array
@@ -166,17 +166,17 @@ impl FromByteArray for Str {
 }
 
 /// The `ToByteArray` implementation for `s32`
-impl ToByteArray for B256 {
+impl ToByteArray for B128 {
     fn to_byte_array(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+        self.to_vec()
     }
 }
 
 /// The `FromByteArray` implementation for `str`
-impl FromByteArray for B256 {
+impl FromByteArray for B128 {
     fn from_byte_array(data: &[u8]) -> Self {
-        let str = std::str::from_utf8(data);
-        FStr::<256>::from_str_lossy(str.unwrap(), b'\0')
+        data.try_into()
+            .expect("Cannot turn slice into array and satisfy conditions for B128")
     }
 }
 
@@ -189,7 +189,7 @@ impl ToByteArray for Str {
 
 /// A bytesize check for complex component datatypes
 impl Bytesize for ComponentType {
-    fn bytesize(&self, engine: &EngineState) -> usize {
+    fn bytesize(&self, engine: &ComponentRegistry) -> usize {
         match self {
             ComponentType::Alias(field) => field.datatype.bytesize(engine),
             ComponentType::Sum { fields, .. } => fields
@@ -208,13 +208,13 @@ impl Bytesize for ComponentType {
 
 /// A bytesize check for all basic component datatypes
 impl Bytesize for Datatype {
-    fn bytesize(&self, engine: &EngineState) -> usize {
+    fn bytesize(&self, engine: &ComponentRegistry) -> usize {
         match self {
             Datatype::VOID => 0usize,
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,
             Datatype::I64 | Datatype::U64 | Datatype::F64 | Datatype::EID => 8usize,
             Datatype::S32 => 32usize,
-            Datatype::B256 => 256usize,
+            Datatype::B128 => 128usize,
             Datatype::COMP(component_name) => engine
                 .get_component_type(*component_name)
                 .map(|t| t.bytesize(engine))
@@ -245,7 +245,7 @@ impl ToByteArray for Value {
             Value::F32(f) => (*f).to_byte_array(),
             Value::F64(f) => (*f).to_byte_array(),
             Value::S32(s) => s.to_byte_array(),
-            Value::B256(b) => b.to_byte_array(),
+            Value::B128(b) => b.to_byte_array(),
         }
     }
 }

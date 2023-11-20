@@ -27,7 +27,7 @@ field_datatype_expr = {
     | "f64"
     | "id"
     | "s32"
-    | "b256"
+    | "b128"
 }
 
 datatype_expr = { 
@@ -40,6 +40,6 @@ datatype_expr = {
     | "f64"
     | "id"
     | "s32"
-    | "b256"
+    | "b128"
     | identifier
 }
