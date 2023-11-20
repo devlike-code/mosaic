@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::internals::Logging;
+use crate::internals::{self_val, Logging};
 use crate::iterators::get_targets::GetTargets;
 use crate::{
     internals::{
@@ -51,19 +51,10 @@ impl GroupingCapability for Arc<Mosaic> {
             self.delete_tile(previous_owner_descriptor.id);
         }
 
-        let desc = self.new_descriptor(
-            owner,
-            "GroupOwner",
-            vec![("self".into(), Value::S32(group.into()))],
-        );
+        let desc = self.new_descriptor(owner, "GroupOwner", self_val(Value::S32(group.into())));
 
         for &member in members {
-            self.new_arrow(
-                &desc,
-                member,
-                "Group",
-                vec![("self".into(), Value::S32(group.into()))],
-            );
+            self.new_arrow(&desc, member, "Group", self_val(Value::S32(group.into())));
         }
     }
 
@@ -73,7 +64,7 @@ impl GroupingCapability for Arc<Mosaic> {
                 &owner_descriptor,
                 member,
                 "Group",
-                vec![("self".into(), Value::S32(group.into()))],
+                self_val(Value::S32(group.into())),
             );
             Ok(())
         } else {

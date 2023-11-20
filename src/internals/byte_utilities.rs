@@ -1,8 +1,8 @@
 use fstr::FStr;
 use std::convert::AsMut;
 
+use super::component_registry::ComponentRegistry;
 use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
-use super::entity_registry::ComponentRegistry;
 use super::{Value, B128};
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known

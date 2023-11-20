@@ -1,23 +1,25 @@
 use std::{collections::HashMap, ops::Index, sync::Arc};
 
-use crate::iterators::{
-    filter_arrows::{FilterArrows, FilterArrowsIterator},
-    filter_descriptors::{FilterDescriptors, FilterDescriptorsIterator},
-    filter_extensions::{FilterExtensions, FilterExtensionsIterator},
-    get_dependents::{GetDependentTiles, GetDependentsIterator},
-    just_tile::JustTileIterator,
+use crate::{
+    internals::ToByteArray,
+    iterators::{
+        filter_arrows::{FilterArrows, FilterArrowsIterator},
+        filter_descriptors::{FilterDescriptors, FilterDescriptorsIterator},
+        filter_extensions::{FilterExtensions, FilterExtensionsIterator},
+        get_dependents::{GetDependentTiles, GetDependentsIterator},
+        just_tile::JustTileIterator,
+    },
 };
 
-use super::{ComponentType, ComponentValues, EntityId, Mosaic, Value, S32};
+use super::{Bytesize, ComponentType, ComponentValues, Datatype, EntityId, Mosaic, Value, S32};
+use crate::internals::byte_utilities::FromByteArray;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
 pub enum TileType {
     Object,
     Arrow { source: EntityId, target: EntityId },
-    Loop { endpoint: EntityId },
     Descriptor { subject: EntityId },
     Extension { subject: EntityId },
-    Backlink { source: EntityId, target: EntityId },
 }
 
 #[derive(Clone)]
@@ -33,10 +35,8 @@ impl std::fmt::Display for Tile {
         let mark = match self.tile_type {
             TileType::Object => "x",
             TileType::Arrow { .. } => ">",
-            TileType::Loop { .. } => "o",
             TileType::Descriptor { .. } => "d",
             TileType::Extension { .. } => "e",
-            TileType::Backlink { .. } => "<",
         };
         f.write_fmt(format_args!("({}|{})", mark, self.id))
     }
@@ -47,10 +47,8 @@ impl std::fmt::Debug for Tile {
         let mark = match self.tile_type {
             TileType::Object => "x",
             TileType::Arrow { .. } => ">",
-            TileType::Loop { .. } => "o",
             TileType::Descriptor { .. } => "d",
             TileType::Extension { .. } => "e",
-            TileType::Backlink { .. } => "<",
         };
         f.write_fmt(format_args!(
             "({}|{}|{}|{:?})",
@@ -108,7 +106,9 @@ impl Tile {
         defaults: ComponentValues,
     ) -> anyhow::Result<()> {
         let defaults = defaults.into_iter().collect::<HashMap<_, _>>();
-        let component_type = mosaic.entity_registry.get_component_type(self.component)?;
+        let component_type = mosaic
+            .component_registry
+            .get_component_type(self.component)?;
         component_type
             .get_fields()
             .iter()
@@ -130,111 +130,79 @@ impl Tile {
         Ok(())
     }
 
-    // pub(crate) fn read_fields_from_data_brick(
-    //     mosaic: &Mosaic,
-    //     brick: &DataBrick,
-    // ) -> anyhow::Result<HashMap<S32, Value>> {
-    //     let component_type = mosaic.entity_registry.get_component_type(brick.component)?;
-    //     let component_fields = component_type
-    //         .get_fields()
-    //         .iter()
-    //         .map(|field| {
-    //             (
-    //                 field.name,
-    //                 field.datatype.to_owned(),
-    //                 Self::get_field_offset(mosaic, &component_type, field.name),
-    //             )
-    //         })
-    //         .collect_vec();
-
-    //     let mut result = HashMap::default();
-    //     for (field_name, datatype, field_offset) in component_fields {
-    //         if let Some(offset) = field_offset {
-    //             let field_data_raw = &brick.data[offset.clone()];
-
-    //             let value: Value = match datatype {
-    //                 Datatype::VOID => Value::VOID,
-    //                 // COMP fields will disappear when the component is added to the engine state,
-    //                 // so this situation should never arise. However, we'll leave a log here just in case.
-    //                 Datatype::COMP(_) => Value::VOID,
-    //                 Datatype::I32 => {
-    //                     Value::I32(i32::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::U32 => {
-    //                     Value::U32(u32::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::F32 => {
-    //                     Value::F32(f32::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::S32 => Value::S32(field_data_raw.into()),
-    //                 Datatype::I64 => {
-    //                     Value::I64(i64::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::U64 => {
-    //                     Value::U64(u64::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::F64 => {
-    //                     Value::F64(f64::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::EID => {
-    //                     Value::EID(usize::from_be_bytes(slice_into_array(field_data_raw)))
-    //                 }
-    //                 Datatype::B128 => Value::B128(slice_into_array(field_data_raw)),
-    //             };
-
-    //             result.insert(
-    //                 if component_type.is_alias() {
-    //                     "self".into()
-    //                 } else {
-    //                     field_name
-    //                 },
-    //                 value,
-    //             );
-    //         } else {
-    //             return format!(
-    //                 "Cannot create field {} from component data - field missing in component {}.",
-    //                 field_name,
-    //                 component_type.name()
-    //             )
-    //             .to_error();
-    //         }
-    //     }
-
-    //     Ok(result)
-    // }
-
-    fn create_binary_data_from_fields(&self, component: &ComponentType) -> Vec<u8> {
-        let data = component
+    pub(crate) fn create_fields_from_binary_data(
+        mosaic: &Mosaic,
+        component: &ComponentType,
+        data: Vec<u8>,
+    ) -> HashMap<S32, Value> {
+        let (_, fields) = component
             .get_fields()
             .into_iter()
             .map(|f| {
                 if component.is_alias() {
-                    self.data.get(&"self".into()).unwrap()
+                    ("self".into(), f.datatype)
                 } else {
-                    self.data.get(&f.name).unwrap()
+                    (f.name, f.datatype)
                 }
             })
-            .fold(vec![], |old: Vec<u8>, value| {
+            .fold(
+                (0usize, HashMap::<S32, Value>::new()),
+                |(ptr, mut old), (name, datatype)| {
+                    let size = datatype.bytesize(&mosaic.component_registry);
+                    let comp_data = &data[ptr..ptr + size];
+
+                    let value = match datatype {
+                        Datatype::VOID => Value::VOID,
+                        Datatype::I32 => Value::I32(i32::from_byte_array(comp_data)),
+                        Datatype::U32 => Value::U32(u32::from_byte_array(comp_data)),
+                        Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
+                        Datatype::S32 => Value::S32(S32::from_byte_array(comp_data)),
+                        Datatype::I64 => Value::I64(i64::from_byte_array(comp_data)),
+                        Datatype::U64 => Value::U64(u64::from_byte_array(comp_data)),
+                        Datatype::F64 => Value::F64(f64::from_byte_array(comp_data)),
+                        Datatype::EID => Value::EID(EntityId::from_byte_array(comp_data)),
+                        Datatype::B128 => Value::B128(comp_data.to_vec().clone()),
+                        Datatype::COMP(_) => panic!("Unreachable"),
+                    };
+
+                    old.insert(name, value);
+                    (ptr + size, old)
+                },
+            );
+
+        fields
+    }
+    pub(crate) fn create_binary_data_from_fields(&self, component: &ComponentType) -> Vec<u8> {
+        component
+            .get_fields()
+            .into_iter()
+            .map(|f| {
+                if component.is_alias() {
+                    ("self".into(), self.data.get(&"self".into()).unwrap())
+                } else {
+                    (f.name, self.data.get(&f.name).unwrap())
+                }
+            })
+            .fold(vec![], |old: Vec<u8>, (_, value)| {
                 let mut temp = old.clone();
+
+                // temp.extend(name.to_byte_array());
+
                 let value_bytes: Vec<u8> = match value {
                     Value::VOID => vec![],
-                    Value::I32(x) => x.to_be_bytes().to_vec(),
-                    Value::U32(x) => x.to_be_bytes().to_vec(),
-                    Value::F32(x) => x.to_be_bytes().to_vec(),
-                    Value::S32(x) => x.0.as_bytes().to_vec(),
-                    Value::I64(x) => x.to_be_bytes().to_vec(),
-                    Value::U64(x) => x.to_be_bytes().to_vec(),
-                    Value::F64(x) => x.to_be_bytes().to_vec(),
-                    Value::EID(x) => x.to_be_bytes().to_vec(),
+                    Value::I32(x) => x.to_byte_array(),
+                    Value::U32(x) => x.to_byte_array(),
+                    Value::F32(x) => x.to_byte_array(),
+                    Value::S32(x) => x.to_byte_array(),
+                    Value::I64(x) => x.to_byte_array(),
+                    Value::U64(x) => x.to_byte_array(),
+                    Value::F64(x) => x.to_byte_array(),
+                    Value::EID(x) => x.to_byte_array(),
                     Value::B128(x) => x.clone(),
                 };
                 temp.extend(value_bytes);
-                temp.resize(200, 0);
                 temp
-            });
-
-        assert_eq!(200, data.len());
-        data
+            })
     }
 
     // pub fn commit(&self, mosaic: Arc<Mosaic>) -> anyhow::Result<()> {
@@ -282,7 +250,7 @@ impl Tile {
         id: EntityId,
         tile_type: TileType,
         component: S32,
-        defaults: ComponentValues,
+        fields: ComponentValues,
     ) -> Tile {
         let mut tile = Tile {
             id,
@@ -291,7 +259,7 @@ impl Tile {
             data: HashMap::default(),
         };
 
-        tile.create_data_fields(mosaic, defaults)
+        tile.create_data_fields(mosaic, fields)
             .expect("Cannot create data fields, panicking!");
 
         mosaic
@@ -310,10 +278,8 @@ impl Tile {
         match self.tile_type {
             TileType::Object => self.id,
             TileType::Arrow { source, .. } => source,
-            TileType::Loop { endpoint } => endpoint,
             TileType::Descriptor { .. } => self.id,
             TileType::Extension { subject } => subject,
-            TileType::Backlink { source, .. } => source,
         }
     }
 
@@ -321,10 +287,8 @@ impl Tile {
         match self.tile_type {
             TileType::Object => self.id,
             TileType::Arrow { target, .. } => target,
-            TileType::Loop { endpoint } => endpoint,
             TileType::Descriptor { subject } => subject,
             TileType::Extension { .. } => self.id,
-            TileType::Backlink { target, .. } => target,
         }
     }
 
@@ -337,7 +301,7 @@ impl Tile {
     }
 
     pub fn is_loop(&self) -> bool {
-        matches!(self.tile_type, TileType::Loop { .. })
+        matches!(self.tile_type, TileType::Arrow { .. }) && self.source_id() == self.target_id()
     }
 
     pub fn is_descriptor(&self) -> bool {
@@ -346,10 +310,6 @@ impl Tile {
 
     pub fn is_extension(&self) -> bool {
         matches!(self.tile_type, TileType::Extension { .. })
-    }
-
-    pub fn is_backlink(&self) -> bool {
-        matches!(self.tile_type, TileType::Backlink { .. })
     }
 }
 

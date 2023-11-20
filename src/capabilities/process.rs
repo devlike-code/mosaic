@@ -11,7 +11,7 @@ use crate::{
 
 use super::GroupingCapability;
 
-trait ProcessCapability: GroupingCapability {
+pub trait ProcessCapability: GroupingCapability {
     fn create_process(&self, name: &str, params: &[&str]) -> anyhow::Result<Tile>;
     fn pass_process_parameter(
         &self,
@@ -37,9 +37,14 @@ impl ProcessCapability for Arc<Mosaic> {
         let process = self.new_object("Process", self_val(Value::S32(name.into())));
 
         self.group(name, &process, &[]);
+        let process_desc = self.get_group_owner_descriptor(name, &process).unwrap();
 
         for &param in params {
-            let param_obj = self.new_object("ProcessParameter", self_val(Value::S32(param.into())));
+            let param_obj = self.new_extension(
+                &process_desc,
+                "ProcessParameter",
+                self_val(Value::S32(param.into())),
+            );
             self.add_group_member(name, &process, &param_obj)?;
         }
 
@@ -142,40 +147,5 @@ impl ProcessCapability for Arc<Mosaic> {
                 )
             })
             .collect::<HashMap<_, _>>())
-    }
-}
-
-#[cfg(test)]
-mod process_tests {
-    use std::sync::Arc;
-
-    use crate::internals::{self_val, Logging, Mosaic, MosaicTypelevelCRUD, Tile, Value};
-
-    use super::ProcessCapability;
-
-    #[test]
-    fn test_processes() {
-        let mosaic = Mosaic::new();
-        mosaic.new_type("Number: u32;").unwrap();
-
-        let add = mosaic.create_process("add", &["a", "b"]).unwrap();
-        let x = mosaic.new_object("Number", self_val(Value::U32(7)));
-        let y = mosaic.new_object("Number", self_val(Value::U32(5)));
-
-        mosaic.pass_process_parameter(&add, "a", &x).unwrap();
-        mosaic.pass_process_parameter(&add, "b", &y).unwrap();
-
-        fn do_add(mosaic: &Arc<Mosaic>, add_instance: &Tile) -> anyhow::Result<u32> {
-            let args = mosaic.get_process_parameter_values(add_instance)?;
-            let a = args.get(&"a".into()).unwrap();
-            let b = args.get(&"b".into()).unwrap();
-
-            match (&a, &b) {
-                (Some(a), Some(b)) => Ok(a["self"].as_u32() + b["self"].as_u32()),
-                _ => "Can't do add :(".to_error(),
-            }
-        }
-
-        assert_eq!(12, do_add(&mosaic, &add).unwrap());
     }
 }

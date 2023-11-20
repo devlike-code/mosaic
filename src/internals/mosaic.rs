@@ -4,23 +4,24 @@ use std::{
 };
 
 use atomic_counter::{AtomicCounter, RelaxedCounter};
+use fstr::FStr;
 use itertools::Itertools;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    get_entities::GetEntitiesIterator, get_tiles::GetTilesIterator, ComponentRegistry,
-    ComponentValues, EntityId, Logging, SparseSet, Tile, TileType,
+    get_entities::GetEntitiesIterator, get_tiles::GetTilesIterator, slice_into_array,
+    ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile, TileType, ToByteArray,
+    S32,
 };
 
 #[derive(Debug)]
 pub struct Mosaic {
     pub(crate) entity_counter: Arc<RelaxedCounter>,
-    pub(crate) entity_registry: Arc<ComponentRegistry>,
+    pub(crate) component_registry: Arc<ComponentRegistry>,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
     pub(crate) dependent_ids_map: Mutex<ListOrderedMultimap<EntityId, EntityId>>,
     object_ids: Mutex<SparseSet>,
     arrow_ids: Mutex<SparseSet>,
-    loop_ids: Mutex<SparseSet>,
     descriptor_ids: Mutex<SparseSet>,
     extension_ids: Mutex<SparseSet>,
 }
@@ -37,12 +38,11 @@ impl Mosaic {
     pub fn new() -> Arc<Mosaic> {
         let mosaic = Arc::new(Mosaic {
             entity_counter: Arc::new(RelaxedCounter::default()),
-            entity_registry: Arc::new(ComponentRegistry::default()),
+            component_registry: Arc::new(ComponentRegistry::default()),
             tile_registry: Mutex::new(HashMap::default()),
             dependent_ids_map: Mutex::new(ListOrderedMultimap::default()),
             object_ids: Mutex::new(SparseSet::default()),
             arrow_ids: Mutex::new(SparseSet::default()),
-            loop_ids: Mutex::new(SparseSet::default()),
             descriptor_ids: Mutex::new(SparseSet::default()),
             extension_ids: Mutex::new(SparseSet::default()),
         });
@@ -103,7 +103,190 @@ impl TileGetById for Arc<Mosaic> {
     }
 }
 
+#[derive(Debug)]
+pub(crate) enum MosaicLoadCommand {
+    AddType(String),
+    CreateTile(EntityId, EntityId, EntityId, S32, Vec<u8>),
+}
+
 impl Mosaic {
+    pub fn save(&self) -> Vec<u8> {
+        let mut result = vec![];
+
+        self.component_registry
+            .component_definitions
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .sorted()
+            .for_each(|v| {
+                result.extend((v.len() as u16).to_be_bytes());
+                result.extend(v.as_bytes());
+            });
+
+        result.extend(0u16.to_be_bytes());
+
+        let mut entries = self
+            .tile_registry
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .collect_vec();
+
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+        entries.into_iter().for_each(|(_, t)| {
+            result.extend(t.id.to_byte_array());
+            result.extend(t.source_id().to_byte_array());
+            result.extend(t.target_id().to_byte_array());
+            let comp = t.component.0.as_str().replace('\0', "");
+            result.extend(comp.len().to_byte_array());
+            result.extend(comp.as_bytes());
+            let data = t.create_binary_data_from_fields(
+                &self
+                    .component_registry
+                    .get_component_type(t.component)
+                    .unwrap(),
+            );
+            result.extend((data.len() as u32).to_byte_array());
+            result.extend(data)
+        });
+
+        result
+    }
+
+    pub fn load(&self, data: &[u8]) -> anyhow::Result<()> {
+        let offset = self.entity_counter.get();
+        let loaded = self.load_commands(data)?;
+
+        loaded.into_iter().for_each(|command| match command {
+            MosaicLoadCommand::AddType(definition) => {
+                self.component_registry
+                    .add_component_types(definition.as_str())
+                    .unwrap();
+            }
+            MosaicLoadCommand::CreateTile(id, src, tgt, component, data) => {
+                let id = id + offset;
+                let src = src + offset;
+                let tgt = tgt + offset;
+                let component_type = &self
+                    .component_registry
+                    .get_component_type(component)
+                    .unwrap();
+
+                let fields = Tile::create_fields_from_binary_data(self, component_type, data);
+
+                if id == src && id == tgt {
+                    // ID : ID -> ID
+                    let tile = Tile::new(
+                        self,
+                        id,
+                        TileType::Object,
+                        component,
+                        fields.into_iter().collect(),
+                    );
+                    self.object_ids.lock().unwrap().add(id);
+                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                } else if id == src && src != tgt {
+                    // ID : ID -> TGT (descriptor)
+                    self.dependent_ids_map.lock().unwrap().append(tgt, id);
+
+                    let tile = Tile::new(
+                        self,
+                        id,
+                        TileType::Descriptor { subject: tgt },
+                        component,
+                        fields.into_iter().collect(),
+                    );
+                    self.descriptor_ids.lock().unwrap().add(id);
+                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                } else if id == tgt && src != tgt {
+                    // ID : SRC -> ID (extension)
+                    self.dependent_ids_map.lock().unwrap().append(src, id);
+
+                    let tile = Tile::new(
+                        self,
+                        id,
+                        TileType::Extension { subject: src },
+                        component,
+                        fields.into_iter().collect(),
+                    );
+                    self.extension_ids.lock().unwrap().add(id);
+                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                } else {
+                    self.dependent_ids_map.lock().unwrap().append(src, id);
+                    self.dependent_ids_map.lock().unwrap().append(tgt, id);
+
+                    let tile = Tile::new(
+                        self,
+                        id,
+                        TileType::Arrow {
+                            source: src,
+                            target: tgt,
+                        },
+                        component,
+                        fields.into_iter().collect(),
+                    );
+                    self.arrow_ids.lock().unwrap().add(id);
+                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    pub(crate) fn load_commands(&self, data: &[u8]) -> anyhow::Result<Vec<MosaicLoadCommand>> {
+        let mut result = vec![];
+        let mut ptr = 0usize;
+
+        let total = data.len();
+
+        loop {
+            let len = u16::from_be_bytes(slice_into_array(&data[ptr..ptr + 2]));
+            ptr += 2;
+            if len == 0 {
+                break;
+            } else {
+                let s = std::str::from_utf8(&data[ptr..ptr + len as usize]).unwrap();
+                ptr += len as usize;
+                result.push(MosaicLoadCommand::AddType(s.to_owned()));
+            }
+        }
+
+        loop {
+            if ptr == total {
+                break;
+            }
+
+            let id = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+            ptr += 8;
+            let src = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+            ptr += 8;
+            let tgt = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+            ptr += 8;
+            let comp_len = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+            ptr += 8;
+            let comp_name = S32(FStr::<32>::from_str_lossy(
+                std::str::from_utf8(&data[ptr..ptr + comp_len]).unwrap(),
+                b'\0',
+            ));
+            ptr += comp_len;
+            let comp_data_len = u32::from_be_bytes(slice_into_array(&data[ptr..ptr + 4]));
+            ptr += 4;
+            let comp_data = data[ptr..ptr + comp_data_len as usize].to_vec();
+            ptr += comp_data_len as usize;
+
+            result.push(MosaicLoadCommand::CreateTile(
+                id, src, tgt, comp_name, comp_data,
+            ));
+        }
+
+        Ok(result)
+    }
+
     pub fn get(&self, i: EntityId) -> Option<Tile> {
         self.tile_registry.lock().unwrap().get(&i).cloned()
     }
@@ -151,7 +334,7 @@ impl MosaicGetEntities for Arc<Mosaic> {
 
 impl MosaicTypelevelCRUD for Arc<Mosaic> {
     fn new_type(&self, type_def: &str) -> anyhow::Result<()> {
-        self.entity_registry.add_component_types(type_def)
+        self.component_registry.add_component_types(type_def)
     }
 }
 
@@ -245,10 +428,7 @@ impl MosaicCRUD<EntityId> for Mosaic {
         if let Some(tile) = self.tile_registry.lock().unwrap().get(&id) {
             match tile.tile_type {
                 TileType::Object => self.object_ids.lock().unwrap().remove(id),
-                TileType::Arrow { .. } | TileType::Backlink { .. } => {
-                    self.arrow_ids.lock().unwrap().remove(id)
-                }
-                TileType::Loop { .. } => self.loop_ids.lock().unwrap().remove(id),
+                TileType::Arrow { .. } => self.arrow_ids.lock().unwrap().remove(id),
                 TileType::Descriptor { .. } => self.descriptor_ids.lock().unwrap().remove(id),
                 TileType::Extension { .. } => self.extension_ids.lock().unwrap().remove(id),
             }

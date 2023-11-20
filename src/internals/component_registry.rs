@@ -17,6 +17,7 @@ type FieldName = ComponentName;
 pub struct ComponentRegistry {
     pub component_type_map: Mutex<HashMap<ComponentName, ComponentType>>,
     pub component_offset_size_map: Mutex<HashMap<(String, FieldName), Range<usize>>>,
+    pub component_definitions: Mutex<Vec<String>>,
 }
 
 impl PartialEq for ComponentRegistry {
@@ -105,6 +106,10 @@ impl ComponentRegistry {
 
     pub fn add_component_types(&self, definition: &str) -> anyhow::Result<()> {
         let types = ComponentParser::parse_all(definition)?;
+        self.component_definitions
+            .lock()
+            .unwrap()
+            .push(definition.to_owned());
         for component_type in types {
             self.add_raw_component_type(self.flatten_component_type(component_type)?);
         }

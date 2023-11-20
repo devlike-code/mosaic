@@ -224,3 +224,63 @@ mod grouping_tests {
         assert_eq!(mosaic.get_group_owner("Parent", &b), Some(o));
     }
 }
+
+#[cfg(test)]
+mod process_tests {
+    use std::sync::Arc;
+
+    use itertools::Itertools;
+
+    use crate::{
+        capabilities::{process::ProcessCapability, GroupingCapability},
+        internals::{self_val, Logging, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile, Value},
+        iterators::get_arrows_from::GetArrowsFromTiles,
+    };
+    #[test]
+    fn test_processes() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Number: u32;").unwrap();
+
+        let add = mosaic.create_process("add", &["a", "b"]).unwrap();
+        println!("{:?}", add);
+        let x = mosaic.new_object("Number", self_val(Value::U32(7)));
+        let y = mosaic.new_object("Number", self_val(Value::U32(5)));
+
+        println!("{:?} {:?}", x, y);
+        mosaic.pass_process_parameter(&add, "a", &x).unwrap();
+        mosaic.pass_process_parameter(&add, "b", &y).unwrap();
+
+        fn do_add(mosaic: &Arc<Mosaic>, add_instance: &Tile) -> anyhow::Result<u32> {
+            let args = mosaic.get_process_parameter_values(add_instance)?;
+            let a = args.get(&"a".into()).unwrap();
+            let b = args.get(&"b".into()).unwrap();
+
+            match (&a, &b) {
+                (Some(a), Some(b)) => Ok(a["self"].as_u32() + b["self"].as_u32()),
+                _ => "Can't do add :(".to_error(),
+            }
+        }
+
+        println!("{:?}", mosaic.get_group_owner_descriptor("add", &add));
+        println!("{:?}", mosaic.get_group_members("add", &add).collect_vec());
+        println!(
+            "{:?}",
+            mosaic
+                .get_group_members("add", &add)
+                .get_arrows_from()
+                .collect_vec()
+        );
+        assert_eq!(12, do_add(&mosaic, &add).unwrap());
+
+        mosaic.delete_tile(add);
+        for i in 0..=5 {
+            assert!(!mosaic.is_tile_valid(&i));
+        }
+
+        assert!(mosaic.is_tile_valid(&6));
+        assert!(mosaic.is_tile_valid(&7));
+
+        assert!(!mosaic.is_tile_valid(&8));
+        assert!(!mosaic.is_tile_valid(&9));
+    }
+}
