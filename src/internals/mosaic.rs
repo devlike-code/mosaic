@@ -54,6 +54,8 @@ impl Mosaic {
         mosaic.new_type("Process: s32;").unwrap();
         mosaic.new_type("ProcessParameter: s32;").unwrap();
         mosaic.new_type("ParameterBinding: s32;").unwrap();
+        mosaic.new_type("ProcessResult: void;").unwrap();
+        mosaic.new_type("ResultBinding: void;").unwrap();
         mosaic
             .new_type("Error: product { position: s32, message: b128 };")
             .unwrap();
