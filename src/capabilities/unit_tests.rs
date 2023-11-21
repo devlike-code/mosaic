@@ -2,7 +2,9 @@
 mod string_tests {
     use itertools::Itertools;
 
-    use crate::{capabilities::StringCapability, internals::Mosaic};
+    use crate::{
+        capabilities::StringCapability, internals::Mosaic, iterators::tile_getters::TileGetters,
+    };
 
     #[test]
     fn test_string_funnel() {
@@ -11,6 +13,8 @@ mod string_tests {
         assert!(mosaic.string_exists("hello world"));
         assert!(hello_world.is_object());
         assert!(!hello_world
+            .clone()
+            .into_iter()
             .get_extensions()
             .collect_vec()
             .is_empty());
@@ -31,7 +35,7 @@ mod traversal_tests {
 
     use crate::{
         capabilities::{traversal::Traverse, Traversal},
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile, MosaicIO},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
     };
 
     #[test]
@@ -185,7 +189,7 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, MosaicIO},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
     };
 
     #[test]
@@ -233,8 +237,10 @@ mod process_tests {
 
     use crate::{
         capabilities::{process::ProcessCapability, GroupingCapability},
-        internals::{self_val, Logging, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile, Value, MosaicIO},
-        iterators::get_arrows_from::GetArrowsFromTiles,
+        internals::{
+            self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile, Value,
+        },
+        iterators::tile_getters::TileGetters,
     };
     #[test]
     fn test_processes() {
@@ -242,11 +248,9 @@ mod process_tests {
         mosaic.new_type("Number: u32;").unwrap();
 
         let add = mosaic.create_process("add", &["a", "b"]).unwrap();
-        println!("{:?}", add);
         let x = mosaic.new_object("Number", self_val(Value::U32(7)));
         let y = mosaic.new_object("Number", self_val(Value::U32(5)));
 
-        println!("{:?} {:?}", x, y);
         mosaic.pass_process_parameter(&add, "a", &x).unwrap();
         mosaic.pass_process_parameter(&add, "b", &y).unwrap();
 

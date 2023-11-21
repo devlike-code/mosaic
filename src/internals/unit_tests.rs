@@ -1,11 +1,8 @@
 #[cfg(test)]
 mod internals_tests {
-
-    use itertools::Itertools;
-
     use crate::internals::{
-        default_vals, self_val, Mosaic, MosaicCRUD, MosaicGetEntities, MosaicTypelevelCRUD,
-        TileType, Value, TileGetById, MosaicIO, load_mosaic_commands,
+        default_vals, load_mosaic_commands, self_val, Mosaic, MosaicCRUD, MosaicIO,
+        MosaicTypelevelCRUD, TileType, Value,
     };
 
     #[test]
@@ -14,13 +11,13 @@ mod internals_tests {
         mosaic.new_type("I: i32;").unwrap();
         mosaic.new_object("I", default_vals());
 
-        if let Some(mut a) = mosaic.get_entities().next() {
+        if let Some(mut a) = mosaic.get_all().next() {
             assert_eq!(Value::I32(0), a["self"]);
-            a.set_field("self", Value::I32(12));
+            a["self"] = Value::I32(12);
             assert_eq!(Value::I32(12), a["self"]);
         }
 
-        if let Some(a) = mosaic.get_entities().next() {
+        if let Some(a) = mosaic.get_all().next() {
             assert_eq!(Value::I32(12), a["self"]);
         }
     }
@@ -105,7 +102,7 @@ mod internals_tests {
         assert_eq!(Value::I32(0), a["x"]);
         assert_eq!(Value::F32(0.0), a["y"]);
 
-        a.set_field( "x", Value::I32(7));
+        a["x"] = Value::I32(7);
         assert_eq!(Value::I32(7), a["x"]);
     }
 
@@ -117,7 +114,7 @@ mod internals_tests {
         let mut a = mosaic.new_object("Foo", default_vals());
         assert_eq!(Value::I32(0), a["self"]);
 
-        a.set_field("self", Value::I32(7));
+        a["self"] = Value::I32(7);
         assert_eq!(Value::I32(7), a["self"]);
     }
 
@@ -154,8 +151,10 @@ mod internals_tests {
         let a = mosaic.new_object("Foo", self_val(Value::I32(101)));
         let b = mosaic.new_object("DEBUG", default_vals());
         let c = mosaic.new_object("DEBUG", default_vals());
-        let _ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        let _ab = a.arrow_to(&b, "DEBUG", default_vals());
+        //let _ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        let _bc = b.arrow_to(&c, "DEBUG", default_vals());
+        //let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
 
         assert_eq!(&test_data(), mosaic.save().as_slice());
     }
@@ -185,11 +184,11 @@ mod internals_tests {
         let _ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
         let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
         //println!("DEBUG TILE 'self' field: {:?}", b["self"]); //Alias doesn't have fields so indexer doesn't work
-       
+
         println!("SUM TILE: {:?}", s);
         s["index"] = Value::S32("x".into());
         println!("SUM TILE: {:?}", s);
-      
+
         // assert_eq!(&test_data(), mosaic.save().as_slice());
     }
 

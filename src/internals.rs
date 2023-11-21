@@ -5,8 +5,6 @@ pub mod component_grammar;
 pub mod component_registry;
 pub mod datatypes;
 pub mod either;
-pub mod get_entities;
-pub mod get_tiles;
 pub mod logging;
 pub mod mosaic;
 pub mod sparse_matrix;

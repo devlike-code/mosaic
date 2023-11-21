@@ -1,20 +1,12 @@
+use std::vec::IntoIter;
 use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
 use crate::internals::{self_val, Logging, MosaicIO};
-use crate::iterators::get_targets::GetTargets;
-use crate::{
-    internals::{
-        get_tiles::{GetTiles, GetTilesExtension, GetTilesIterator},
-        Mosaic, MosaicCRUD, Tile, Value,
-    },
-    iterators::{
-        get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
-        get_descriptors::GetDescriptors, get_sources::GetSourcesExtension,
-        include_component::IncludeComponent,
-    },
-};
+use crate::internals::{Mosaic, MosaicCRUD, Tile, Value};
+use crate::iterators::component_selectors::ComponentSelectors;
+use crate::iterators::tile_getters::TileGetters;
 
 pub trait GroupingCapability {
     fn get_group_memberships(&self, tile: &Tile) -> Vec<Tile>;
@@ -22,13 +14,14 @@ pub trait GroupingCapability {
     fn add_group_member(&self, group: &str, owner: &Tile, member: &Tile) -> anyhow::Result<()>;
     fn get_group_owner_descriptor(&self, group: &str, tile: &Tile) -> Option<Tile>;
     fn get_group_owner(&self, group: &str, tile: &Tile) -> Option<Tile>;
-    fn get_group_members(&self, group: &str, tile: &Tile) -> GetTilesIterator;
+    fn get_group_members(&self, group: &str, tile: &Tile) -> IntoIter<Tile>;
     fn ungroup(&self, group: &str, tile: &Tile);
 }
 
-fn get_existing_owner_descriptor(mosaic: &Arc<Mosaic>, group: &str, owner: &Tile) -> Option<Tile> {
+fn get_existing_owner_descriptor(group: &str, owner: &Tile) -> Option<Tile> {
     owner
-        .iter()
+        .clone()
+        .into_iter()
         .get_descriptors()
         .include_component("GroupOwner")
         .map(|t| (t["self"].as_s32(), t))
@@ -39,7 +32,8 @@ fn get_existing_owner_descriptor(mosaic: &Arc<Mosaic>, group: &str, owner: &Tile
 
 impl GroupingCapability for Arc<Mosaic> {
     fn get_group_memberships(&self, tile: &Tile) -> Vec<Tile> {
-        tile.iter()
+        tile.clone()
+            .into_iter()
             .get_arrows_into()
             .include_component("Group")
             .unique_by(|t| t["self"].as_s32())
@@ -47,7 +41,7 @@ impl GroupingCapability for Arc<Mosaic> {
     }
 
     fn group(&self, group: &str, owner: &Tile, members: &[&Tile]) {
-        if let Some(previous_owner_descriptor) = get_existing_owner_descriptor(self, group, owner) {
+        if let Some(previous_owner_descriptor) = get_existing_owner_descriptor(group, owner) {
             self.delete_tile(previous_owner_descriptor.id);
         }
 
@@ -59,7 +53,7 @@ impl GroupingCapability for Arc<Mosaic> {
     }
 
     fn add_group_member(&self, group: &str, owner: &Tile, member: &Tile) -> anyhow::Result<()> {
-        if let Some(owner_descriptor) = get_existing_owner_descriptor(self, group, owner) {
+        if let Some(owner_descriptor) = get_existing_owner_descriptor(group, owner) {
             self.new_arrow(
                 &owner_descriptor,
                 member,
@@ -77,16 +71,17 @@ impl GroupingCapability for Arc<Mosaic> {
     }
 
     fn get_group_owner_descriptor(&self, group: &str, tile: &Tile) -> Option<Tile> {
-        if let Some(current_owner_descriptor) = get_existing_owner_descriptor(self, group, tile) {
+        if let Some(current_owner_descriptor) = get_existing_owner_descriptor(group, tile) {
             Some(current_owner_descriptor)
         } else {
-            tile.iter()
+            tile.clone()
+                .into_iter()
                 .get_arrows_into()
                 .include_component("Group")
                 .map(|s| (s["self"].as_s32(), s))
                 .filter(|(c, _)| c == &group.into())
                 .map(|(_, t)| t)
-                .get_sources_with(self)
+                .get_sources()
                 .collect_vec()
                 .first()
                 .cloned()
@@ -98,16 +93,15 @@ impl GroupingCapability for Arc<Mosaic> {
             .and_then(|t| self.get(t.target_id()))
     }
 
-    fn get_group_members(&self, group: &str, tile: &Tile) -> GetTilesIterator {
+    fn get_group_members(&self, group: &str, tile: &Tile) -> IntoIter<Tile> {
         if let Some(owner) = self.get_group_owner_descriptor(group, tile) {
             owner
-                .iter()
+                .into_iter()
                 .get_arrows_from()
                 .include_component("Group")
                 .get_targets()
-                .get_tiles()
         } else {
-            vec![].into_iter().get_tiles_with(Arc::clone(self))
+            vec![].into_iter()
         }
     }
 

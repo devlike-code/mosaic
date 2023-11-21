@@ -9,20 +9,14 @@ pub enum TraversalDirection {
 use std::{
     collections::{HashSet, VecDeque},
     sync::Arc,
+    vec::IntoIter,
 };
 
 use itertools::Itertools;
 
 use crate::{
-    internals::{get_tiles::GetTilesIterator, Mosaic, Tile, TileGetById, WithMosaic, MosaicIO},
-    iterators::{
-        exclude_components::ExcludeComponents,
-        get_arrows_from::GetArrowsFromTiles,
-        get_arrows_into::GetArrowsIntoTiles,
-        get_sources::{GetSourcesExtension, GetSourcesIterator},
-        get_targets::{GetTargetsExtension, GetTargetsIterator},
-        include_components::IncludeComponents,
-    },
+    internals::{Mosaic, MosaicIO, Tile, TileGetById},
+    iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 
 pub enum Traversal {
@@ -37,7 +31,7 @@ pub struct TraversalOperator {
 }
 
 impl TraversalOperator {
-    fn filter_traversal<I: Iterator<Item = Tile> + WithMosaic>(&self, iter: I) -> Vec<Tile> {
+    fn filter_traversal<I: Iterator<Item = Tile>>(&self, iter: I) -> Vec<Tile> {
         match self.traversal {
             Traversal::Exclude { components } => iter.exclude_components(components).collect_vec(),
             Traversal::Include { components } => iter.include_components(components).collect_vec(),
@@ -46,31 +40,31 @@ impl TraversalOperator {
     }
 
     pub fn out_degree(&self, tile: &Tile) -> usize {
-        self.filter_traversal(tile.iter().get_arrows_from())
+        self.filter_traversal(tile.clone().into_iter().get_arrows_from())
             .len()
     }
 
     pub fn in_degree(&self, tile: &Tile) -> usize {
-        self.filter_traversal(tile.iter().get_arrows_into())
+        self.filter_traversal(tile.clone().into_iter().get_arrows_into())
             .len()
     }
 
-    pub fn get_forward_neighbors(&self, tile: &Tile) -> GetTargetsIterator {
-        self.filter_traversal(tile.iter().get_arrows_from())
+    pub fn get_forward_neighbors(&self, tile: &Tile) -> IntoIter<Tile> {
+        self.filter_traversal(tile.clone().into_iter().get_arrows_from())
             .into_iter()
-            .get_targets_with(Arc::clone(&self.mosaic))
+            .get_targets()
     }
 
-    pub fn get_backward_neighbors(&self, tile: &Tile) -> GetSourcesIterator {
-        self.filter_traversal(tile.iter().get_arrows_into())
+    pub fn get_backward_neighbors(&self, tile: &Tile) -> IntoIter<Tile> {
+        self.filter_traversal(tile.clone().into_iter().get_arrows_into())
             .into_iter()
-            .get_sources_with(&self.mosaic)
+            .get_sources()
     }
 
-    pub fn get_neighbors(&self, tile: &Tile) -> GetTilesIterator {
+    pub fn get_neighbors(&self, tile: &Tile) -> IntoIter<Tile> {
         let mut result = self.get_backward_neighbors(tile).collect_vec();
         result.extend(self.get_forward_neighbors(tile));
-        GetTilesIterator::new(result.into_iter(), Arc::clone(&self.mosaic))
+        result.into_iter()
     }
 
     pub fn depth_first_search(&self, from: &Tile, direction: TraversalDirection) -> Vec<Vec<Tile>> {

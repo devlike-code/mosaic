@@ -8,14 +8,12 @@ use itertools::Itertools;
 
 use crate::{
     internals::{byte_utilities::FromByteArray, self_val, MosaicIO},
-    iterators::include_component::IncludeComponent,
+    iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 use crate::{
     internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, B128},
-    iterators::filter_extensions::FilterExtensions,
+    iterators::tile_filters::TileFilters,
 };
-
-use crate::iterators::get_dependents::GetDependentTiles;
 
 pub trait StringCapability {
     fn hash_string(str: &str) -> EntityId;
@@ -60,7 +58,8 @@ impl StringCapability for Arc<Mosaic> {
             None
         } else {
             let parts = tile
-                .iter()
+                .clone()
+                .into_iter()
                 .get_dependents()
                 .filter_extensions()
                 .include_component("String")

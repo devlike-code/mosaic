@@ -4,21 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use itertools::Itertools;
-use serde::de::value;
+use crate::internals::ToByteArray;
 
-use crate::{
-    internals::ToByteArray,
-    iterators::{
-        filter_arrows::{FilterArrows, FilterArrowsIterator},
-        filter_descriptors::{FilterDescriptors, FilterDescriptorsIterator},
-        filter_extensions::{FilterExtensions, FilterExtensionsIterator},
-        get_dependents::{GetDependentTiles, GetDependentsIterator},
-        just_tile::JustTileIterator,
-    },
+use super::{
+    Bytesize, ComponentType, ComponentValues, Datatype, EntityId, Mosaic, MosaicCRUD, Value, S32,
 };
-
-use super::{Bytesize, ComponentType, ComponentValues, Datatype, EntityId, Mosaic, Value, S32};
 use crate::internals::byte_utilities::FromByteArray;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
@@ -36,6 +26,16 @@ pub struct Tile {
     pub tile_type: TileType,
     pub component: S32,
     pub data: HashMap<S32, Value>,
+}
+
+impl IntoIterator for Tile {
+    type Item = Tile;
+
+    type IntoIter = std::vec::IntoIter<Tile>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        vec![self].into_iter()
+    }
 }
 
 impl std::fmt::Display for Tile {
@@ -97,6 +97,7 @@ impl Index<&str> for Tile {
         self.data.get(&i.into()).unwrap()
     }
 }
+
 impl IndexMut<&str> for Tile {
     fn index_mut(&mut self, i: &str) -> &mut Self::Output {
         if self.data.get(&"index".into()).is_some() {
@@ -110,6 +111,7 @@ impl IndexMut<&str> for Tile {
         }
     }
 }
+
 impl Tile {
     pub(crate) fn set_field(&mut self, index: &str, value: Value) {
         self.data.insert(index.into(), value);
@@ -139,13 +141,11 @@ impl Tile {
                     field_name
                 };
 
-                let mut value = datatype.get_default();
-
                 //when default name exists in component fields and field and default datatype is the same take the 'default' value
                 //otherwise use field default value
                 if let Some(default_field) = defaults.get(&name) {
                     if datatype == default_field.get_datatype() {
-                        value = defaults
+                        let value = defaults
                             .get(&name)
                             .cloned()
                             .unwrap_or(datatype.get_default());
@@ -249,47 +249,13 @@ impl Tile {
                 temp
             })
     }
-
-    // pub fn commit(&self, mosaic: Arc<Mosaic>) -> anyhow::Result<()> {
-    //     if !mosaic.is_tile_valid(&self.id) {
-    //         return format!("Tile {} isn't valid.", self.id).to_error();
-    //     }
-
-    //     mosaic
-    //         .tile_registry
-    //         .lock()
-    //         .unwrap()
-    //         .insert(self.id, self.clone());
-
-    //     let component = mosaic.entity_registry.get_component_type(self.component)?;
-    //     let mut slab_storage = mosaic.entity_registry.component_slabs.lock().unwrap();
-    //     let slab = slab_storage.get_mut(&self.component).unwrap();
-
-    //     let mut id_alloc = mosaic.entity_registry.id_allocation_index.lock().unwrap();
-
-    //     if let Some(alloc) = id_alloc.get(&self.id) {
-    //         let brick = slab.get_mut(*alloc).unwrap();
-
-    //         brick
-    //             .data
-    //             .copy_from_slice(self.create_binary_data_from_fields(&component).as_slice());
-    //     } else {
-    //         let mut brick =
-    //             DataBrick::new(self.id, self.source_id(), self.target_id(), self.component);
-    //         brick
-    //             .data
-    //             .copy_from_slice(self.create_binary_data_from_fields(&component).as_slice());
-
-    //         let alloc = slab.insert(brick);
-
-    //         id_alloc.insert(self.id, alloc);
-    //     }
-
-    //     Ok(())
-    // }
 }
 
 impl Tile {
+    pub fn arrow_to(&self, other: &Tile, component: &str, data: ComponentValues) -> Tile {
+        self.mosaic.new_arrow(self, other, component, data)
+    }
+
     pub fn new(
         mosaic: Arc<Mosaic>,
         id: EntityId,
@@ -314,10 +280,6 @@ impl Tile {
             .unwrap()
             .insert(id, tile.clone());
         tile
-    }
-
-    pub fn iter(&self) -> JustTileIterator {
-        JustTileIterator::new(self)
     }
 
     pub fn source_id(&self) -> EntityId {
@@ -356,23 +318,5 @@ impl Tile {
 
     pub fn is_extension(&self) -> bool {
         matches!(self.tile_type, TileType::Extension { .. })
-    }
-}
-
-impl Tile {
-    pub fn get_arrows(&self) -> FilterArrowsIterator {
-        self.iter().get_dependents().filter_arrows()
-    }
-
-    pub fn get_dependents(&self) -> GetDependentsIterator {
-        self.iter().get_dependents()
-    }
-
-    pub fn get_descriptors(&self) -> FilterDescriptorsIterator {
-        self.iter().get_dependents().filter_descriptors()
-    }
-
-    pub fn get_extensions(&self) -> FilterExtensionsIterator {
-        self.iter().get_dependents().filter_extensions()
     }
 }

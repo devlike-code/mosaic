@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    vec::IntoIter,
 };
 
 use atomic_counter::{AtomicCounter, RelaxedCounter};
@@ -9,9 +10,8 @@ use itertools::Itertools;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    get_entities::GetEntitiesIterator, get_tiles::GetTilesIterator, slice_into_array,
-    ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile, TileType, ToByteArray,
-    S32,
+    slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile,
+    TileType, ToByteArray, S32,
 };
 
 #[derive(Debug)]
@@ -96,12 +96,15 @@ pub trait MosaicCRUD<Id> {
 }
 
 pub trait TileGetById {
-    fn get_tiles(&self, iter: Vec<EntityId>) -> GetTilesIterator;
+    fn get_tiles(&self, iter: Vec<EntityId>) -> IntoIter<Tile>;
 }
 
 impl TileGetById for Arc<Mosaic> {
-    fn get_tiles(&self, iter: Vec<EntityId>) -> GetTilesIterator {
-        GetTilesIterator::new_from_ids(iter.into_iter(), Arc::clone(self))
+    fn get_tiles(&self, iter: Vec<EntityId>) -> IntoIter<Tile> {
+        iter.into_iter()
+            .flat_map(|id| self.get(id))
+            .collect_vec()
+            .into_iter()
     }
 }
 
@@ -114,10 +117,12 @@ pub(crate) enum MosaicLoadCommand {
 pub trait MosaicIO {
     fn save(&self) -> Vec<u8>;
     fn load(&self, data: &[u8]) -> anyhow::Result<()>;
-   fn get(&self, i: EntityId) -> Option<Tile>;
+    fn get(&self, i: EntityId) -> Option<Tile>;
+    fn get_all(&self) -> IntoIter<Tile>;
     fn new_object(&self, component: &str, defaults: ComponentValues) -> Tile;
     fn new_specific_object(&self, id: EntityId, component: &str) -> anyhow::Result<Tile>;
 }
+
 pub(crate) fn load_mosaic_commands(data: &[u8]) -> anyhow::Result<Vec<MosaicLoadCommand>> {
     let mut result = vec![];
     let mut ptr = 0usize;
@@ -239,7 +244,7 @@ impl MosaicIO for Arc<Mosaic> {
                 if id == src && id == tgt {
                     // ID : ID -> ID
                     let tile = Tile::new(
-                        Arc::clone(&self),
+                        Arc::clone(self),
                         id,
                         TileType::Object,
                         component,
@@ -252,7 +257,7 @@ impl MosaicIO for Arc<Mosaic> {
                     self.dependent_ids_map.lock().unwrap().append(tgt, id);
 
                     let tile = Tile::new(
-                        Arc::clone(&self),
+                        Arc::clone(self),
                         id,
                         TileType::Descriptor { subject: tgt },
                         component,
@@ -265,7 +270,7 @@ impl MosaicIO for Arc<Mosaic> {
                     self.dependent_ids_map.lock().unwrap().append(src, id);
 
                     let tile = Tile::new(
-                        Arc::clone(&self),
+                        Arc::clone(self),
                         id,
                         TileType::Extension { subject: src },
                         component,
@@ -278,7 +283,7 @@ impl MosaicIO for Arc<Mosaic> {
                     self.dependent_ids_map.lock().unwrap().append(tgt, id);
 
                     let tile = Tile::new(
-                        Arc::clone(&self),
+                        Arc::clone(self),
                         id,
                         TileType::Arrow {
                             source: src,
@@ -296,14 +301,19 @@ impl MosaicIO for Arc<Mosaic> {
         Ok(())
     }
 
-  
     fn get(&self, i: EntityId) -> Option<Tile> {
         self.tile_registry.lock().unwrap().get(&i).cloned()
     }
 
     fn new_object(&self, component: &str, defaults: ComponentValues) -> Tile {
         let id = self.next_id();
-        let tile = Tile::new(Arc::clone(self), id, TileType::Object, component.into(), defaults);
+        let tile = Tile::new(
+            Arc::clone(self),
+            id,
+            TileType::Object,
+            component.into(),
+            defaults,
+        );
         self.object_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
@@ -331,15 +341,15 @@ impl MosaicIO for Arc<Mosaic> {
             .to_error()
         }
     }
-}
 
-pub trait MosaicGetEntities {
-    fn get_entities(&self) -> GetEntitiesIterator;
-}
-
-impl MosaicGetEntities for Arc<Mosaic> {
-    fn get_entities(&self) -> GetEntitiesIterator {
-        GetEntitiesIterator::new(Arc::clone(self))
+    fn get_all(&self) -> IntoIter<Tile> {
+        self.tile_registry
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect_vec()
+            .into_iter()
     }
 }
 
@@ -366,7 +376,7 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
         self.dependent_ids_map.lock().unwrap().append(*target, id);
 
         let tile = Tile::new(
-            Arc::clone(&self),
+            Arc::clone(self),
             id,
             TileType::Arrow {
                 source: *source,
@@ -390,7 +400,7 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
         self.dependent_ids_map.lock().unwrap().append(*subject, id);
 
         let tile = Tile::new(
-            Arc::clone(&self),
+            Arc::clone(self),
             id,
             TileType::Descriptor { subject: *subject },
             component.into(),
@@ -467,7 +477,12 @@ impl MosaicCRUD<Tile> for Arc<Mosaic> {
     }
 
     fn new_descriptor(&self, subject: &Tile, component: &str, defaults: ComponentValues) -> Tile {
-        <Arc<Mosaic> as MosaicCRUD<EntityId>>::new_descriptor(self, &subject.id, component, defaults)
+        <Arc<Mosaic> as MosaicCRUD<EntityId>>::new_descriptor(
+            self,
+            &subject.id,
+            component,
+            defaults,
+        )
     }
 
     fn new_extension(&self, subject: &Tile, component: &str, defaults: ComponentValues) -> Tile {
@@ -478,4 +493,3 @@ impl MosaicCRUD<Tile> for Arc<Mosaic> {
         <Arc<Mosaic> as MosaicCRUD<EntityId>>::delete_tile(self, tile.id);
     }
 }
-

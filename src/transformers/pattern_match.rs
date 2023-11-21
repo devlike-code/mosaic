@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     capabilities::process::ProcessCapability,
-    internals::{default_vals, Mosaic, Tile},
+    internals::{default_vals, Mosaic, MosaicIO, Tile},
 };
 
 pub fn pattern_match(mosaic: Arc<Mosaic>, pattern: &Tile, target: &Tile) -> anyhow::Result<Tile> {
