@@ -40,13 +40,6 @@ pub trait IncludeComponents: Iterator {
     fn include_components(self, component: &[&str]) -> IncludeComponentsIterator;
 }
 
-pub trait IncludeComponentsExtension: Iterator {
-    fn include_components_with(
-        self,
-        mosaic: Arc<Mosaic>,
-        comp: &[&str],
-    ) -> IncludeComponentsIterator;
-}
 
 impl<I> IncludeComponents for I
 where
@@ -66,23 +59,3 @@ where
     }
 }
 
-impl<I> IncludeComponentsExtension for I
-where
-    I: Iterator<Item = Tile>,
-{
-    fn include_components_with(
-        self,
-        mosaic: Arc<Mosaic>,
-        components: &[&str],
-    ) -> IncludeComponentsIterator {
-        IncludeComponentsIterator::new(
-            self,
-            mosaic,
-            components
-                .iter()
-                .map(|&c| c.into())
-                .collect_vec()
-                .as_slice(),
-        )
-    }
-}

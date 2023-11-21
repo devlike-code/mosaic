@@ -3,7 +3,7 @@ use std::sync::Arc;
 use array_tool::vec::Shift;
 use itertools::Itertools;
 
-use crate::internals::{Mosaic, Tile, WithMosaic};
+use crate::internals::{Mosaic, Tile};
 
 pub struct GetEntitiesIterator {
     mosaic: Arc<Mosaic>,
@@ -25,12 +25,6 @@ impl GetEntitiesIterator {
     }
 }
 
-impl WithMosaic for GetEntitiesIterator {
-    fn get_mosaic(&self) -> Arc<Mosaic> {
-        Arc::clone(&self.mosaic)
-    }
-}
-
 impl Iterator for GetEntitiesIterator {
     type Item = Tile;
 
@@ -49,7 +43,7 @@ pub trait GetEntitiesExtension: Iterator {
 
 impl<I> GetEntities for I
 where
-    I: Iterator<Item = Tile> + WithMosaic,
+    I: Iterator<Item = Tile>,
 {
     fn get_entities(self) -> GetEntitiesIterator {
         let mosaic = Arc::clone(&self.get_mosaic());

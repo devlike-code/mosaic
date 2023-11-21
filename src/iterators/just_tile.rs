@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use itertools::Itertools;
-
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
 pub struct JustTileIterator {
@@ -10,10 +8,10 @@ pub struct JustTileIterator {
 }
 
 impl JustTileIterator {
-    pub fn new(tile: Option<Tile>, mosaic: Arc<Mosaic>) -> Self {
+    pub fn new(tile: &Tile) -> Self {
         JustTileIterator {
-            mosaic: Arc::clone(&mosaic),
-            item: tile.into_iter().collect_vec(),
+            mosaic: Arc::clone(&tile.mosaic),
+            item: vec![tile.clone()],
         }
     }
 }

@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{self_val, Logging, Mosaic, MosaicCRUD, Tile, Value, S32},
+    internals::{self_val, Logging, Mosaic, MosaicCRUD, Tile, Value, S32, MosaicIO},
     iterators::{
         deletion::DeleteTiles, get_arrows_from::GetArrowsFromTiles, get_targets::GetTargets,
     },
@@ -74,7 +74,7 @@ impl ProcessCapability for Arc<Mosaic> {
         }
 
         let param = param.first().unwrap();
-        param.iter_with(self).get_arrows_from().delete();
+        param.iter().get_arrows_from().delete();
         self.new_arrow(
             param,
             value,
@@ -114,7 +114,7 @@ impl ProcessCapability for Arc<Mosaic> {
             .first()
             .unwrap()
             .clone()
-            .iter_with(self)
+            .iter()
             .get_arrows_from()
             .get_targets()
             .collect_vec()
@@ -138,7 +138,7 @@ impl ProcessCapability for Arc<Mosaic> {
             .map(|t| {
                 (
                     t["self"].as_s32(),
-                    t.iter_with(self)
+                    t.iter()
                         .get_arrows_from()
                         .get_targets()
                         .collect_vec()

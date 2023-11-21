@@ -1,4 +1,11 @@
-use std::{collections::HashMap, ops::Index, sync::Arc};
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut},
+    sync::Arc,
+};
+
+use itertools::Itertools;
+use serde::de::value;
 
 use crate::{
     internals::ToByteArray,
@@ -25,6 +32,7 @@ pub enum TileType {
 #[derive(Clone)]
 pub struct Tile {
     pub id: EntityId,
+    pub mosaic: Arc<Mosaic>,
     pub tile_type: TileType,
     pub component: S32,
     pub data: HashMap<S32, Value>,
@@ -89,26 +97,37 @@ impl Index<&str> for Tile {
         self.data.get(&i.into()).unwrap()
     }
 }
-
+impl IndexMut<&str> for Tile {
+    fn index_mut(&mut self, i: &str) -> &mut Self::Output {
+        if self.data.get(&"index".into()).is_some() {
+            if self.data.get(&i.into()).is_some() {
+                self.data.get_mut(&i.into()).unwrap()
+            } else {
+                panic!("SUM TYPE DOESN'T HAVE '{}' FIELD!", i);
+            }
+        } else {
+            self.data.get_mut(&i.into()).unwrap()
+        }
+    }
+}
 impl Tile {
-    pub fn set_field(&mut self, mosaic: &Arc<Mosaic>, index: &str, value: Value) {
+    pub(crate) fn set_field(&mut self, index: &str, value: Value) {
         self.data.insert(index.into(), value);
-        mosaic
+        self.mosaic
             .tile_registry
             .lock()
             .unwrap()
             .insert(self.id, self.clone());
     }
 
-    pub(crate) fn create_data_fields(
-        &mut self,
-        mosaic: &Mosaic,
-        defaults: ComponentValues,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn create_data_fields(&mut self, defaults: ComponentValues) -> anyhow::Result<()> {
         let defaults = defaults.into_iter().collect::<HashMap<_, _>>();
-        let component_type = mosaic
+
+        let component_type = self
+            .mosaic
             .component_registry
             .get_component_type(self.component)?;
+
         component_type
             .get_fields()
             .iter()
@@ -120,13 +139,39 @@ impl Tile {
                     field_name
                 };
 
-                let value = defaults
-                    .get(&name)
-                    .cloned()
-                    .unwrap_or(datatype.get_default());
+                let mut value = datatype.get_default();
 
-                self.data.insert(name, value);
+                //when default name exists in component fields and field and default datatype is the same take the 'default' value
+                //otherwise use field default value
+                if let Some(default_field) = defaults.get(&name) {
+                    if datatype == default_field.get_datatype() {
+                        value = defaults
+                            .get(&name)
+                            .cloned()
+                            .unwrap_or(datatype.get_default());
+
+                        println!(
+                            "field datatype:{:?}, default datatype: {:?}, default value: {:?}",
+                            datatype,
+                            default_field.get_datatype(),
+                            value
+                        );
+
+                        //as index for sum type for component data insert only the last field that matches in datatype; overwrite the previous
+                        if component_type.is_sum() {
+                            println!("IS SUM!");
+                            if self.data.get(&"index".into()).is_none() {
+                                self.data.insert("index".into(), Value::S32(name));
+                            } else {
+                                self["index"] = Value::S32(name);
+                            }
+                        }
+
+                        self.data.insert(name, value);
+                    }
+                }
             });
+
         Ok(())
     }
 
@@ -246,7 +291,7 @@ impl Tile {
 
 impl Tile {
     pub fn new(
-        mosaic: &Mosaic,
+        mosaic: Arc<Mosaic>,
         id: EntityId,
         tile_type: TileType,
         component: S32,
@@ -254,12 +299,13 @@ impl Tile {
     ) -> Tile {
         let mut tile = Tile {
             id,
+            mosaic: Arc::clone(&mosaic),
             tile_type,
             component,
             data: HashMap::default(),
         };
 
-        tile.create_data_fields(mosaic, fields)
+        tile.create_data_fields(fields)
             .expect("Cannot create data fields, panicking!");
 
         mosaic
@@ -270,8 +316,8 @@ impl Tile {
         tile
     }
 
-    pub fn iter_with(&self, mosaic: &Arc<Mosaic>) -> JustTileIterator {
-        JustTileIterator::new(Some(self.clone()), Arc::clone(mosaic))
+    pub fn iter(&self) -> JustTileIterator {
+        JustTileIterator::new(self)
     }
 
     pub fn source_id(&self) -> EntityId {
@@ -314,19 +360,19 @@ impl Tile {
 }
 
 impl Tile {
-    pub fn get_arrows_with(&self, mosaic: &Arc<Mosaic>) -> FilterArrowsIterator {
-        self.iter_with(mosaic).get_dependents().filter_arrows()
+    pub fn get_arrows(&self) -> FilterArrowsIterator {
+        self.iter().get_dependents().filter_arrows()
     }
 
-    pub fn get_dependents_with(&self, mosaic: &Arc<Mosaic>) -> GetDependentsIterator {
-        self.iter_with(mosaic).get_dependents()
+    pub fn get_dependents(&self) -> GetDependentsIterator {
+        self.iter().get_dependents()
     }
 
-    pub fn get_descriptors_with(&self, mosaic: &Arc<Mosaic>) -> FilterDescriptorsIterator {
-        self.iter_with(mosaic).get_dependents().filter_descriptors()
+    pub fn get_descriptors(&self) -> FilterDescriptorsIterator {
+        self.iter().get_dependents().filter_descriptors()
     }
 
-    pub fn get_extensions_with(&self, mosaic: &Arc<Mosaic>) -> FilterExtensionsIterator {
-        self.iter_with(mosaic).get_dependents().filter_extensions()
+    pub fn get_extensions(&self) -> FilterExtensionsIterator {
+        self.iter().get_dependents().filter_extensions()
     }
 }

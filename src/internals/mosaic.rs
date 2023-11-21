@@ -109,8 +109,64 @@ pub(crate) enum MosaicLoadCommand {
     CreateTile(EntityId, EntityId, EntityId, S32, Vec<u8>),
 }
 
-impl Mosaic {
-    pub fn save(&self) -> Vec<u8> {
+pub trait MosaicIO {
+    fn save(&self) -> Vec<u8>;
+    fn load(&self, data: &[u8]) -> anyhow::Result<()>;
+   fn get(&self, i: EntityId) -> Option<Tile>;
+    fn new_object(&self, component: &str, defaults: ComponentValues) -> Tile;
+    fn new_specific_object(&self, id: EntityId, component: &str) -> anyhow::Result<Tile>;
+}
+pub(crate) fn load_mosaic_commands(data: &[u8]) -> anyhow::Result<Vec<MosaicLoadCommand>> {
+    let mut result = vec![];
+    let mut ptr = 0usize;
+
+    let total = data.len();
+
+    loop {
+        let len = u16::from_be_bytes(slice_into_array(&data[ptr..ptr + 2]));
+        ptr += 2;
+        if len == 0 {
+            break;
+        } else {
+            let s = std::str::from_utf8(&data[ptr..ptr + len as usize]).unwrap();
+            ptr += len as usize;
+            result.push(MosaicLoadCommand::AddType(s.to_owned()));
+        }
+    }
+
+    loop {
+        if ptr == total {
+            break;
+        }
+
+        let id = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+        ptr += 8;
+        let src = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+        ptr += 8;
+        let tgt = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+        ptr += 8;
+        let comp_len = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
+        ptr += 8;
+        let comp_name = S32(FStr::<32>::from_str_lossy(
+            std::str::from_utf8(&data[ptr..ptr + comp_len]).unwrap(),
+            b'\0',
+        ));
+        ptr += comp_len;
+        let comp_data_len = u32::from_be_bytes(slice_into_array(&data[ptr..ptr + 4]));
+        ptr += 4;
+        let comp_data = data[ptr..ptr + comp_data_len as usize].to_vec();
+        ptr += comp_data_len as usize;
+
+        result.push(MosaicLoadCommand::CreateTile(
+            id, src, tgt, comp_name, comp_data,
+        ));
+    }
+
+    Ok(result)
+}
+
+impl MosaicIO for Arc<Mosaic> {
+    fn save(&self) -> Vec<u8> {
         let mut result = vec![];
 
         self.component_registry
@@ -157,9 +213,9 @@ impl Mosaic {
         result
     }
 
-    pub fn load(&self, data: &[u8]) -> anyhow::Result<()> {
+    fn load(&self, data: &[u8]) -> anyhow::Result<()> {
         let offset = self.entity_counter.get();
-        let loaded = self.load_commands(data)?;
+        let loaded = load_mosaic_commands(data)?;
 
         loaded.into_iter().for_each(|command| match command {
             MosaicLoadCommand::AddType(definition) => {
@@ -181,7 +237,7 @@ impl Mosaic {
                 if id == src && id == tgt {
                     // ID : ID -> ID
                     let tile = Tile::new(
-                        self,
+                        Arc::clone(&self),
                         id,
                         TileType::Object,
                         component,
@@ -194,7 +250,7 @@ impl Mosaic {
                     self.dependent_ids_map.lock().unwrap().append(tgt, id);
 
                     let tile = Tile::new(
-                        self,
+                        Arc::clone(&self),
                         id,
                         TileType::Descriptor { subject: tgt },
                         component,
@@ -207,7 +263,7 @@ impl Mosaic {
                     self.dependent_ids_map.lock().unwrap().append(src, id);
 
                     let tile = Tile::new(
-                        self,
+                        Arc::clone(&self),
                         id,
                         TileType::Extension { subject: src },
                         component,
@@ -220,7 +276,7 @@ impl Mosaic {
                     self.dependent_ids_map.lock().unwrap().append(tgt, id);
 
                     let tile = Tile::new(
-                        self,
+                        Arc::clone(&self),
                         id,
                         TileType::Arrow {
                             source: src,
@@ -238,72 +294,25 @@ impl Mosaic {
         Ok(())
     }
 
-    pub(crate) fn load_commands(&self, data: &[u8]) -> anyhow::Result<Vec<MosaicLoadCommand>> {
-        let mut result = vec![];
-        let mut ptr = 0usize;
-
-        let total = data.len();
-
-        loop {
-            let len = u16::from_be_bytes(slice_into_array(&data[ptr..ptr + 2]));
-            ptr += 2;
-            if len == 0 {
-                break;
-            } else {
-                let s = std::str::from_utf8(&data[ptr..ptr + len as usize]).unwrap();
-                ptr += len as usize;
-                result.push(MosaicLoadCommand::AddType(s.to_owned()));
-            }
-        }
-
-        loop {
-            if ptr == total {
-                break;
-            }
-
-            let id = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
-            ptr += 8;
-            let src = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
-            ptr += 8;
-            let tgt = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
-            ptr += 8;
-            let comp_len = usize::from_be_bytes(slice_into_array(&data[ptr..ptr + 8]));
-            ptr += 8;
-            let comp_name = S32(FStr::<32>::from_str_lossy(
-                std::str::from_utf8(&data[ptr..ptr + comp_len]).unwrap(),
-                b'\0',
-            ));
-            ptr += comp_len;
-            let comp_data_len = u32::from_be_bytes(slice_into_array(&data[ptr..ptr + 4]));
-            ptr += 4;
-            let comp_data = data[ptr..ptr + comp_data_len as usize].to_vec();
-            ptr += comp_data_len as usize;
-
-            result.push(MosaicLoadCommand::CreateTile(
-                id, src, tgt, comp_name, comp_data,
-            ));
-        }
-
-        Ok(result)
-    }
-
-    pub fn get(&self, i: EntityId) -> Option<Tile> {
+  
+    fn get(&self, i: EntityId) -> Option<Tile> {
         self.tile_registry.lock().unwrap().get(&i).cloned()
     }
 
-    pub fn new_object(&self, component: &str, defaults: ComponentValues) -> Tile {
+    fn new_object(&self, component: &str, defaults: ComponentValues) -> Tile {
         let id = self.next_id();
-        let tile = Tile::new(self, id, TileType::Object, component.into(), defaults);
+        let tile = Tile::new(Arc::clone(self), id, TileType::Object, component.into(), defaults);
         self.object_ids.lock().unwrap().add(id);
         self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 
-    pub fn new_specific_object(&self, id: EntityId, component: &str) -> anyhow::Result<Tile> {
+    fn new_specific_object(&self, id: EntityId, component: &str) -> anyhow::Result<Tile> {
         let mut registry = self.tile_registry.lock().unwrap();
         if let std::collections::hash_map::Entry::Vacant(e) = registry.entry(id) {
             let tile = Tile {
                 id,
+                mosaic: Arc::clone(self),
                 tile_type: TileType::Object,
                 component: component.into(),
                 data: HashMap::default(),
@@ -338,7 +347,7 @@ impl MosaicTypelevelCRUD for Arc<Mosaic> {
     }
 }
 
-impl MosaicCRUD<EntityId> for Mosaic {
+impl MosaicCRUD<EntityId> for Arc<Mosaic> {
     fn is_tile_valid(&self, i: &EntityId) -> bool {
         self.tile_registry.lock().unwrap().contains_key(i)
     }
@@ -355,7 +364,7 @@ impl MosaicCRUD<EntityId> for Mosaic {
         self.dependent_ids_map.lock().unwrap().append(*target, id);
 
         let tile = Tile::new(
-            self,
+            Arc::clone(&self),
             id,
             TileType::Arrow {
                 source: *source,
@@ -379,7 +388,7 @@ impl MosaicCRUD<EntityId> for Mosaic {
         self.dependent_ids_map.lock().unwrap().append(*subject, id);
 
         let tile = Tile::new(
-            self,
+            Arc::clone(&self),
             id,
             TileType::Descriptor { subject: *subject },
             component.into(),
@@ -400,7 +409,7 @@ impl MosaicCRUD<EntityId> for Mosaic {
         self.dependent_ids_map.lock().unwrap().append(*subject, id);
 
         let tile = Tile::new(
-            self,
+            Arc::clone(self),
             id,
             TileType::Extension { subject: *subject },
             component.into(),
@@ -438,9 +447,9 @@ impl MosaicCRUD<EntityId> for Mosaic {
     }
 }
 
-impl MosaicCRUD<Tile> for Mosaic {
+impl MosaicCRUD<Tile> for Arc<Mosaic> {
     fn is_tile_valid(&self, i: &Tile) -> bool {
-        <Mosaic as MosaicCRUD<EntityId>>::is_tile_valid(self, &i.id)
+        <Arc<Mosaic> as MosaicCRUD<EntityId>>::is_tile_valid(self, &i.id)
     }
 
     fn new_arrow(
@@ -450,24 +459,21 @@ impl MosaicCRUD<Tile> for Mosaic {
         component: &str,
         defaults: ComponentValues,
     ) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_arrow(
+        <Arc<Mosaic> as MosaicCRUD<EntityId>>::new_arrow(
             self, &source.id, &target.id, component, defaults,
         )
     }
 
     fn new_descriptor(&self, subject: &Tile, component: &str, defaults: ComponentValues) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_descriptor(self, &subject.id, component, defaults)
+        <Arc<Mosaic> as MosaicCRUD<EntityId>>::new_descriptor(self, &subject.id, component, defaults)
     }
 
     fn new_extension(&self, subject: &Tile, component: &str, defaults: ComponentValues) -> Tile {
-        <Mosaic as MosaicCRUD<EntityId>>::new_extension(self, &subject.id, component, defaults)
+        <Arc<Mosaic> as MosaicCRUD<EntityId>>::new_extension(self, &subject.id, component, defaults)
     }
 
     fn delete_tile(&self, tile: Tile) {
-        <Mosaic as MosaicCRUD<EntityId>>::delete_tile(self, tile.id);
+        <Arc<Mosaic> as MosaicCRUD<EntityId>>::delete_tile(self, tile.id);
     }
 }
 
-pub trait WithMosaic {
-    fn get_mosaic(&self) -> Arc<Mosaic>;
-}

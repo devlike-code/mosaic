@@ -133,7 +133,7 @@ impl ComponentParser {
             } else {
                 Ok(ComponentType::Sum {
                     name: name.into(),
-                    fields,
+                    fields: fields.clone(),
                 })
             }
         };

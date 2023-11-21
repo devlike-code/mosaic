@@ -11,7 +11,7 @@ mod string_tests {
         assert!(mosaic.string_exists("hello world"));
         assert!(hello_world.is_object());
         assert!(!hello_world
-            .get_extensions_with(&mosaic)
+            .get_extensions()
             .collect_vec()
             .is_empty());
         assert_eq!(
@@ -31,7 +31,7 @@ mod traversal_tests {
 
     use crate::{
         capabilities::{traversal::Traverse, Traversal},
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile, MosaicIO},
     };
 
     #[test]
@@ -185,7 +185,7 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, MosaicIO},
     };
 
     #[test]
@@ -233,7 +233,7 @@ mod process_tests {
 
     use crate::{
         capabilities::{process::ProcessCapability, GroupingCapability},
-        internals::{self_val, Logging, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile, Value},
+        internals::{self_val, Logging, Mosaic, MosaicCRUD, MosaicTypelevelCRUD, Tile, Value, MosaicIO},
         iterators::get_arrows_from::GetArrowsFromTiles,
     };
     #[test]

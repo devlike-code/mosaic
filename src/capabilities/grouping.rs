@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::internals::{self_val, Logging};
+use crate::internals::{self_val, Logging, MosaicIO};
 use crate::iterators::get_targets::GetTargets;
 use crate::{
     internals::{
@@ -28,7 +28,7 @@ pub trait GroupingCapability {
 
 fn get_existing_owner_descriptor(mosaic: &Arc<Mosaic>, group: &str, owner: &Tile) -> Option<Tile> {
     owner
-        .iter_with(mosaic)
+        .iter()
         .get_descriptors()
         .include_component("GroupOwner")
         .map(|t| (t["self"].as_s32(), t))
@@ -39,7 +39,7 @@ fn get_existing_owner_descriptor(mosaic: &Arc<Mosaic>, group: &str, owner: &Tile
 
 impl GroupingCapability for Arc<Mosaic> {
     fn get_group_memberships(&self, tile: &Tile) -> Vec<Tile> {
-        tile.iter_with(self)
+        tile.iter()
             .get_arrows_into()
             .include_component("Group")
             .unique_by(|t| t["self"].as_s32())
@@ -80,7 +80,7 @@ impl GroupingCapability for Arc<Mosaic> {
         if let Some(current_owner_descriptor) = get_existing_owner_descriptor(self, group, tile) {
             Some(current_owner_descriptor)
         } else {
-            tile.iter_with(self)
+            tile.iter()
                 .get_arrows_into()
                 .include_component("Group")
                 .map(|s| (s["self"].as_s32(), s))
@@ -101,7 +101,7 @@ impl GroupingCapability for Arc<Mosaic> {
     fn get_group_members(&self, group: &str, tile: &Tile) -> GetTilesIterator {
         if let Some(owner) = self.get_group_owner_descriptor(group, tile) {
             owner
-                .iter_with(self)
+                .iter()
                 .get_arrows_from()
                 .include_component("Group")
                 .get_targets()

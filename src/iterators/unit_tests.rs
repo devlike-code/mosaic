@@ -5,7 +5,7 @@ mod test_iterators {
     use itertools::Itertools;
 
     use crate::{
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicGetEntities, MosaicTypelevelCRUD},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicGetEntities, MosaicTypelevelCRUD, MosaicIO},
         iterators::{
             filter_descriptors::FilterDescriptors, filter_objects::FilterObjects,
             get_arrows_from::GetArrowsFromTiles, get_arrows_into::GetArrowsIntoTiles,
@@ -33,7 +33,7 @@ mod test_iterators {
         let b = mosaic.new_object("DEBUG", default_vals());
         let a_b = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
 
-        let mut dependents = a.iter_with(&mosaic).get_dependents();
+        let mut dependents = a.iter().get_dependents();
         assert_eq!(dependents.next(), Some(a_b));
         assert_eq!(dependents.next(), None);
     }
@@ -44,18 +44,18 @@ mod test_iterators {
 
         let a = mosaic.new_object("DEBUG", default_vals());
         let a_p = mosaic.new_descriptor(&a, "DEBUG", default_vals());
-        let a_desc = a.iter_with(&mosaic).get_descriptors().collect_vec();
+        let a_desc = a.iter().get_descriptors().collect_vec();
 
         assert_eq!(Some(&a_p), a_desc.first());
 
         let a_desc2 = a
-            .iter_with(&mosaic)
+            .iter()
             .get_dependents()
             .filter_descriptors()
             .collect_vec();
         assert_eq!(Some(&a_p), a_desc2.first());
 
-        let a_desc3 = a.get_descriptors_with(&mosaic).collect_vec();
+        let a_desc3 = a.get_descriptors().collect_vec();
         assert_eq!(Some(&a_p), a_desc3.first());
     }
 
@@ -74,21 +74,21 @@ mod test_iterators {
         let a_c = mosaic.new_arrow(&a, &c, "C_to_C", default_vals());
         let ab_ac = mosaic.new_arrow(&a_b, &a_c, "C_to_C_sqr", default_vals());
 
-        let a_arrows = a.get_arrows_with(&mosaic).collect_vec();
+        let a_arrows = a.get_arrows().collect_vec();
         assert_eq!(2, a_arrows.len());
         assert!(!a_arrows.contains(&a_p));
         assert!(a_arrows.contains(&a_b));
         assert!(a_arrows.contains(&a_c));
 
-        let b_arrows = b.get_arrows_with(&mosaic).collect_vec();
+        let b_arrows = b.get_arrows().collect_vec();
         assert_eq!(1, b_arrows.len());
         assert!(b_arrows.contains(&a_b));
 
-        let ab_arrows = a_b.get_arrows_with(&mosaic).collect_vec();
+        let ab_arrows = a_b.get_arrows().collect_vec();
 
         assert_eq!(1, ab_arrows.len());
         assert!(ab_arrows.contains(&ab_ac));
-        let a_desc = a.get_descriptors_with(&mosaic).collect_vec();
+        let a_desc = a.get_descriptors().collect_vec();
         assert_eq!(1, a_desc.len());
 
         assert!(a_desc.contains(&a_p));
@@ -123,19 +123,19 @@ mod test_iterators {
         let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr", default_vals()); // 3
         let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr", default_vals()); // 4
 
-        let into_tgt1 = tgt1.iter_with(&mosaic).get_arrows_into().collect_vec();
-        let into_tgt2 = tgt2.iter_with(&mosaic).get_arrows_into().collect_vec();
+        let into_tgt1 = tgt1.iter().get_arrows_into().collect_vec();
+        let into_tgt2 = tgt2.iter().get_arrows_into().collect_vec();
         assert_eq!(1, into_tgt1.len());
         assert_eq!(1, into_tgt2.len());
         assert_ne!(into_tgt1.first(), into_tgt2.first());
         let src1 = into_tgt1
             .into_iter()
-            .get_sources_with(&Arc::clone(&mosaic))
+            .get_sources()
             .next();
 
         let src2 = into_tgt2
             .into_iter()
-            .get_sources_with(&Arc::clone(&mosaic))
+            .get_sources()
             .next();
 
         assert_eq!(src1, src2);

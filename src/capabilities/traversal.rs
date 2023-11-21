@@ -14,7 +14,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{get_tiles::GetTilesIterator, Mosaic, Tile, TileGetById, WithMosaic},
+    internals::{get_tiles::GetTilesIterator, Mosaic, Tile, TileGetById, WithMosaic, MosaicIO},
     iterators::{
         exclude_components::ExcludeComponents,
         get_arrows_from::GetArrowsFromTiles,
@@ -46,23 +46,23 @@ impl TraversalOperator {
     }
 
     pub fn out_degree(&self, tile: &Tile) -> usize {
-        self.filter_traversal(tile.iter_with(&self.mosaic).get_arrows_from())
+        self.filter_traversal(tile.iter().get_arrows_from())
             .len()
     }
 
     pub fn in_degree(&self, tile: &Tile) -> usize {
-        self.filter_traversal(tile.iter_with(&self.mosaic).get_arrows_into())
+        self.filter_traversal(tile.iter().get_arrows_into())
             .len()
     }
 
     pub fn get_forward_neighbors(&self, tile: &Tile) -> GetTargetsIterator {
-        self.filter_traversal(tile.iter_with(&self.mosaic).get_arrows_from())
+        self.filter_traversal(tile.iter().get_arrows_from())
             .into_iter()
             .get_targets_with(Arc::clone(&self.mosaic))
     }
 
     pub fn get_backward_neighbors(&self, tile: &Tile) -> GetSourcesIterator {
-        self.filter_traversal(tile.iter_with(&self.mosaic).get_arrows_into())
+        self.filter_traversal(tile.iter().get_arrows_into())
             .into_iter()
             .get_sources_with(&self.mosaic)
     }

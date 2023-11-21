@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{byte_utilities::FromByteArray, self_val},
+    internals::{byte_utilities::FromByteArray, self_val, MosaicIO},
     iterators::include_component::IncludeComponent,
 };
 use crate::{
@@ -60,7 +60,7 @@ impl StringCapability for Arc<Mosaic> {
             None
         } else {
             let parts = tile
-                .iter_with(self)
+                .iter()
                 .get_dependents()
                 .filter_extensions()
                 .include_component("String")

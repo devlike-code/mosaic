@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use array_tool::vec::Shift;
 
-use crate::internals::{Mosaic, Tile, WithMosaic};
+use crate::internals::{Mosaic, Tile, WithMosaic, MosaicIO};
 
 pub struct GetTargetsIterator {
     mosaic: Arc<Mosaic>,

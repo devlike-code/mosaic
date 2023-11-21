@@ -4,7 +4,7 @@ use array_tool::vec::Shift;
 
 use crate::internals::{Mosaic, Tile, WithMosaic};
 
-use super::EntityId;
+use super::{EntityId, MosaicIO};
 
 pub struct GetTilesIterator {
     mosaic: Arc<Mosaic>,
