@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{self_val, Logging, Mosaic, MosaicCRUD, Tile, Value, S32},
+    internals::{default_vals, self_val, Logging, Mosaic, MosaicCRUD, Tile, Value, S32},
     iterators::{
         deletion::DeleteTiles, get_arrows_from::GetArrowsFromTiles, get_targets::GetTargets,
     },
@@ -30,6 +30,8 @@ pub trait ProcessCapability: GroupingCapability {
         &self,
         process: &Tile,
     ) -> anyhow::Result<HashMap<S32, Option<Tile>>>;
+
+    fn add_process_result(&self, process: &Tile, result: &Tile) -> anyhow::Result<()>;
 }
 
 impl ProcessCapability for Arc<Mosaic> {
@@ -147,5 +149,24 @@ impl ProcessCapability for Arc<Mosaic> {
                 )
             })
             .collect::<HashMap<_, _>>())
+    }
+
+    fn add_process_result(&self, process: &Tile, result: &Tile) -> anyhow::Result<()> {
+        if process.component != "Process".into() {
+            return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
+        }
+
+        let binding = process["self"].as_s32().to_string();
+        let group_name = binding.as_str();
+        let process_desc = self
+            .get_group_owner_descriptor(group_name, process)
+            .unwrap();
+
+        let result_ext = self.new_extension(&process_desc, "ProcessResult", default_vals());
+        self.add_group_member(group_name, &process_desc, &result_ext)?;
+
+        self.new_arrow(&result_ext, result, "ResultBinding", default_vals());
+
+        Ok(())
     }
 }
