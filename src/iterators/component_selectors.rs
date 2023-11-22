@@ -16,7 +16,7 @@ where
     I: Iterator<Item = Tile>,
 {
     fn include_components(self, components: &[&str]) -> IntoIter<Self::Item> {
-        let binding = components.clone().iter().map(|&c| c.into()).collect_vec();
+        let binding = components.iter().map(|&c| c.into()).collect_vec();
         let components = binding.as_slice();
 
         self.filter(|t| components.contains(&t.component))
@@ -29,7 +29,7 @@ where
     }
 
     fn exclude_components(self, components: &[&str]) -> IntoIter<Self::Item> {
-        let binding = components.clone().iter().map(|&c| c.into()).collect_vec();
+        let binding = components.iter().map(|&c| c.into()).collect_vec();
         let components = binding.as_slice();
 
         self.filter(|t| !components.contains(&t.component))

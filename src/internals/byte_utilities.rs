@@ -236,7 +236,7 @@ where
 impl ToByteArray for Value {
     fn to_byte_array(&self) -> Vec<u8> {
         match self {
-            Value::VOID => vec![],
+            Value::VOID(()) => vec![],
             Value::EID(eid) => (*eid).to_byte_array(),
             Value::I32(i) => (*i).to_byte_array(),
             Value::I64(i) => (*i).to_byte_array(),

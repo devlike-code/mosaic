@@ -94,6 +94,28 @@ impl std::hash::Hash for Tile {
 impl Index<&str> for Tile {
     type Output = Value;
     fn index<'a>(&'a self, i: &str) -> &'a Value {
+        if let Some(comp_type) = self
+            .mosaic
+            .component_registry
+            .component_type_map
+            .lock()
+            .unwrap()
+            .get(&i.into())
+        {
+            match comp_type {
+                ComponentType::Alias(_) if i == "self" => return self.data.get(&i.into()).unwrap(),
+                ComponentType::Sum { .. } if i == "index" => {
+                    let index_value = self.data.get(&i.into()).unwrap().as_s32();
+                    return self.data.get(&index_value).unwrap();
+                }
+                ComponentType::Product { name: _, fields }
+                    if fields.iter().map(|f| f.name == i.into()).len() > 0 =>
+                {
+                    return self.data.get(&i.into()).unwrap();
+                }
+                _ => return &Value::VOID(()),
+            }
+        }
         self.data.get(&i.into()).unwrap()
     }
 }
@@ -197,7 +219,7 @@ impl Tile {
                     let comp_data = &data[ptr..ptr + size];
 
                     let value = match datatype {
-                        Datatype::VOID => Value::VOID,
+                        Datatype::VOID => Value::VOID(()),
                         Datatype::I32 => Value::I32(i32::from_byte_array(comp_data)),
                         Datatype::U32 => Value::U32(u32::from_byte_array(comp_data)),
                         Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
@@ -234,7 +256,7 @@ impl Tile {
                 // temp.extend(name.to_byte_array());
 
                 let value_bytes: Vec<u8> = match value {
-                    Value::VOID => vec![],
+                    Value::VOID(()) => vec![],
                     Value::I32(x) => x.to_byte_array(),
                     Value::U32(x) => x.to_byte_array(),
                     Value::F32(x) => x.to_byte_array(),

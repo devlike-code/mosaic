@@ -73,7 +73,7 @@ impl ComponentRegistry {
                     name: format!("<{}>", component).as_str().into(),
                     datatype: Datatype::VOID,
                 },
-                Value::VOID,
+                Value::VOID(()),
             ))?
             .clone();
         let mut has_error = None;
