@@ -10,9 +10,9 @@ pub type EntityId = usize;
 pub struct S32(pub FStr<32>);
 impl Copy for S32 {}
 
-impl S32 {
-    pub fn to_string(&self) -> String {
-        self.0.replace('\0', "").trim().into()
+impl From<S32> for String {
+    fn from(value: S32) -> Self {
+        value.0.replace('\0', "").trim().into()
     }
 }
 
@@ -331,7 +331,7 @@ impl Value {
 
     pub fn as_bool(&self) -> bool {
         match self {
-            Value::BOOL(v) => v.clone(),
+            Value::BOOL(v) => *v,
             _ => panic!("Cannot get type variant bool"),
         }
     }

@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, Index, IndexMut},
-    sync::Arc,
-};
+use std::{collections::HashMap, ops::Index, sync::Arc};
 
 use crate::internals::ToByteArray;
 
@@ -91,35 +87,6 @@ impl std::hash::Hash for Tile {
     }
 }
 
-#[derive(Debug)]
-struct TileChange {
-    tile: Tile,
-}
-
-impl Deref for Tile {
-    type Target = TileChange;
-
-    fn deref(&self) -> &Self::Target {
-        &TileChange { tile: self.clone() }
-    }
-}
-
-impl Drop for TileChange {
-    fn drop(&mut self) {
-        let c = self
-            .tile
-            .mosaic
-            .component_registry
-            .get_component_type(self.tile.component)
-            .unwrap();
-
-        for f in c.get_fields() {
-            self.tile
-                .set_field(&f.name.to_string(), self.tile[&f.name.to_string()].clone());
-        }
-    }
-}
-
 impl Index<&str> for Tile {
     type Output = Value;
 
@@ -144,12 +111,6 @@ impl Index<&str> for Tile {
         } else {
             self.data.get(&i.into()).unwrap()
         }
-    }
-}
-
-impl IndexMut<&str> for Tile {
-    fn index_mut(&mut self, i: &str) -> &mut Self::Output {
-        self.data.get_mut(&i.into()).unwrap()
     }
 }
 
@@ -202,7 +163,7 @@ impl Tile {
 
                 //when default name exists in component fields and field and default datatype is the same take the 'default' value
                 //otherwise use field default value
-                println!("DEFAULTS {:?}", defaults);
+                // println!("DEFAULTS {:?}", defaults);
                 if let Some(default_field) = defaults.get(&name) {
                     if datatype == default_field.get_datatype() {
                         let value = defaults
@@ -210,12 +171,12 @@ impl Tile {
                             .cloned()
                             .unwrap_or(datatype.get_default());
 
-                        println!(
-                            "field datatype:{:?}, default datatype: {:?}, default value: {:?}",
-                            datatype,
-                            default_field.get_datatype(),
-                            value
-                        );
+                        // println!(
+                        //     "field datatype:{:?}, default datatype: {:?}, default value: {:?}",
+                        //     datatype,
+                        //     default_field.get_datatype(),
+                        //     value
+                        // );
 
                         self.data.insert(name, value);
                     }

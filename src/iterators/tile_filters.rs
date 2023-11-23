@@ -16,7 +16,7 @@ impl<I> TileFilters for I
 where
     I: Iterator<Item = Tile>,
 {
-    fn filter_arrows(self) -> IntoIter<Tile> {
+    fn filter_arrows(self) -> IntoIter<Self::Item> {
         self.filter(|tile| tile.is_arrow())
             .collect_vec()
             .into_iter()

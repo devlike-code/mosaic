@@ -10,6 +10,7 @@ pub mod mosaic;
 pub mod sparse_matrix;
 pub mod sparse_set;
 pub mod tile;
+pub mod tile_access;
 
 mod unit_tests;
 
@@ -20,3 +21,4 @@ pub use logging::*;
 pub use mosaic::*;
 pub use sparse_set::*;
 pub use tile::*;
+pub use tile_access::*;
