@@ -189,7 +189,9 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
+        internals::{
+            default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, TileFieldGetter,
+        },
     };
 
     #[test]
@@ -221,7 +223,7 @@ mod grouping_tests {
         let c_memberships = mosaic.get_group_memberships(&c);
         assert!(c_memberships.len() == 1);
         assert_eq!(
-            c_memberships.first().unwrap()["self"].as_s32(),
+            c_memberships.first().unwrap().get("self").as_s32(),
             "Parent2".into()
         );
 
@@ -238,10 +240,12 @@ mod process_tests {
     use crate::{
         capabilities::{process::ProcessCapability, GroupingCapability},
         internals::{
-            self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile, Value,
+            self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile,
+            TileFieldGetter, Value,
         },
         iterators::tile_getters::TileGetters,
     };
+
     #[test]
     fn test_processes() {
         let mosaic = Mosaic::new();
@@ -260,7 +264,7 @@ mod process_tests {
             let b = args.get(&"b".into()).unwrap();
 
             match (&a, &b) {
-                (Some(a), Some(b)) => Ok(a["self"].as_u32() + b["self"].as_u32()),
+                (Some(a), Some(b)) => Ok(a.get("self").as_u32() + b.get("self").as_u32()),
                 _ => "Can't do add :(".to_error(),
             }
         }

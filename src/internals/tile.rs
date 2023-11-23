@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Index, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::internals::ToByteArray;
 
@@ -84,33 +84,6 @@ impl Ord for Tile {
 impl std::hash::Hash for Tile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-    }
-}
-
-impl Index<&str> for Tile {
-    type Output = Value;
-
-    fn index(&self, i: &str) -> &Value {
-        if let Some(comp_type) = self
-            .mosaic
-            .component_registry
-            .component_type_map
-            .lock()
-            .unwrap()
-            .get(&i.into())
-        {
-            match comp_type {
-                ComponentType::Alias(_) if i == "self" => self.data.get(&i.into()).unwrap(),
-                ComponentType::Product { name: _, fields }
-                    if fields.iter().map(|f| f.name == i.into()).len() > 0 =>
-                {
-                    self.data.get(&i.into()).unwrap()
-                }
-                _ => &Value::UNIT(()),
-            }
-        } else {
-            self.data.get(&i.into()).unwrap()
-        }
     }
 }
 

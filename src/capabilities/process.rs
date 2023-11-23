@@ -3,7 +3,10 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{default_vals, self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, Value, S32},
+    internals::{
+        default_vals, self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, TileFieldGetter,
+        Value, S32,
+    },
     iterators::{tile_deletion::TileDeletion, tile_getters::TileGetters},
 };
 
@@ -61,12 +64,12 @@ impl ProcessCapability for Arc<Mosaic> {
             return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
         }
 
-        let binding = process["self"].as_s32().to_string();
+        let binding = process.get("self").as_s32().to_string();
         let group_name = binding.as_str();
 
         let param = self
             .get_group_members(group_name, process)
-            .filter(|t| t["self"].as_s32() == param_name.into())
+            .filter(|t| t.get("self").as_s32() == param_name.into())
             .collect_vec();
 
         if param.len() != 1 {
@@ -94,12 +97,12 @@ impl ProcessCapability for Arc<Mosaic> {
             return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
         }
 
-        let binding = process["self"].as_s32().to_string();
+        let binding = process.get("self").as_s32().to_string();
         let group_name = binding.as_str();
 
         let param = self
             .get_group_members(group_name, process)
-            .filter(|t| t["self"].as_s32() == param_name.into())
+            .filter(|t| t.get("self").as_s32() == param_name.into())
             .collect_vec();
 
         if param.len() != 1 {
@@ -130,14 +133,14 @@ impl ProcessCapability for Arc<Mosaic> {
             return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
         }
 
-        let binding = process["self"].as_s32().to_string();
+        let binding = process.get("self").as_s32().to_string();
         let group_name = binding.as_str();
 
         Ok(self
             .get_group_members(group_name, process)
             .map(|t| {
                 (
-                    t["self"].as_s32(),
+                    t.get("self").as_s32(),
                     t.into_iter()
                         .get_arrows_from()
                         .get_targets()
@@ -154,7 +157,7 @@ impl ProcessCapability for Arc<Mosaic> {
             return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
         }
 
-        let binding = process["self"].as_s32().to_string();
+        let binding = process.get("self").as_s32().to_string();
         let group_name = binding.as_str();
         let process_desc = self
             .get_group_owner_descriptor(group_name, process)

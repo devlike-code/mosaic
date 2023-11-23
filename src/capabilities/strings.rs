@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{byte_utilities::FromByteArray, self_val, MosaicIO},
+    internals::{byte_utilities::FromByteArray, self_val, MosaicIO, TileFieldGetter},
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 use crate::{
@@ -63,7 +63,7 @@ impl StringCapability for Arc<Mosaic> {
                 .get_dependents()
                 .filter_extensions()
                 .include_component("String")
-                .flat_map(|t| t["self"].as_s128())
+                .flat_map(|t| t.get("self").as_s128())
                 .collect_vec();
 
             Some(String::from_utf8_lossy(&parts).to_string())

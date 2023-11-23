@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod internals_tests {
-    use crate::internals::tile_access::TileFieldSetter;
+    use crate::internals::tile_access::{TileFieldGetter, TileFieldSetter};
     use crate::internals::{
         default_vals, load_mosaic_commands, self_val, Mosaic, MosaicCRUD, MosaicIO,
         MosaicTypelevelCRUD, TileType, Value,
@@ -20,7 +20,24 @@ mod internals_tests {
         }
 
         if let Some(a) = mosaic.get_all().next() {
-            assert_eq!(Value::I32(12), a["self"]);
+            assert_eq!(Value::I32(12), a.get("self"));
+        }
+    }
+
+    #[test]
+    fn test_tuple_get() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Position: { x: i32, y: i32 };").unwrap();
+        let mut a = mosaic.new_object("Position", default_vals());
+
+        a.set("x", 35i32);
+        a.set("y", 64i32);
+
+        if let (Value::I32(x), Value::I32(y)) = a.get(("x", "y")) {
+            assert_eq!(35, x);
+            assert_eq!(64, y);
+        } else {
+            unreachable!();
         }
     }
 
@@ -101,11 +118,11 @@ mod internals_tests {
         mosaic.new_type("Foo: { x: i32, y: f32 };").unwrap();
 
         let mut a = mosaic.new_object("Foo", default_vals());
-        assert_eq!(0, a["x"].as_i32());
-        assert_eq!(0.0, a["y"].as_f32());
+        assert_eq!(0, a.get("x").as_i32());
+        assert_eq!(0.0, a.get("y").as_f32());
 
         a.set("x", 7i32);
-        assert_eq!(7, a["x"].as_i32());
+        assert_eq!(7, a.get("x").as_i32());
     }
 
     #[test]
@@ -114,10 +131,10 @@ mod internals_tests {
         mosaic.new_type("Foo: i32;").unwrap();
 
         let mut a = mosaic.new_object("Foo", default_vals());
-        assert_eq!(0, a["self"].as_i32());
+        assert_eq!(0, a.get("self").as_i32());
 
         a.set("self", 7i32);
-        assert_eq!(7, a["self"].as_i32());
+        assert_eq!(7, a.get("self").as_i32());
     }
 
     fn test_data() -> [u8; 429] {

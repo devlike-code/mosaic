@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::internals::{self_val, Logging, MosaicIO};
+use crate::internals::{self_val, Logging, MosaicIO, TileFieldGetter};
 use crate::internals::{Mosaic, MosaicCRUD, Tile, Value};
 use crate::iterators::component_selectors::ComponentSelectors;
 use crate::iterators::tile_getters::TileGetters;
@@ -24,7 +24,7 @@ fn get_existing_owner_descriptor(group: &str, owner: &Tile) -> Option<Tile> {
         .into_iter()
         .get_descriptors()
         .include_component("GroupOwner")
-        .map(|t| (t["self"].as_s32(), t))
+        .map(|t| (t.get("self").as_s32(), t))
         .collect::<HashMap<_, _>>()
         .get(&group.into())
         .cloned()
@@ -36,7 +36,7 @@ impl GroupingCapability for Arc<Mosaic> {
             .into_iter()
             .get_arrows_into()
             .include_component("Group")
-            .unique_by(|t| t["self"].as_s32())
+            .unique_by(|t| t.get("self").as_s32())
             .collect_vec()
     }
 
@@ -78,7 +78,7 @@ impl GroupingCapability for Arc<Mosaic> {
                 .into_iter()
                 .get_arrows_into()
                 .include_component("Group")
-                .map(|s| (s["self"].as_s32(), s))
+                .map(|s| (s.get("self").as_s32(), s))
                 .filter(|(c, _)| c == &group.into())
                 .map(|(_, t)| t)
                 .get_sources()

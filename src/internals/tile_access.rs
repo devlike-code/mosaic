@@ -82,8 +82,26 @@ impl TileFieldSetter<bool> for Tile {
     }
 }
 
-impl Tile {
-    pub fn get(&mut self, index: &str) -> Value {
+pub trait TileFieldGetter<T> {
+    type Output;
+
+    fn get(&self, index: T) -> Self::Output;
+}
+
+impl TileFieldGetter<&str> for Tile {
+    type Output = Value;
+
+    fn get(&self, index: &str) -> Self::Output {
         self.data.get(&index.into()).cloned().unwrap()
+    }
+}
+
+impl TileFieldGetter<(&str, &str)> for Tile {
+    type Output = (Value, Value);
+
+    fn get(&self, index: (&str, &str)) -> Self::Output {
+        let a = self.data.get(&index.0.into()).cloned().unwrap();
+        let b = self.data.get(&index.1.into()).cloned().unwrap();
+        (a, b)
     }
 }
