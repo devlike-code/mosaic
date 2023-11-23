@@ -154,7 +154,7 @@ mod traversal_tests {
     fn test_simple_reachability() {
         let mosaic = Mosaic::new();
 
-        let _ = mosaic.new_type("Object: void; Arrow: void;");
+        let _ = mosaic.new_type("Object: unit; Arrow: unit;");
 
         let a = mosaic.new_object("Object", default_vals());
         let b = mosaic.new_object("Object", default_vals());

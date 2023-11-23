@@ -58,10 +58,10 @@ mod test_iterators {
     #[test]
     fn test_iterator_filters() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("C: void;").unwrap(); // An object in some Category
-        mosaic.new_type("P: void;").unwrap(); // Property
-        mosaic.new_type("C_to_C: void;").unwrap(); // C -> C
-        mosaic.new_type("C_to_C_sqr: void;").unwrap(); // (C -> C) -> (C -> C)
+        mosaic.new_type("C: unit;").unwrap(); // An object in some Category
+        mosaic.new_type("P: unit;").unwrap(); // Property
+        mosaic.new_type("C_to_C: unit;").unwrap(); // C -> C
+        mosaic.new_type("C_to_C_sqr: unit;").unwrap(); // (C -> C) -> (C -> C)
         let a = mosaic.new_object("C", default_vals());
         let b = mosaic.new_object("C", default_vals());
         let c = mosaic.new_object("C", default_vals());
@@ -107,9 +107,9 @@ mod test_iterators {
     #[test]
     fn test_get_arrows_into() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("Src: void;").unwrap();
-        mosaic.new_type("Tgt: void;").unwrap();
-        mosaic.new_type("Arr: void;").unwrap();
+        mosaic.new_type("Src: unit;").unwrap();
+        mosaic.new_type("Tgt: unit;").unwrap();
+        mosaic.new_type("Arr: unit;").unwrap();
         let src = mosaic.new_object("Src", default_vals()); // 0
         let tgt1 = mosaic.new_object("Tgt", default_vals()); // 1
         let tgt2 = mosaic.new_object("Tgt", default_vals()); // 2
@@ -131,11 +131,11 @@ mod test_iterators {
     #[test]
     fn test_filtering_by_arrow_type() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("Src: void;").unwrap();
-        mosaic.new_type("Tgt: void;").unwrap();
-        mosaic.new_type("Arr1: void;").unwrap();
-        mosaic.new_type("Arr2: void;").unwrap();
-        mosaic.new_type("Arr3: void;").unwrap();
+        mosaic.new_type("Src: unit;").unwrap();
+        mosaic.new_type("Tgt: unit;").unwrap();
+        mosaic.new_type("Arr1: unit;").unwrap();
+        mosaic.new_type("Arr2: unit;").unwrap();
+        mosaic.new_type("Arr3: unit;").unwrap();
         let src = mosaic.new_object("Src", default_vals());
         let src2 = mosaic.new_object("Src", default_vals());
         let tgt1 = mosaic.new_object("Tgt", default_vals());

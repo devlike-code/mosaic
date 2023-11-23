@@ -11,7 +11,7 @@ use crate::{
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 use crate::{
-    internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, B128},
+    internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, S128},
     iterators::tile_filters::TileFilters,
 };
 
@@ -46,7 +46,7 @@ impl StringCapability for Arc<Mosaic> {
             self.new_extension(
                 &str_hash,
                 "String",
-                self_val(Value::B128(B128::from_byte_array(part.as_bytes()))),
+                self_val(Value::S128(S128::from_byte_array(part.as_bytes()))),
             );
         }
 
@@ -63,7 +63,7 @@ impl StringCapability for Arc<Mosaic> {
                 .get_dependents()
                 .filter_extensions()
                 .include_component("String")
-                .flat_map(|t| t["self"].as_b128())
+                .flat_map(|t| t["self"].as_s128())
                 .collect_vec();
 
             Some(String::from_utf8_lossy(&parts).to_string())

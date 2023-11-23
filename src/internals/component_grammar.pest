@@ -1,33 +1,33 @@
 WHITESPACE = _{ " " | "\r\n" | "\n" }
 
-keyword_product = _{ "product" }
-keyword_sum = _{ "sum" }
-
 structures_expr = _{ structure_decl_expr }
 structure_decl_expr = _{ struct_expr ~ struct_expr* ~ ";"? }
 
-product_type_expr = { keyword_product ~ "{" ~ field_expr* ~ "}" }
-sum_type_expr = { keyword_sum ~ "{" ~ field_expr* ~ "}" }
-struct_expr = { identifier ~ ":" ~ (datatype_expr ~ ";" | product_type_expr ~ ";" | sum_type_expr ~ ";") }
+product_type_expr = { "{" ~ field_expr* ~ "}" }
+struct_expr = { identifier ~ ":" ~ (datatype_expr ~ ";" | product_type_expr ~ ";") }
 
 field_expr = { identifier ~ ":" ~ field_datatype_expr ~ ","? }
 
-identifier = { ASCII_ALPHANUMERIC ~ ("." | "/" | "-" | "_" | ASCII_ALPHANUMERIC)* }
+identifier = { ASCII_ALPHANUMERIC ~ ("-" | "_" | ASCII_ALPHANUMERIC)* }
 
 string_expr = _{ "\"" ~ string ~ "\"" }
 string = { (!"\"" ~ ANY)+ }
 
 field_datatype_expr = { 
-      "void" 
+      "unit"
+    | "i8"
+    | "i16" 
     | "i32"
     | "i64"
+    | "u8"
+    | "u16"
     | "u32"
     | "u64"
     | "f32"
     | "f64"
-    | "id"
     | "s32"
-    | "b128"
+    | "s128"
+    | "bool"
 }
 
 datatype_expr = { 
@@ -40,6 +40,6 @@ datatype_expr = {
     | "f64"
     | "id"
     | "s32"
-    | "b128"
+    | "s128"
     | identifier
 }

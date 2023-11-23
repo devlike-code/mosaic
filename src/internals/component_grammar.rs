@@ -13,23 +13,26 @@ pub struct ComponentParser;
 #[derive(Debug, PartialEq, Eq)]
 enum ComponentTypeKindNames {
     Product,
-    Sum,
     Alias,
 }
 
 impl ComponentParser {
     fn parse_base_type(v: &str) -> Option<Datatype> {
         match v {
-            "void" => Some(Datatype::VOID),
+            "unit" => Some(Datatype::UNIT),
+            "i8" => Some(Datatype::I8),
+            "i16" => Some(Datatype::I16),
             "i32" => Some(Datatype::I32),
             "i64" => Some(Datatype::I64),
+            "u8" => Some(Datatype::U8),
+            "u16" => Some(Datatype::U16),
             "u32" => Some(Datatype::U32),
             "u64" => Some(Datatype::U64),
             "f32" => Some(Datatype::F32),
             "f64" => Some(Datatype::F64),
-            "id" => Some(Datatype::EID),
             "s32" => Some(Datatype::S32),
-            "b128" => Some(Datatype::B128),
+            "s128" => Some(Datatype::S128),
+            "bool" => Some(Datatype::BOOL),
             _ => None,
         }
     }
@@ -86,7 +89,6 @@ impl ComponentParser {
 
         let kind = match val.as_rule() {
             Rule::product_type_expr => ComponentTypeKindNames::Product,
-            Rule::sum_type_expr => ComponentTypeKindNames::Sum,
             Rule::datatype_expr => ComponentTypeKindNames::Alias,
             e => {
                 return format!(
@@ -125,17 +127,10 @@ impl ComponentParser {
                 fields.push(field);
             }
 
-            if kind == ComponentTypeKindNames::Product {
-                Ok(ComponentType::Product {
-                    name: name.into(),
-                    fields,
-                })
-            } else {
-                Ok(ComponentType::Sum {
-                    name: name.into(),
-                    fields: fields.clone(),
-                })
-            }
+            Ok(ComponentType::Product {
+                name: name.into(),
+                fields,
+            })
         };
     }
 
@@ -225,7 +220,7 @@ mod component_grammar_testing {
 
     #[test]
     fn test_parse_product_type() {
-        let input = "Position : product { x: i32, y: i32 };";
+        let input = "Position : { x: i32, y: i32 };";
         let _expected = ComponentType::Product {
             name: "Position".into(),
             fields: vec![
@@ -245,28 +240,8 @@ mod component_grammar_testing {
 
     #[test]
     fn test_parse_product_type_with_comp_field() {
-        let input = "Position : product { x: i32, y: Foo };";
+        let input = "Position : { x: i32, y: Foo };";
         // println!("{}", ComponentParser::parse_type(input).unwrap_err());
         assert!(ComponentParser::parse_type(input).is_err());
-    }
-
-    #[test]
-    fn test_parse_sum_type() {
-        let input = "Position : sum { x: i32, y: i32 };";
-        let _expected = ComponentType::Sum {
-            name: "Position".into(),
-            fields: vec![
-                ComponentField {
-                    name: "x".into(),
-                    datatype: Datatype::I32,
-                },
-                ComponentField {
-                    name: "y".into(),
-                    datatype: Datatype::I32,
-                },
-            ],
-        };
-
-        assert!(matches!(ComponentParser::parse_type(input), Ok(_expected)));
     }
 }

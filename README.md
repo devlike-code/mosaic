@@ -10,8 +10,8 @@
     [x] create a method in brick to get a builder: `Brick::edit(&mut self) -> BrickEditor`
 [M] string allocation and retrieval
     [x] change `string` type in datatypes to `blob` (128-byte blob)
-        - renamed `str` to `b128` and changed bytesize to 32
-    [x] make a `String` component that is aliasing a `blob` (or `b128`)
+        - renamed `str` to `s128` and changed bytesize to 32
+    [x] make a `String` component that is aliasing a `blob` (or `s128`)
     [x] make a `string` layer with functions:
         [x] `create_string(str: &str) -> EntityId` that makes an object and its properties and 
             returns a EID type that's actually the hash of the string

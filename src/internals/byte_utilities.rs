@@ -3,7 +3,7 @@ use std::convert::AsMut;
 
 use super::component_registry::ComponentRegistry;
 use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
-use super::{Value, B128};
+use super::{Value, S128};
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
 pub(crate) trait Bytesize {
@@ -31,6 +31,34 @@ where
     a
 }
 
+/// The `FromByteArray` implementation for `u8`
+impl FromByteArray for u8 {
+    fn from_byte_array(data: &[u8]) -> Self {
+        u8::from_be_bytes(copy_into_array(data))
+    }
+}
+
+/// The `ToByteArray` implementation for `u8`
+impl ToByteArray for u8 {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+/// The `FromByteArray` implementation for `u16`
+impl FromByteArray for u16 {
+    fn from_byte_array(data: &[u8]) -> Self {
+        u16::from_be_bytes(copy_into_array(data))
+    }
+}
+
+/// The `ToByteArray` implementation for `u16`
+impl ToByteArray for u16 {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
 /// The `FromByteArray` implementation for `u32`
 impl FromByteArray for u32 {
     fn from_byte_array(data: &[u8]) -> Self {
@@ -40,6 +68,48 @@ impl FromByteArray for u32 {
 
 /// The `ToByteArray` implementation for `u32`
 impl ToByteArray for u32 {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+/// The `FromByteArray` implementation for `bool`
+impl FromByteArray for bool {
+    fn from_byte_array(data: &[u8]) -> Self {
+        data[0] == 1
+    }
+}
+
+/// The `ToByteArray` implementation for `bool`
+impl ToByteArray for bool {
+    fn to_byte_array(&self) -> Vec<u8> {
+        vec![if *self { 1 } else { 0 }]
+    }
+}
+
+/// The `FromByteArray` implementation for `i8`
+impl FromByteArray for i8 {
+    fn from_byte_array(data: &[u8]) -> Self {
+        i8::from_be_bytes(copy_into_array(data))
+    }
+}
+
+/// The `ToByteArray` implementation for `i8`
+impl ToByteArray for i8 {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
+/// The `FromByteArray` implementation for `i16`
+impl FromByteArray for i16 {
+    fn from_byte_array(data: &[u8]) -> Self {
+        i16::from_be_bytes(copy_into_array(data))
+    }
+}
+
+/// The `ToByteArray` implementation for `i16`
+impl ToByteArray for i16 {
     fn to_byte_array(&self) -> Vec<u8> {
         self.to_be_bytes().to_vec()
     }
@@ -129,20 +199,6 @@ impl ToByteArray for f64 {
     }
 }
 
-/// The `FromByteArray` implementation for `u8`
-impl FromByteArray for u8 {
-    fn from_byte_array(data: &[u8]) -> Self {
-        data[0]
-    }
-}
-
-/// The `ToByteArray` implementation for `u8`
-impl ToByteArray for u8 {
-    fn to_byte_array(&self) -> Vec<u8> {
-        vec![*self]
-    }
-}
-
 /// The `FromByteArray` implementation for `s32`
 impl FromByteArray for S32 {
     fn from_byte_array(data: &[u8]) -> Self {
@@ -166,17 +222,17 @@ impl FromByteArray for Str {
 }
 
 /// The `ToByteArray` implementation for `s32`
-impl ToByteArray for B128 {
+impl ToByteArray for S128 {
     fn to_byte_array(&self) -> Vec<u8> {
         self.to_vec()
     }
 }
 
 /// The `FromByteArray` implementation for `str`
-impl FromByteArray for B128 {
+impl FromByteArray for S128 {
     fn from_byte_array(data: &[u8]) -> Self {
         data.try_into()
-            .expect("Cannot turn slice into array and satisfy conditions for B128")
+            .expect("Cannot turn slice into array and satisfy conditions for s128")
     }
 }
 
@@ -192,11 +248,6 @@ impl Bytesize for ComponentType {
     fn bytesize(&self, engine: &ComponentRegistry) -> usize {
         match self {
             ComponentType::Alias(field) => field.datatype.bytesize(engine),
-            ComponentType::Sum { fields, .. } => fields
-                .iter()
-                .fold(0usize, |old, ComponentField { datatype, .. }| {
-                    old + datatype.bytesize(engine)
-                }),
             ComponentType::Product { fields, .. } => fields
                 .iter()
                 .fold(0usize, |old, ComponentField { datatype, .. }| {
@@ -210,11 +261,14 @@ impl Bytesize for ComponentType {
 impl Bytesize for Datatype {
     fn bytesize(&self, engine: &ComponentRegistry) -> usize {
         match self {
-            Datatype::VOID => 0usize,
+            Datatype::UNIT => 0usize,
+            Datatype::BOOL => 1usize,
+            Datatype::I8 | Datatype::U8 => 1usize,
+            Datatype::I16 | Datatype::U16 => 2usize,
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,
-            Datatype::I64 | Datatype::U64 | Datatype::F64 | Datatype::EID => 8usize,
+            Datatype::I64 | Datatype::U64 | Datatype::F64 => 8usize,
             Datatype::S32 => 32usize,
-            Datatype::B128 => 128usize,
+            Datatype::S128 => 128usize,
             Datatype::COMP(component_name) => engine
                 .get_component_type(*component_name)
                 .map(|t| t.bytesize(engine))
@@ -236,16 +290,20 @@ where
 impl ToByteArray for Value {
     fn to_byte_array(&self) -> Vec<u8> {
         match self {
-            Value::VOID(()) => vec![],
-            Value::EID(eid) => (*eid).to_byte_array(),
+            Value::UNIT(()) => vec![],
+            Value::I8(i) => (*i).to_byte_array(),
+            Value::I16(i) => (*i).to_byte_array(),
             Value::I32(i) => (*i).to_byte_array(),
             Value::I64(i) => (*i).to_byte_array(),
+            Value::U8(u) => (*u).to_byte_array(),
+            Value::U16(u) => (*u).to_byte_array(),
             Value::U32(u) => (*u).to_byte_array(),
             Value::U64(u) => (*u).to_byte_array(),
             Value::F32(f) => (*f).to_byte_array(),
             Value::F64(f) => (*f).to_byte_array(),
             Value::S32(s) => s.to_byte_array(),
-            Value::B128(b) => b.to_byte_array(),
+            Value::S128(b) => b.to_byte_array(),
+            Value::BOOL(b) => b.to_byte_array(),
         }
     }
 }

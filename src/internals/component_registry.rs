@@ -71,9 +71,9 @@ impl ComponentRegistry {
             .ok_or((
                 ComponentField {
                     name: format!("<{}>", component).as_str().into(),
-                    datatype: Datatype::VOID,
+                    datatype: Datatype::UNIT,
                 },
-                Value::VOID(()),
+                Value::UNIT(()),
             ))?
             .clone();
         let mut has_error = None;

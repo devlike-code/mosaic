@@ -6,7 +6,7 @@ mod internals_tests {
     };
 
     #[test]
-    fn test_commit() {
+    fn test_reading_value_after_dropping() {
         let mosaic = Mosaic::new();
         mosaic.new_type("I: i32;").unwrap();
         mosaic.new_object("I", default_vals());
@@ -25,9 +25,9 @@ mod internals_tests {
     #[test]
     fn test_basic_mosaic_usage() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("A: void;").unwrap();
-        mosaic.new_type("B: void;").unwrap();
-        mosaic.new_type("A_to_B: void;").unwrap();
+        mosaic.new_type("A: unit;").unwrap();
+        mosaic.new_type("B: unit;").unwrap();
+        mosaic.new_type("A_to_B: unit;").unwrap();
         // We make two objects and an arrow: A --A_to_B--> B
         let a = mosaic.new_object("A", default_vals());
         let b = mosaic.new_object("B", default_vals());
@@ -68,9 +68,9 @@ mod internals_tests {
     #[test]
     fn test_cloning_isnt_affecting_mosaic() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("A: void;").unwrap();
-        mosaic.new_type("B: void;").unwrap();
-        mosaic.new_type("A_to_B: void;").unwrap();
+        mosaic.new_type("A: unit;").unwrap();
+        mosaic.new_type("B: unit;").unwrap();
+        mosaic.new_type("A_to_B: unit;").unwrap();
         let a = mosaic.new_object("A", default_vals());
         let b = mosaic.new_object("B", default_vals());
         let a_b = mosaic.new_arrow(&a, &b, "A_to_B", default_vals());
@@ -96,7 +96,7 @@ mod internals_tests {
     #[test]
     fn test_component_field_indexing() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("Foo: product { x: i32, y: f32 };").unwrap();
+        mosaic.new_type("Foo: { x: i32, y: f32 };").unwrap();
 
         let mut a = mosaic.new_object("Foo", default_vals());
         assert_eq!(Value::I32(0), a["x"]);
@@ -157,39 +157,6 @@ mod internals_tests {
         //let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
 
         assert_eq!(&test_data(), mosaic.save().as_slice());
-    }
-
-    #[test]
-    fn test_save_sum_type() {
-        let mosaic = Mosaic::new();
-
-        let input = "Position : sum { x: i32, y: i32 z: i32};";
-        mosaic.new_type(input).unwrap();
-
-        mosaic.new_type("Foo: i32;").unwrap();
-
-        let a = mosaic.new_object("Foo", self_val(Value::I32(101)));
-        let mut s = mosaic.new_object(
-            "Position",
-            vec![
-                ("x".into(), Value::I32(11)),
-                ("x".into(), Value::F32(10.1)),
-                ("y".into(), Value::I32(22)),
-                ("z".into(), Value::I32(44)),
-            ],
-        );
-
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let c = mosaic.new_object("DEBUG", default_vals());
-        let _ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
-        //println!("DEBUG TILE 'self' field: {:?}", b["self"]); //Alias doesn't have fields so indexer doesn't work
-
-        println!("SUM TILE: {:?}", s);
-        s["index"] = Value::S32("x".into());
-        println!("SUM TILE: {:?}", s);
-
-        // assert_eq!(&test_data(), mosaic.save().as_slice());
     }
 
     #[test]

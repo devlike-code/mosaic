@@ -10,6 +10,12 @@ pub type EntityId = usize;
 pub struct S32(pub FStr<32>);
 impl Copy for S32 {}
 
+impl S32 {
+    pub fn to_string(&self) -> String {
+        self.0.replace('\0', "").trim().into()
+    }
+}
+
 impl From<&str> for S32 {
     fn from(value: &str) -> Self {
         S32(FStr::<32>::from_str_lossy(value, b'\0'))
@@ -48,16 +54,20 @@ pub struct Str(pub u64);
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum Datatype {
-    VOID,
-    EID,
+    UNIT,
+    I8,
+    I16,
     I32,
     I64,
+    U8,
+    U16,
     U32,
     U64,
     F32,
     F64,
     S32,
-    B128,
+    S128,
+    BOOL,
     COMP(S32),
 }
 
@@ -72,19 +82,23 @@ pub fn default_vals() -> Vec<(S32, Value)> {
 impl Datatype {
     pub fn get_default(&self) -> Value {
         match self {
-            Datatype::VOID => Value::VOID(()),
+            Datatype::UNIT => Value::UNIT(()),
             // COMP fields will disappear when the component is added to the engine state,
             // so this situation should never arise. However, we'll leave a log here just in case.
-            Datatype::COMP(_) => Value::VOID(()),
+            Datatype::COMP(_) => Value::UNIT(()),
+            Datatype::I8 => Value::I8(0),
+            Datatype::I16 => Value::I16(0),
             Datatype::I32 => Value::I32(0),
-            Datatype::U32 => Value::U32(0),
-            Datatype::F32 => Value::F32(0.0),
-            Datatype::S32 => Value::S32("".into()),
             Datatype::I64 => Value::I64(0),
+            Datatype::U8 => Value::U8(0),
+            Datatype::U16 => Value::U16(0),
+            Datatype::U32 => Value::U32(0),
             Datatype::U64 => Value::U64(0),
+            Datatype::F32 => Value::F32(0.0),
             Datatype::F64 => Value::F64(0.0),
-            Datatype::EID => Value::EID(0),
-            Datatype::B128 => Value::B128(vec![]),
+            Datatype::S32 => Value::S32("".into()),
+            Datatype::S128 => Value::S128(vec![]),
+            Datatype::BOOL => Value::BOOL(false),
         }
     }
 }
@@ -99,11 +113,6 @@ pub struct ComponentField {
 pub enum ComponentType {
     Alias(ComponentField),
 
-    Sum {
-        name: S32,
-        fields: Vec<ComponentField>,
-    },
-
     Product {
         name: S32,
         fields: Vec<ComponentField>,
@@ -114,9 +123,7 @@ impl ComponentType {
     pub fn is_alias(&self) -> bool {
         matches!(self, ComponentType::Alias(_))
     }
-    pub fn is_sum(&self) -> bool {
-        matches!(self, ComponentType::Sum { .. })
-    }
+
     pub fn is_product(&self) -> bool {
         matches!(self, ComponentType::Product { .. })
     }
@@ -129,10 +136,6 @@ impl ComponentType {
                     datatype: datatype.clone(),
                 })
             }
-            ComponentType::Sum { name: _, fields } => ComponentType::Sum {
-                name: new_name,
-                fields: fields.clone(),
-            },
             ComponentType::Product { name: _, fields } => ComponentType::Product {
                 name: new_name,
                 fields: fields.clone(),
@@ -143,7 +146,6 @@ impl ComponentType {
     pub fn name(&self) -> String {
         let s = match self {
             ComponentType::Alias(ComponentField { name, .. }) => name.0.to_string(),
-            ComponentType::Sum { name, .. } => name.0.to_string(),
             ComponentType::Product { name, .. } => name.0.to_string(),
         };
 
@@ -157,7 +159,6 @@ impl ComponentType {
     pub fn get_fields(&self) -> Vec<ComponentField> {
         match self {
             ComponentType::Alias(field) => vec![field.clone()],
-            ComponentType::Sum { fields, .. } => fields.clone(),
             ComponentType::Product { fields, .. } => fields.clone(),
         }
     }
@@ -165,7 +166,6 @@ impl ComponentType {
     pub fn get_field(&self, field_name: S32) -> Option<&ComponentField> {
         match self {
             ComponentType::Alias(field) if field.name == "self".into() => Some(field),
-            ComponentType::Sum { fields, .. } => fields.iter().find(|f| f.name == field_name),
             ComponentType::Product { fields, .. } => fields.iter().find(|f| f.name == field_name),
             _ => None,
         }
@@ -202,45 +202,60 @@ pub fn try_read_component_type(
     }
 }
 
-pub type B128 = Vec<u8>;
+pub type S128 = Vec<u8>;
 
 pub type ComponentValues = Vec<(S32, Value)>;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum Value {
-    VOID(()),
-    EID(EntityId),
+    UNIT(()),
+    I8(i8),
+    I16(i16),
     I32(i32),
     I64(i64),
+    U8(u8),
+    U16(u16),
     U32(u32),
     U64(u64),
     F32(f32),
     F64(f64),
     S32(S32),
-    B128(B128),
+    S128(S128),
+    BOOL(bool),
 }
 
 impl Value {
     pub fn get_datatype(&self) -> Datatype {
         match self {
-            Value::VOID(()) => Datatype::VOID,
-            Value::EID(_) => Datatype::EID,
+            Value::UNIT(()) => Datatype::UNIT,
+            Value::I8(_) => Datatype::I8,
+            Value::I16(_) => Datatype::I16,
             Value::I32(_) => Datatype::I32,
             Value::I64(_) => Datatype::I64,
+            Value::U8(_) => Datatype::U8,
+            Value::U16(_) => Datatype::U16,
             Value::U32(_) => Datatype::U32,
             Value::U64(_) => Datatype::U64,
             Value::F32(_) => Datatype::F32,
             Value::F64(_) => Datatype::F64,
             Value::S32(_) => Datatype::S32,
-            Value::B128(_) => Datatype::B128,
+            Value::S128(_) => Datatype::S128,
+            Value::BOOL(_) => Datatype::BOOL,
         }
     }
 
-    pub fn as_eid(&self) -> EntityId {
+    pub fn as_i8(&self) -> i8 {
         match self {
-            Value::EID(v) => *v,
-            _ => panic!("Cannot get type variant EID"),
+            Value::I8(v) => *v,
+            _ => panic!("Cannot get type variant I8"),
+        }
+    }
+
+    pub fn as_i16(&self) -> i16 {
+        match self {
+            Value::I16(v) => *v,
+            _ => panic!("Cannot get type variant I16"),
         }
     }
 
@@ -255,6 +270,20 @@ impl Value {
         match self {
             Value::I64(v) => *v,
             _ => panic!("Cannot get type variant I64"),
+        }
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            Value::U8(v) => *v,
+            _ => panic!("Cannot get type variant U8"),
+        }
+    }
+
+    pub fn as_u16(&self) -> u16 {
+        match self {
+            Value::U16(v) => *v,
+            _ => panic!("Cannot get type variant U16"),
         }
     }
 
@@ -293,10 +322,17 @@ impl Value {
         }
     }
 
-    pub fn as_b128(&self) -> B128 {
+    pub fn as_s128(&self) -> S128 {
         match self {
-            Value::B128(v) => v.clone(),
-            _ => panic!("Cannot get type variant B128"),
+            Value::S128(v) => v.clone(),
+            _ => panic!("Cannot get type variant s128"),
+        }
+    }
+
+    pub fn as_bool(&self) -> bool {
+        match self {
+            Value::BOOL(v) => v.clone(),
+            _ => panic!("Cannot get type variant bool"),
         }
     }
 }

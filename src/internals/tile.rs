@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ops::{Index, IndexMut},
+    ops::{Deref, Index, IndexMut},
     sync::Arc,
 };
 
@@ -91,9 +91,39 @@ impl std::hash::Hash for Tile {
     }
 }
 
+#[derive(Debug)]
+struct TileChange {
+    tile: Tile,
+}
+
+impl Deref for Tile {
+    type Target = TileChange;
+
+    fn deref(&self) -> &Self::Target {
+        &TileChange { tile: self.clone() }
+    }
+}
+
+impl Drop for TileChange {
+    fn drop(&mut self) {
+        let c = self
+            .tile
+            .mosaic
+            .component_registry
+            .get_component_type(self.tile.component)
+            .unwrap();
+
+        for f in c.get_fields() {
+            self.tile
+                .set_field(&f.name.to_string(), self.tile[&f.name.to_string()].clone());
+        }
+    }
+}
+
 impl Index<&str> for Tile {
     type Output = Value;
-    fn index<'a>(&'a self, i: &str) -> &'a Value {
+
+    fn index(&self, i: &str) -> &Value {
         if let Some(comp_type) = self
             .mosaic
             .component_registry
@@ -103,34 +133,23 @@ impl Index<&str> for Tile {
             .get(&i.into())
         {
             match comp_type {
-                ComponentType::Alias(_) if i == "self" => return self.data.get(&i.into()).unwrap(),
-                ComponentType::Sum { .. } if i == "index" => {
-                    let index_value = self.data.get(&i.into()).unwrap().as_s32();
-                    return self.data.get(&index_value).unwrap();
-                }
+                ComponentType::Alias(_) if i == "self" => self.data.get(&i.into()).unwrap(),
                 ComponentType::Product { name: _, fields }
                     if fields.iter().map(|f| f.name == i.into()).len() > 0 =>
                 {
-                    return self.data.get(&i.into()).unwrap();
+                    self.data.get(&i.into()).unwrap()
                 }
-                _ => return &Value::VOID(()),
+                _ => &Value::UNIT(()),
             }
+        } else {
+            self.data.get(&i.into()).unwrap()
         }
-        self.data.get(&i.into()).unwrap()
     }
 }
 
 impl IndexMut<&str> for Tile {
     fn index_mut(&mut self, i: &str) -> &mut Self::Output {
-        if self.data.get(&"index".into()).is_some() {
-            if self.data.get(&i.into()).is_some() {
-                self.data.get_mut(&i.into()).unwrap()
-            } else {
-                panic!("SUM TYPE DOESN'T HAVE '{}' FIELD!", i);
-            }
-        } else {
-            self.data.get_mut(&i.into()).unwrap()
-        }
+        self.data.get_mut(&i.into()).unwrap()
     }
 }
 
@@ -145,12 +164,30 @@ impl Tile {
     }
 
     pub(crate) fn create_data_fields(&mut self, defaults: ComponentValues) -> anyhow::Result<()> {
-        let defaults = defaults.into_iter().collect::<HashMap<_, _>>();
+        let mut defaults = defaults.into_iter().collect::<HashMap<_, _>>();
 
         let component_type = self
             .mosaic
             .component_registry
             .get_component_type(self.component)?;
+
+        if defaults.is_empty() {
+            if component_type.is_alias() {
+                defaults.insert(
+                    "self".into(),
+                    component_type
+                        .get_fields()
+                        .first()
+                        .unwrap()
+                        .datatype
+                        .get_default(),
+                );
+            } else {
+                for field in component_type.get_fields() {
+                    defaults.insert(field.name, field.datatype.get_default());
+                }
+            }
+        }
 
         component_type
             .get_fields()
@@ -165,6 +202,7 @@ impl Tile {
 
                 //when default name exists in component fields and field and default datatype is the same take the 'default' value
                 //otherwise use field default value
+                println!("DEFAULTS {:?}", defaults);
                 if let Some(default_field) = defaults.get(&name) {
                     if datatype == default_field.get_datatype() {
                         let value = defaults
@@ -179,18 +217,10 @@ impl Tile {
                             value
                         );
 
-                        //as index for sum type for component data insert only the last field that matches in datatype; overwrite the previous
-                        if component_type.is_sum() {
-                            println!("IS SUM!");
-                            if self.data.get(&"index".into()).is_none() {
-                                self.data.insert("index".into(), Value::S32(name));
-                            } else {
-                                self["index"] = Value::S32(name);
-                            }
-                        }
-
                         self.data.insert(name, value);
                     }
+                } else {
+                    println!("MISSING FIELD {:?}", name);
                 }
             });
 
@@ -219,16 +249,20 @@ impl Tile {
                     let comp_data = &data[ptr..ptr + size];
 
                     let value = match datatype {
-                        Datatype::VOID => Value::VOID(()),
+                        Datatype::UNIT => Value::UNIT(()),
+                        Datatype::I8 => Value::I8(i8::from_byte_array(comp_data)),
+                        Datatype::I16 => Value::I16(i16::from_byte_array(comp_data)),
                         Datatype::I32 => Value::I32(i32::from_byte_array(comp_data)),
-                        Datatype::U32 => Value::U32(u32::from_byte_array(comp_data)),
-                        Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
-                        Datatype::S32 => Value::S32(S32::from_byte_array(comp_data)),
                         Datatype::I64 => Value::I64(i64::from_byte_array(comp_data)),
+                        Datatype::U8 => Value::U8(u8::from_byte_array(comp_data)),
+                        Datatype::U16 => Value::U16(u16::from_byte_array(comp_data)),
+                        Datatype::U32 => Value::U32(u32::from_byte_array(comp_data)),
                         Datatype::U64 => Value::U64(u64::from_byte_array(comp_data)),
+                        Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
                         Datatype::F64 => Value::F64(f64::from_byte_array(comp_data)),
-                        Datatype::EID => Value::EID(EntityId::from_byte_array(comp_data)),
-                        Datatype::B128 => Value::B128(comp_data.to_vec().clone()),
+                        Datatype::S32 => Value::S32(S32::from_byte_array(comp_data)),
+                        Datatype::S128 => Value::S128(comp_data.to_vec().clone()),
+                        Datatype::BOOL => Value::BOOL(bool::from_byte_array(comp_data)),
                         Datatype::COMP(_) => panic!("Unreachable"),
                     };
 
@@ -256,16 +290,20 @@ impl Tile {
                 // temp.extend(name.to_byte_array());
 
                 let value_bytes: Vec<u8> = match value {
-                    Value::VOID(()) => vec![],
+                    Value::UNIT(()) => vec![],
+                    Value::I8(x) => x.to_byte_array(),
+                    Value::I16(x) => x.to_byte_array(),
                     Value::I32(x) => x.to_byte_array(),
-                    Value::U32(x) => x.to_byte_array(),
-                    Value::F32(x) => x.to_byte_array(),
-                    Value::S32(x) => x.to_byte_array(),
                     Value::I64(x) => x.to_byte_array(),
+                    Value::U8(x) => x.to_byte_array(),
+                    Value::U16(x) => x.to_byte_array(),
+                    Value::U32(x) => x.to_byte_array(),
                     Value::U64(x) => x.to_byte_array(),
+                    Value::F32(x) => x.to_byte_array(),
                     Value::F64(x) => x.to_byte_array(),
-                    Value::EID(x) => x.to_byte_array(),
-                    Value::B128(x) => x.clone(),
+                    Value::S32(x) => x.to_byte_array(),
+                    Value::S128(x) => x.clone(),
+                    Value::BOOL(x) => x.to_byte_array(),
                 };
                 temp.extend(value_bytes);
                 temp

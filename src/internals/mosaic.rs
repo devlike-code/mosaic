@@ -47,20 +47,20 @@ impl Mosaic {
             extension_ids: Mutex::new(SparseSet::default()),
         });
 
-        mosaic.new_type("String: b128;").unwrap();
+        mosaic.new_type("String: s128;").unwrap();
         mosaic.new_type("Group: s32;").unwrap();
         mosaic.new_type("GroupOwner: s32;").unwrap();
 
         mosaic.new_type("Process: s32;").unwrap();
         mosaic.new_type("ProcessParameter: s32;").unwrap();
         mosaic.new_type("ParameterBinding: s32;").unwrap();
-        mosaic.new_type("ProcessResult: void;").unwrap();
-        mosaic.new_type("ResultBinding: void;").unwrap();
+        mosaic.new_type("ProcessResult: unit;").unwrap();
+        mosaic.new_type("ResultBinding: unit;").unwrap();
         mosaic
-            .new_type("Error: product { position: s32, message: b128 };")
+            .new_type("Error: { position: s32, message: s128 };")
             .unwrap();
 
-        mosaic.new_type("DEBUG: void;").unwrap();
+        mosaic.new_type("DEBUG: unit;").unwrap();
 
         mosaic
     }
