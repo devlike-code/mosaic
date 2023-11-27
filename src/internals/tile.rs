@@ -49,10 +49,10 @@ impl std::fmt::Display for Tile {
 impl std::fmt::Debug for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mark = match self.tile_type {
-            TileType::Object => "x",
-            TileType::Arrow { .. } => ">",
-            TileType::Descriptor { .. } => "d",
-            TileType::Extension { .. } => "e",
+            TileType::Object => "x".to_string(),
+            TileType::Arrow { source, target } => format!("{} > {}", source, target),
+            TileType::Descriptor { .. } => "d".to_string(),
+            TileType::Extension { .. } => "e".to_string(),
         };
         f.write_fmt(format_args!(
             "({}|{}|{}|{:?})",

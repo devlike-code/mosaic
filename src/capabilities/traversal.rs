@@ -15,14 +15,47 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{Mosaic, MosaicIO, Tile, TileGetById},
-    iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
+    internals::{
+        mosaic,
+        sparse_matrix::{BidirectionalMatrix, Matrix},
+        Mosaic, MosaicIO, Tile, TileGetById,
+    },
+    iterators::{
+        component_selectors::ComponentSelectors, tile_filters::TileFilters,
+        tile_getters::TileGetters,
+    },
 };
 
 pub enum Traversal {
-    Exclude { components: &'static [&'static str] },
-    Include { components: &'static [&'static str] },
+    Exclude {
+        components: &'static [&'static str],
+    },
+    Include {
+        components: &'static [&'static str],
+    },
+    Limited {
+        tiles: Vec<Tile>,
+        include_arrows: bool,
+    },
     Default,
+}
+
+impl From<Vec<Tile>> for Traversal {
+    fn from(value: Vec<Tile>) -> Self {
+        Traversal::Limited {
+            tiles: value,
+            include_arrows: true,
+        }
+    }
+}
+
+impl From<IntoIter<Tile>> for Traversal {
+    fn from(value: IntoIter<Tile>) -> Self {
+        Traversal::Limited {
+            tiles: value.collect_vec(),
+            include_arrows: true,
+        }
+    }
 }
 
 pub struct TraversalOperator {
@@ -32,9 +65,24 @@ pub struct TraversalOperator {
 
 impl TraversalOperator {
     fn filter_traversal<I: Iterator<Item = Tile>>(&self, iter: I) -> Vec<Tile> {
-        match self.traversal {
+        match &self.traversal {
             Traversal::Exclude { components } => iter.exclude_components(components).collect_vec(),
             Traversal::Include { components } => iter.include_components(components).collect_vec(),
+            Traversal::Limited {
+                tiles,
+                include_arrows: true,
+            } => iter
+                .filter(|t| {
+                    let mosaic = Arc::clone(&t.mosaic);
+                    let s = mosaic.get(t.source_id()).unwrap();
+                    let t = mosaic.get(t.target_id()).unwrap();
+                    tiles.contains(&s) && tiles.contains(&t)
+                })
+                .collect_vec(),
+            Traversal::Limited {
+                tiles,
+                include_arrows: false,
+            } => iter.filter(|t| tiles.contains(t)).collect_vec(),
             Traversal::Default => iter.collect_vec(),
         }
     }
@@ -42,6 +90,23 @@ impl TraversalOperator {
     pub fn out_degree(&self, tile: &Tile) -> usize {
         self.filter_traversal(tile.clone().into_iter().get_arrows_from())
             .len()
+    }
+
+    pub fn get_objects(&self) -> IntoIter<Tile> {
+        match &self.traversal {
+            Traversal::Limited { tiles, .. } => tiles.clone().into_iter().filter_objects(),
+            _ => self.mosaic.get_all().filter_objects(),
+        }
+    }
+
+    pub fn get_arrows_into(&self, tile: &Tile) -> IntoIter<Tile> {
+        self.filter_traversal(tile.clone().into_iter().get_arrows_into())
+            .into_iter()
+    }
+
+    pub fn get_arrows_from(&self, tile: &Tile) -> IntoIter<Tile> {
+        self.filter_traversal(tile.clone().into_iter().get_arrows_from())
+            .into_iter()
     }
 
     pub fn in_degree(&self, tile: &Tile) -> usize {
@@ -65,6 +130,21 @@ impl TraversalOperator {
         let mut result = self.get_backward_neighbors(tile).collect_vec();
         result.extend(self.get_forward_neighbors(tile));
         result.into_iter()
+    }
+
+    pub fn as_matrix(&self) -> BidirectionalMatrix {
+        let mut matrix = BidirectionalMatrix::default();
+        for node in self.get_objects() {
+            matrix.add_node(node.id);
+        }
+
+        for node in self.get_objects() {
+            for arrow in self.get_arrows_from(&node) {
+                matrix.add_edge(arrow.id, arrow.source_id(), arrow.target_id());
+            }
+        }
+
+        matrix
     }
 
     pub fn depth_first_search(&self, from: &Tile, direction: TraversalDirection) -> Vec<Vec<Tile>> {

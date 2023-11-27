@@ -182,6 +182,39 @@ mod traversal_tests {
         mosaic.delete_tile(y);
         assert!(!op.forward_path_exists_between(&a, &e));
     }
+
+    #[test]
+    fn test_limited_traversal() {
+        let mosaic = Mosaic::new();
+        let a = mosaic.new_object("DEBUG", default_vals()); // 0
+        let b = mosaic.new_object("DEBUG", default_vals()); // 1
+        let c = mosaic.new_object("DEBUG", default_vals());
+        let d = mosaic.new_object("DEBUG", default_vals());
+        let e = mosaic.new_object("DEBUG", default_vals());
+
+        let _ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        let _ec = mosaic.new_arrow(&e, &c, "DEBUG", default_vals());
+        let _ae = mosaic.new_arrow(&a, &e, "DEBUG", default_vals());
+        let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        let _cb = mosaic.new_arrow(&c, &b, "DEBUG", default_vals());
+        let _cd = mosaic.new_arrow(&c, &d, "DEBUG", default_vals());
+
+        let traversal = Traversal::Limited {
+            tiles: vec![a.clone(), b.clone()],
+            include_arrows: true,
+        };
+
+        let op = mosaic.traverse(traversal);
+
+        println!("{:?}", op.out_degree(&a));
+        println!("{:?}", op.in_degree(&a));
+
+        println!("{:?}", op.out_degree(&b));
+        println!("{:?}", op.in_degree(&b));
+
+        println!("{:?}", op.get_arrows_from(&a));
+        println!("{:?}", op.get_arrows_into(&b));
+    }
 }
 
 #[cfg(test)]
@@ -290,5 +323,31 @@ mod process_tests {
 
         assert!(!mosaic.is_tile_valid(&8));
         assert!(!mosaic.is_tile_valid(&9));
+    }
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use crate::{
+        capabilities::SelectionCapability,
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO},
+    };
+
+    #[test]
+    fn test_selection() {
+        let mosaic = Mosaic::new();
+        let a = mosaic.new_object("DEBUG", default_vals());
+        let b = mosaic.new_object("DEBUG", default_vals());
+        let c = mosaic.new_object("DEBUG", default_vals());
+        let ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        let ac = mosaic.new_arrow(&a, &c, "DEBUG", default_vals());
+        let bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        let s = mosaic.make_selection();
+        mosaic.fill_selection(&s, &[&a, &b, &ab]);
+        assert_eq!(3, mosaic.get_selection(&s).len());
+        mosaic.fill_selection(&s, &[&a, &b]);
+        assert_eq!(2, mosaic.get_selection(&s).len());
+        mosaic.fill_selection(&s, &[&a]);
+        assert_eq!(1, mosaic.get_selection(&s).len());
     }
 }
