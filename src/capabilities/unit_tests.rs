@@ -340,8 +340,8 @@ mod selection_tests {
         let b = mosaic.new_object("DEBUG", default_vals());
         let c = mosaic.new_object("DEBUG", default_vals());
         let ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        let ac = mosaic.new_arrow(&a, &c, "DEBUG", default_vals());
-        let bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        let _ac = mosaic.new_arrow(&a, &c, "DEBUG", default_vals());
+        let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
         let s = mosaic.make_selection();
         mosaic.fill_selection(&s, &[&a, &b, &ab]);
         assert_eq!(3, mosaic.get_selection(&s).len());

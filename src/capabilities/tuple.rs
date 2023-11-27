@@ -5,7 +5,7 @@ use itertools::Itertools;
 use crate::{
     internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
     iterators::{
-        component_selectors::ComponentSelectors, tile_filters::TileFilters,
+        component_selectors::ComponentSelectors,
         tile_getters::TileGetters,
     },
 };

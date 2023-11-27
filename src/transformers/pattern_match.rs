@@ -1,39 +1,17 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use array_tool::vec::Intersect;
-use itertools::{iproduct, Itertools};
-use ordered_multimap::{list_ordered_multimap::Keys, ListOrderedMultimap};
+use itertools::Itertools;
+use ordered_multimap::ListOrderedMultimap;
 
 use crate::{
     capabilities::{
-        process::ProcessCapability, DictionaryCapability, GroupingCapability, SelectionCapability,
-        Traversal, TraversalOperator, Traverse,
+        process::ProcessCapability, DictionaryCapability, SelectionCapability, TraversalOperator,
+        Traverse,
     },
-    internals::{
-        default_vals, self_val,
-        sparse_matrix::{BidirectionalMatrix, Matrix},
-        EntityId, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile, TileFieldGetter, Value,
-    },
+    internals::{default_vals, EntityId, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
     iterators::tile_deletion::TileDeletion,
 };
-
-fn chr(i: usize) -> char {
-    char::from_u32(65 + i as u32).unwrap()
-}
-
-fn chr2(i: (usize, usize)) -> (char, char) {
-    (chr(i.0), chr(i.1))
-}
-
-fn get_candidate_pairs(
-    candidates: &ListOrderedMultimap<EntityId, EntityId>,
-    pattern_node: &Tile,
-) -> Vec<EntityId> {
-    candidates.get_all(&pattern_node.id).copied().collect_vec()
-}
 
 #[derive(Default)]
 pub(crate) struct PatternMatchState {
@@ -41,7 +19,6 @@ pub(crate) struct PatternMatchState {
     pattern_candidates: ListOrderedMultimap<EntityId, EntityId>,
     candidate_mapping: HashMap<EntityId, (EntityId, EntityId)>,
     rev_candidate_mapping: HashMap<(EntityId, EntityId), EntityId>,
-    transient_matrix: BidirectionalMatrix,
 }
 
 fn find_candidates_by_degrees(
@@ -225,10 +202,13 @@ mod pattern_match_tests {
     use crate::{
         capabilities::{process::ProcessCapability, DictionaryCapability, SelectionCapability},
         internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO},
-        transformers::pattern_match::chr,
     };
 
     use super::pattern_match;
+
+    fn chr(i: usize) -> char {
+        char::from_u32(65 + i as u32).unwrap()
+    }
 
     #[test]
     fn test_pattern_match() {
