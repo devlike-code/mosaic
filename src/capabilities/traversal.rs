@@ -16,7 +16,6 @@ use itertools::Itertools;
 
 use crate::{
     internals::{
-        mosaic,
         sparse_matrix::{BidirectionalMatrix, Matrix},
         Mosaic, MosaicIO, Tile, TileGetById,
     },

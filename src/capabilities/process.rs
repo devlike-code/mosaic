@@ -7,7 +7,10 @@ use crate::{
         default_vals, self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, TileFieldGetter,
         Value, S32,
     },
-    iterators::{tile_deletion::TileDeletion, tile_getters::TileGetters},
+    iterators::{
+        component_selectors::ComponentSelectors, tile_deletion::TileDeletion,
+        tile_getters::TileGetters,
+    },
 };
 
 use super::GroupingCapability;
@@ -33,6 +36,8 @@ pub trait ProcessCapability: GroupingCapability {
     ) -> anyhow::Result<HashMap<S32, Option<Tile>>>;
 
     fn add_process_result(&self, process: &Tile, result: &Tile) -> anyhow::Result<()>;
+
+    fn get_process_results(&self, process: &Tile) -> anyhow::Result<Vec<Tile>>;
 }
 
 impl ProcessCapability for Arc<Mosaic> {
@@ -164,10 +169,28 @@ impl ProcessCapability for Arc<Mosaic> {
             .unwrap();
 
         let result_ext = self.new_extension(&process_desc, "ProcessResult", default_vals());
-        self.add_group_member(group_name, &process_desc, &result_ext)?;
+        self.add_group_member(group_name, process, &result_ext)?;
 
         self.new_arrow(&result_ext, result, "ResultBinding", default_vals());
 
         Ok(())
+    }
+
+    fn get_process_results(&self, process: &Tile) -> anyhow::Result<Vec<Tile>> {
+        if process.component != "Process".into() {
+            return format!("Tile {:?} does not represent a process; use `create_process(name: &str) -> Tile` to make one.", process).to_error();
+        }
+
+        let binding = process.get("self").as_s32().to_string();
+        let group_name = binding.as_str();
+        let process_desc = self
+            .get_group_owner_descriptor(group_name, process)
+            .unwrap();
+
+        Ok(process_desc
+            .into_iter()
+            .get_extensions()
+            .include_component("ProcessResult")
+            .collect_vec())
     }
 }
