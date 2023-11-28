@@ -1,6 +1,6 @@
 [package]
-name = "grasp"
-version = "0.1.0"
+name = "mosaic"
+version = "0.1.14"
 edition = "2021"
 
 [lib]

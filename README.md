@@ -24,17 +24,17 @@
             - not deleting all properties, as this is going to be a systemic thing triggered through the bus
 
 [ ] top-level functionality
-    [ ] rust
+    [x] rust
     [ ] wasm
     [ ] c#
     [ ] c++
 [ ] live debugging
 [ ] graph functionality layer
-    [ ] reachability
-    [ ] adjacency
-    [ ] DFS & BFS
+    [x] reachability
+    [x] adjacency
+    [x] DFS & BFS
     [ ] graph spanning
 [ ] transformer (Transform > ...)
-    [ ] graph match
+    [?] graph match
     [ ] fsm
     [ ] calculator
