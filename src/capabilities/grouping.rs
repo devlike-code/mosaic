@@ -10,7 +10,7 @@ use crate::iterators::tile_getters::TileGetters;
 
 pub trait GroupingCapability {
     fn get_group_memberships(&self, tile: &Tile) -> Vec<Tile>;
-    fn group(&self, group: &str, owner: &Tile, members: &[&Tile]);
+    fn group(&self, group: &str, owner: &Tile, members: &[Tile]);
     fn add_group_member(&self, group: &str, owner: &Tile, member: &Tile) -> anyhow::Result<()>;
     fn get_group_owner_descriptor(&self, group: &str, tile: &Tile) -> Option<Tile>;
     fn get_group_owner(&self, group: &str, tile: &Tile) -> Option<Tile>;
@@ -40,15 +40,15 @@ impl GroupingCapability for Arc<Mosaic> {
             .collect_vec()
     }
 
-    fn group(&self, group: &str, owner: &Tile, members: &[&Tile]) {
-        if let Some(previous_owner_descriptor) = get_existing_owner_descriptor(group, owner) {
+    fn group(&self, group: &str, owner: &Tile, members: &[Tile]) {
+        if let Some(previous_owner_descriptor) = get_existing_owner_descriptor(group, &owner) {
             self.delete_tile(previous_owner_descriptor.id);
         }
 
         let desc = self.new_descriptor(owner, "GroupOwner", self_val(Value::S32(group.into())));
 
-        for &member in members {
-            self.new_arrow(&desc, member, "Group", self_val(Value::S32(group.into())));
+        for member in members {
+            self.new_arrow(&desc, &member, "Group", self_val(Value::S32(group.into())));
         }
     }
 
