@@ -3,7 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use crate::internals::ToByteArray;
 
 use super::{
-    Bytesize, ComponentType, ComponentValues, Datatype, EntityId, Mosaic, MosaicCRUD, Value, S32,
+    Bytesize, ComponentType, ComponentValues, Datatype, EntityId, Mosaic, MosaicCRUD, MosaicIO,
+    Value, S32,
 };
 use crate::internals::byte_utilities::FromByteArray;
 
@@ -274,6 +275,14 @@ impl Tile {
             .unwrap()
             .insert(id, tile.clone());
         tile
+    }
+
+    pub fn source(&self) -> Tile {
+        self.mosaic.get(self.source_id()).unwrap()
+    }
+
+    pub fn target(&self) -> Tile {
+        self.mosaic.get(self.target_id()).unwrap()
     }
 
     pub fn source_id(&self) -> EntityId {
