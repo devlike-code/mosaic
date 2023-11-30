@@ -233,10 +233,10 @@ mod pattern_match_tests {
         mosaic.new_arrow(&h, &k, "DEBUG", default_vals()); // 16
 
         let p = mosaic.make_selection();
-        mosaic.fill_selection(&p, &[&a, &b, &c]);
+        mosaic.fill_selection(&p, &[a, b, c]);
 
         let t = mosaic.make_selection();
-        mosaic.fill_selection(&t, &[&g, &h, &i, &j, &k]);
+        mosaic.fill_selection(&t, &[g, h, i, j, k]);
 
         let mtch = mosaic
             .create_process("PatternMatch", &["pattern", "target"])

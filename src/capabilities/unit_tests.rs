@@ -244,11 +244,11 @@ mod grouping_tests {
 
         */
 
-        mosaic.group("Parent", &o, &[&b, &c, &d]);
+        mosaic.group("Parent", &o, &[b.clone(), c.clone(), d.clone()]);
         let e = mosaic.get_group_owner_descriptor("Parent", &o).unwrap();
 
-        mosaic.group("Parent2", &o, &[&b, &c, &d]);
-        mosaic.group("Parent", &o, &[&b, &d]);
+        mosaic.group("Parent2", &o, &[b.clone(), c.clone(), d.clone()]);
+        mosaic.group("Parent", &o, &[b.clone(), d.clone()]);
 
         let _p = mosaic.get_group_owner_descriptor("Parent", &b);
         assert!(!mosaic.is_tile_valid(&e));
@@ -343,11 +343,11 @@ mod selection_tests {
         let _ac = mosaic.new_arrow(&a, &c, "DEBUG", default_vals());
         let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
         let s = mosaic.make_selection();
-        mosaic.fill_selection(&s, &[&a, &b, &ab]);
+        mosaic.fill_selection(&s, &[a.clone(), b.clone(), ab]);
         assert_eq!(3, mosaic.get_selection(&s).len());
-        mosaic.fill_selection(&s, &[&a, &b]);
+        mosaic.fill_selection(&s, &[a.clone(), b]);
         assert_eq!(2, mosaic.get_selection(&s).len());
-        mosaic.fill_selection(&s, &[&a]);
+        mosaic.fill_selection(&s, &[a]);
         assert_eq!(1, mosaic.get_selection(&s).len());
     }
 }
