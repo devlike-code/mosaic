@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, vec::IntoIter};
 
 use crate::internals::ToByteArray;
 
@@ -23,6 +23,12 @@ pub struct Tile {
     pub tile_type: TileType,
     pub component: S32,
     pub data: HashMap<S32, Value>,
+}
+
+impl Tile {
+    pub fn iter(&self) -> IntoIter<Tile> {
+        vec![self.clone()].into_iter()
+    }
 }
 
 impl IntoIterator for Tile {
