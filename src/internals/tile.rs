@@ -8,7 +8,7 @@ use super::{
 };
 use crate::internals::byte_utilities::FromByteArray;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug, Copy)]
 pub enum TileType {
     Object,
     Arrow { source: EntityId, target: EntityId },
@@ -22,12 +22,16 @@ pub struct Tile {
     pub mosaic: Arc<Mosaic>,
     pub tile_type: TileType,
     pub component: S32,
-    pub data: HashMap<S32, Value>,
+    pub(crate) data: HashMap<S32, Value>,
 }
 
 impl Tile {
     pub fn iter(&self) -> IntoIter<Tile> {
         vec![self.clone()].into_iter()
+    }
+
+    pub fn get_data(&self) -> &HashMap<S32, Value>{
+        &self.data
     }
 }
 
