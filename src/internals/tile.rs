@@ -22,7 +22,6 @@ pub struct Tile {
     pub mosaic: Arc<Mosaic>,
     pub tile_type: TileType,
     pub component: S32,
-    pub(crate) data: HashMap<S32, Value>,
 }
 
 impl Tile {
@@ -30,8 +29,11 @@ impl Tile {
         vec![self.clone()].into_iter()
     }
 
-    pub fn get_data(&self) -> &HashMap<S32, Value>{
-        &self.data
+    pub fn get(&self, index: &str) -> Value {
+        let storage = self.mosaic.data_storage.lock().unwrap();
+        let e = storage.get(&self.component.to_string()).unwrap();
+        let h = e.get(&self.id).unwrap();
+        h.get(&index.into()).unwrap().clone()
     }
 }
 
@@ -65,9 +67,16 @@ impl std::fmt::Debug for Tile {
             TileType::Descriptor { .. } => "d".to_string(),
             TileType::Extension { .. } => "e".to_string(),
         };
+
+        let data = {
+            let storage = self.mosaic.data_storage.lock().unwrap();
+            let by_component = storage.get(&self.component.to_string()).unwrap();
+            by_component.get(&self.id).unwrap().clone()
+        };
+
         f.write_fmt(format_args!(
             "({}|{}|{}|{:?})",
-            mark, self.id, self.component, self.data
+            mark, self.id, self.component, data
         ))
     }
 }
@@ -100,12 +109,16 @@ impl std::hash::Hash for Tile {
 
 impl Tile {
     pub(crate) fn set_field(&mut self, index: &str, value: Value) {
-        self.data.insert(index.into(), value);
-        self.mosaic
-            .tile_registry
-            .lock()
-            .unwrap()
-            .insert(self.id, self.clone());
+        let mut storage = self.mosaic.data_storage.lock().unwrap();
+        if let Some(entities_by_component) = storage.get_mut(&self.component.to_string()) {
+            if let Some(entity_by_field) = entities_by_component.get_mut(&self.id) {
+                entity_by_field.insert(index.into(), value);
+            } else {
+                let mut hm = HashMap::new();
+                hm.insert(index.into(), value);
+                entities_by_component.insert(self.id, hm);
+            }
+        }
     }
 
     pub(crate) fn create_data_fields(&mut self, defaults: ComponentValues) -> anyhow::Result<()> {
@@ -145,9 +158,6 @@ impl Tile {
                     field_name
                 };
 
-                //when default name exists in component fields and field and default datatype is the same take the 'default' value
-                //otherwise use field default value
-                // println!("DEFAULTS {:?}", defaults);
                 if let Some(default_field) = defaults.get(&name) {
                     if datatype == default_field.get_datatype() {
                         let value = defaults
@@ -155,14 +165,7 @@ impl Tile {
                             .cloned()
                             .unwrap_or(datatype.get_default());
 
-                        // println!(
-                        //     "field datatype:{:?}, default datatype: {:?}, default value: {:?}",
-                        //     datatype,
-                        //     default_field.get_datatype(),
-                        //     value
-                        // );
-
-                        self.data.insert(name, value);
+                        self.set_field(&name.to_string(), value);
                     }
                 } else {
                     println!("MISSING FIELD {:?}", name);
@@ -224,9 +227,9 @@ impl Tile {
             .into_iter()
             .map(|f| {
                 if component.is_alias() {
-                    ("self".into(), self.data.get(&"self".into()).unwrap())
+                    ("self".into(), self.get("self"))
                 } else {
-                    (f.name, self.data.get(&f.name).unwrap())
+                    (f.name, self.get(&f.name.to_string()))
                 }
             })
             .fold(vec![], |old: Vec<u8>, (_, value)| {
@@ -273,7 +276,6 @@ impl Tile {
             mosaic: Arc::clone(&mosaic),
             tile_type,
             component,
-            data: HashMap::default(),
         };
 
         tile.create_data_fields(fields)

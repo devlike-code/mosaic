@@ -222,9 +222,7 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{
-            default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, TileFieldGetter,
-        },
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
     };
 
     #[test]
@@ -273,8 +271,7 @@ mod process_tests {
     use crate::{
         capabilities::{process::ProcessCapability, GroupingCapability},
         internals::{
-            self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile,
-            TileFieldGetter, Value,
+            self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile, Value,
         },
         iterators::tile_getters::TileGetters,
     };

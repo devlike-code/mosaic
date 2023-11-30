@@ -3,10 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{
-        default_vals, self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, TileFieldGetter,
-        Value, S32,
-    },
+    internals::{default_vals, self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, Value, S32},
     iterators::{
         component_selectors::ComponentSelectors, tile_deletion::TileDeletion,
         tile_getters::TileGetters,

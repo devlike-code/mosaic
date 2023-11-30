@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::{
     component_grammar::ComponentParser,
     datatypes::{ComponentType, S32 as ComponentName},
@@ -43,7 +45,7 @@ impl ComponentRegistry {
         }
     }
 
-    fn add_raw_component_type(&self, definition: ComponentType) {
+    fn add_raw_component_type(&self, definition: ComponentType) -> ComponentType {
         self.component_type_map
             .lock()
             .unwrap()
@@ -58,6 +60,8 @@ impl ComponentRegistry {
             offset_size_index.insert((definition.name().to_string(), field.name), range);
             offset += size;
         }
+
+        definition
     }
 
     fn unify_fields_and_values_into_data(
@@ -104,16 +108,19 @@ impl ComponentRegistry {
         Arc::new(ComponentRegistry::default())
     }
 
-    pub fn add_component_types(&self, definition: &str) -> anyhow::Result<()> {
-        let types = ComponentParser::parse_all(definition)?;
+    pub fn add_component_types(&self, definition: &str) -> anyhow::Result<Vec<ComponentType>> {
+        let types = ComponentParser::parse_all(definition)?
+            .into_iter()
+            .flat_map(|t| self.flatten_component_type(t))
+            .map(|t| self.add_raw_component_type(t))
+            .collect_vec();
+
         self.component_definitions
             .lock()
             .unwrap()
             .push(definition.to_owned());
-        for component_type in types {
-            self.add_raw_component_type(self.flatten_component_type(component_type)?);
-        }
-        Ok(())
+
+        Ok(types)
     }
 
     pub fn has_component_type(&self, name: &ComponentName) -> bool {

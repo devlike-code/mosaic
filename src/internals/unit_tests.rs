@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod internals_tests {
-    use crate::internals::tile_access::{TileFieldGetter, TileFieldSetter};
+    use crate::internals::tile_access::{TileFieldQuery, TileFieldSetter};
     use crate::internals::{
         default_vals, load_mosaic_commands, self_val, Mosaic, MosaicCRUD, MosaicIO,
         MosaicTypelevelCRUD, TileType, Value,
@@ -33,7 +33,7 @@ mod internals_tests {
         a.set("x", 35i32);
         a.set("y", 64i32);
 
-        if let (Value::I32(x), Value::I32(y)) = a.get(("x", "y")) {
+        if let (Value::I32(x), Value::I32(y)) = a.query(("x", "y")) {
             assert_eq!(35, x);
             assert_eq!(64, y);
         } else {

@@ -11,14 +11,19 @@ use ordered_multimap::ListOrderedMultimap;
 
 use super::{
     slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile,
-    TileType, ToByteArray, S32,
+    TileType, ToByteArray, Value, S32,
 };
+
+type ComponentName = String;
+type ComponentField = S32;
+type DataStorage = HashMap<ComponentName, HashMap<EntityId, HashMap<ComponentField, Value>>>;
 
 #[derive(Debug)]
 pub struct Mosaic {
-    pub(crate) entity_counter: Arc<RelaxedCounter>,
-    pub(crate) component_registry: Arc<ComponentRegistry>,
+    pub(crate) entity_counter: RelaxedCounter,
+    pub(crate) component_registry: ComponentRegistry,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
+    pub(crate) data_storage: Mutex<DataStorage>,
     pub(crate) dependent_ids_map: Mutex<ListOrderedMultimap<EntityId, EntityId>>,
     object_ids: Mutex<SparseSet>,
     arrow_ids: Mutex<SparseSet>,
@@ -37,10 +42,11 @@ impl Eq for Mosaic {}
 impl Mosaic {
     pub fn new() -> Arc<Mosaic> {
         let mosaic = Arc::new(Mosaic {
-            entity_counter: Arc::new(RelaxedCounter::default()),
-            component_registry: Arc::new(ComponentRegistry::default()),
+            entity_counter: RelaxedCounter::default(),
+            component_registry: ComponentRegistry::default(),
             tile_registry: Mutex::new(HashMap::default()),
             dependent_ids_map: Mutex::new(ListOrderedMultimap::default()),
+            data_storage: Mutex::new(HashMap::new()),
             object_ids: Mutex::new(SparseSet::default()),
             arrow_ids: Mutex::new(SparseSet::default()),
             descriptor_ids: Mutex::new(SparseSet::default()),
@@ -327,7 +333,6 @@ impl MosaicIO for Arc<Mosaic> {
                 mosaic: Arc::clone(self),
                 tile_type: TileType::Object,
                 component: component.into(),
-                data: HashMap::default(),
             };
             self.object_ids.lock().unwrap().add(id);
             e.insert(tile.clone());
@@ -355,7 +360,14 @@ impl MosaicIO for Arc<Mosaic> {
 
 impl MosaicTypelevelCRUD for Arc<Mosaic> {
     fn new_type(&self, type_def: &str) -> anyhow::Result<()> {
-        self.component_registry.add_component_types(type_def)
+        let types = self.component_registry.add_component_types(type_def)?;
+
+        let mut storage = self.data_storage.lock().unwrap();
+        for typ in types {
+            storage.insert(typ.name(), HashMap::new());
+        }
+
+        Ok(())
     }
 }
 

@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{byte_utilities::FromByteArray, self_val, MosaicIO, TileFieldGetter},
+    internals::{byte_utilities::FromByteArray, self_val, MosaicIO},
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 use crate::{
