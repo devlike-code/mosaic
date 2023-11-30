@@ -16,6 +16,11 @@ impl Freelist {
         self.used.len() + self.free.len()
     }
 
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn reserve(&mut self) -> usize {
         let index = if self.free.is_empty() {
             self.used.len()
