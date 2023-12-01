@@ -35,6 +35,13 @@ impl Tile {
         let h = e.get(&self.id).unwrap();
         h.get(&index.into()).unwrap().clone()
     }
+
+    pub fn remove_component(&self) {
+        println!("SELF: {:?}", self);
+        let mut storage = self.mosaic.data_storage.lock().unwrap();
+        let e = storage.get_mut(&self.component.to_string()).unwrap();
+        let _ = e.remove(&self.id);
+    }
 }
 
 impl IntoIterator for Tile {
@@ -68,10 +75,17 @@ impl std::fmt::Debug for Tile {
             TileType::Extension { .. } => "e".to_string(),
         };
 
-        let data = {
+        let data = if self.mosaic.is_tile_valid(&self.id) {
             let storage = self.mosaic.data_storage.lock().unwrap();
             let by_component = storage.get(&self.component.to_string()).unwrap();
-            by_component.get(&self.id).unwrap().clone()
+
+            if let Some(by_component) = by_component.get(&self.id) {
+                by_component.clone()
+            } else {
+                HashMap::new()
+            }
+        } else {
+            HashMap::new()
         };
 
         f.write_fmt(format_args!(

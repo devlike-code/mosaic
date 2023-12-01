@@ -42,6 +42,8 @@ impl StringCapability for Arc<Mosaic> {
 
         let tile = self.new_specific_object(str_hash, "String")?;
 
+        assert!(self.is_tile_valid(&str_hash));
+
         for part in split_str_into_parts(str, 128) {
             self.new_extension(
                 &str_hash,
