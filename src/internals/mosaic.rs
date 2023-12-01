@@ -7,6 +7,7 @@ use std::{
 use atomic_counter::{AtomicCounter, RelaxedCounter};
 use fstr::FStr;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
@@ -18,8 +19,13 @@ type ComponentName = String;
 type ComponentField = S32;
 type DataStorage = HashMap<ComponentName, HashMap<EntityId, HashMap<ComponentField, Value>>>;
 
+#[allow(clippy::type_complexity)]
+pub static MOSAIC_INSTANCES: Lazy<Arc<Mutex<HashMap<usize, Arc<Mosaic>>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
 #[derive(Debug)]
 pub struct Mosaic {
+    id: usize,
     pub(crate) entity_counter: RelaxedCounter,
     pub(crate) component_registry: ComponentRegistry,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
@@ -42,6 +48,7 @@ impl Eq for Mosaic {}
 impl Mosaic {
     pub fn new() -> Arc<Mosaic> {
         let mosaic = Arc::new(Mosaic {
+            id: MOSAIC_INSTANCES.lock().unwrap().len(),
             entity_counter: RelaxedCounter::default(),
             component_registry: ComponentRegistry::default(),
             tile_registry: Mutex::new(HashMap::default()),
@@ -66,8 +73,12 @@ impl Mosaic {
             .new_type("Error: { position: s32, message: s128 };")
             .unwrap();
 
-        mosaic.new_type("DEBUG: unit;").unwrap();
+        mosaic.new_type("void: unit;").unwrap();
 
+        MOSAIC_INSTANCES
+            .lock()
+            .unwrap()
+            .insert(mosaic.id, Arc::clone(&mosaic));
         mosaic
     }
 
@@ -321,7 +332,6 @@ impl MosaicIO for Arc<Mosaic> {
             defaults,
         );
         self.object_ids.lock().unwrap().add(id);
-        self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 
@@ -398,7 +408,6 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
             defaults,
         );
         self.arrow_ids.lock().unwrap().add(id);
-        self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 
@@ -419,7 +428,6 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
             defaults,
         );
         self.descriptor_ids.lock().unwrap().add(id);
-        self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 
@@ -440,7 +448,6 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
             defaults,
         );
         self.extension_ids.lock().unwrap().add(id);
-        self.tile_registry.lock().unwrap().insert(id, tile.clone());
         tile
     }
 

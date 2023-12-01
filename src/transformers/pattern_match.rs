@@ -213,24 +213,24 @@ mod pattern_match_tests {
     #[test]
     fn test_pattern_match() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals()); // 0
-        let b = mosaic.new_object("DEBUG", default_vals()); // 1
-        let c = mosaic.new_object("DEBUG", default_vals()); // 2
-        mosaic.new_arrow(&a, &b, "DEBUG", default_vals()); // 3
-        mosaic.new_arrow(&a, &c, "DEBUG", default_vals()); // 4
-        mosaic.new_arrow(&b, &c, "DEBUG", default_vals()); // 5
+        let a = mosaic.new_object("void", default_vals()); // 0
+        let b = mosaic.new_object("void", default_vals()); // 1
+        let c = mosaic.new_object("void", default_vals()); // 2
+        mosaic.new_arrow(&a, &b, "void", default_vals()); // 3
+        mosaic.new_arrow(&a, &c, "void", default_vals()); // 4
+        mosaic.new_arrow(&b, &c, "void", default_vals()); // 5
 
-        let g = mosaic.new_object("DEBUG", default_vals()); // 6
-        let h = mosaic.new_object("DEBUG", default_vals()); // 7
-        let i = mosaic.new_object("DEBUG", default_vals()); // 8
-        let j = mosaic.new_object("DEBUG", default_vals()); // 9
-        let k = mosaic.new_object("DEBUG", default_vals()); // 10
-        mosaic.new_arrow(&g, &h, "DEBUG", default_vals()); // 11
-        mosaic.new_arrow(&g, &i, "DEBUG", default_vals()); // 12
-        mosaic.new_arrow(&h, &i, "DEBUG", default_vals()); // 13
-        mosaic.new_arrow(&g, &j, "DEBUG", default_vals()); // 14
-        mosaic.new_arrow(&i, &j, "DEBUG", default_vals()); // 15
-        mosaic.new_arrow(&h, &k, "DEBUG", default_vals()); // 16
+        let g = mosaic.new_object("void", default_vals()); // 6
+        let h = mosaic.new_object("void", default_vals()); // 7
+        let i = mosaic.new_object("void", default_vals()); // 8
+        let j = mosaic.new_object("void", default_vals()); // 9
+        let k = mosaic.new_object("void", default_vals()); // 10
+        mosaic.new_arrow(&g, &h, "void", default_vals()); // 11
+        mosaic.new_arrow(&g, &i, "void", default_vals()); // 12
+        mosaic.new_arrow(&h, &i, "void", default_vals()); // 13
+        mosaic.new_arrow(&g, &j, "void", default_vals()); // 14
+        mosaic.new_arrow(&i, &j, "void", default_vals()); // 15
+        mosaic.new_arrow(&h, &k, "void", default_vals()); // 16
 
         let p = mosaic.make_selection();
         mosaic.fill_selection(&p, &[a, b, c]);

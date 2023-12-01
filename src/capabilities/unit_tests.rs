@@ -41,14 +41,14 @@ mod traversal_tests {
     #[test]
     fn test_neighborhoods() {
         let t = Traversal::Exclude {
-            components: &["GroupOwner", "Group"],
+            components: &["GroupOwner".to_string(), "Group".to_string()],
         };
 
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals());
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let c = mosaic.new_object("DEBUG", default_vals());
-        let d = mosaic.new_object("DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals());
+        let b = mosaic.new_object("void", default_vals());
+        let c = mosaic.new_object("void", default_vals());
+        let d = mosaic.new_object("void", default_vals());
 
         /*
                       /----> b
@@ -60,10 +60,10 @@ mod traversal_tests {
         mosaic.new_arrow(&a, &b, "GroupOwner", default_vals());
         mosaic.new_arrow(&a, &c, "GroupOwner", default_vals());
         mosaic.new_arrow(&a, &d, "GroupOwner", default_vals());
-        mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
-        mosaic.new_arrow(&c, &b, "DEBUG", default_vals());
-        mosaic.new_arrow(&c, &d, "DEBUG", default_vals());
+        mosaic.new_arrow(&a, &b, "void", default_vals());
+        mosaic.new_arrow(&b, &c, "void", default_vals());
+        mosaic.new_arrow(&c, &b, "void", default_vals());
+        mosaic.new_arrow(&c, &d, "void", default_vals());
 
         let p = mosaic.traverse(t);
         assert_eq!(1, p.out_degree(&a));
@@ -104,11 +104,11 @@ mod traversal_tests {
         let t = Traversal::Exclude { components: &[] };
 
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals());
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let c = mosaic.new_object("DEBUG", default_vals());
-        let d = mosaic.new_object("DEBUG", default_vals());
-        let e = mosaic.new_object("DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals());
+        let b = mosaic.new_object("void", default_vals());
+        let c = mosaic.new_object("void", default_vals());
+        let d = mosaic.new_object("void", default_vals());
+        let e = mosaic.new_object("void", default_vals());
 
         /*
                       /----> b
@@ -127,12 +127,12 @@ mod traversal_tests {
                    1 -----> x
 
         */
-        mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        mosaic.new_arrow(&e, &c, "DEBUG", default_vals());
-        mosaic.new_arrow(&a, &e, "DEBUG", default_vals());
-        mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
-        mosaic.new_arrow(&c, &b, "DEBUG", default_vals());
-        mosaic.new_arrow(&c, &d, "DEBUG", default_vals());
+        mosaic.new_arrow(&a, &b, "void", default_vals());
+        mosaic.new_arrow(&e, &c, "void", default_vals());
+        mosaic.new_arrow(&a, &e, "void", default_vals());
+        mosaic.new_arrow(&b, &c, "void", default_vals());
+        mosaic.new_arrow(&c, &b, "void", default_vals());
+        mosaic.new_arrow(&c, &d, "void", default_vals());
 
         let op = mosaic.traverse(t);
 
@@ -186,18 +186,18 @@ mod traversal_tests {
     #[test]
     fn test_limited_traversal() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals()); // 0
-        let b = mosaic.new_object("DEBUG", default_vals()); // 1
-        let c = mosaic.new_object("DEBUG", default_vals());
-        let d = mosaic.new_object("DEBUG", default_vals());
-        let e = mosaic.new_object("DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals()); // 0
+        let b = mosaic.new_object("void", default_vals()); // 1
+        let c = mosaic.new_object("void", default_vals());
+        let d = mosaic.new_object("void", default_vals());
+        let e = mosaic.new_object("void", default_vals());
 
-        let _ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        let _ec = mosaic.new_arrow(&e, &c, "DEBUG", default_vals());
-        let _ae = mosaic.new_arrow(&a, &e, "DEBUG", default_vals());
-        let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
-        let _cb = mosaic.new_arrow(&c, &b, "DEBUG", default_vals());
-        let _cd = mosaic.new_arrow(&c, &d, "DEBUG", default_vals());
+        let _ab = mosaic.new_arrow(&a, &b, "void", default_vals());
+        let _ec = mosaic.new_arrow(&e, &c, "void", default_vals());
+        let _ae = mosaic.new_arrow(&a, &e, "void", default_vals());
+        let _bc = mosaic.new_arrow(&b, &c, "void", default_vals());
+        let _cb = mosaic.new_arrow(&c, &b, "void", default_vals());
+        let _cd = mosaic.new_arrow(&c, &d, "void", default_vals());
 
         let traversal = Traversal::Limited {
             tiles: vec![a.clone(), b.clone()],
@@ -230,10 +230,10 @@ mod grouping_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Group: s32;").unwrap();
 
-        let o = mosaic.new_object("DEBUG", default_vals());
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let c = mosaic.new_object("DEBUG", default_vals());
-        let d = mosaic.new_object("DEBUG", default_vals());
+        let o = mosaic.new_object("void", default_vals());
+        let b = mosaic.new_object("void", default_vals());
+        let c = mosaic.new_object("void", default_vals());
+        let d = mosaic.new_object("void", default_vals());
 
         /*
                          /----> b
@@ -333,12 +333,12 @@ mod selection_tests {
     #[test]
     fn test_selection() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals());
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let c = mosaic.new_object("DEBUG", default_vals());
-        let ab = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
-        let _ac = mosaic.new_arrow(&a, &c, "DEBUG", default_vals());
-        let _bc = mosaic.new_arrow(&b, &c, "DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals());
+        let b = mosaic.new_object("void", default_vals());
+        let c = mosaic.new_object("void", default_vals());
+        let ab = mosaic.new_arrow(&a, &b, "void", default_vals());
+        let _ac = mosaic.new_arrow(&a, &c, "void", default_vals());
+        let _bc = mosaic.new_arrow(&b, &c, "void", default_vals());
         let s = mosaic.make_selection();
         mosaic.fill_selection(&s, &[a.clone(), b.clone(), ab]);
         assert_eq!(3, mosaic.get_selection(&s).len());

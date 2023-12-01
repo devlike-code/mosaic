@@ -5,9 +5,9 @@ use itertools::Itertools;
 use crate::internals::Tile;
 
 pub trait ComponentSelectors: Iterator {
-    fn include_components(self, components: &[&str]) -> IntoIter<Self::Item>;
+    fn include_components(self, components: &[String]) -> IntoIter<Self::Item>;
     fn include_component(self, component: &str) -> IntoIter<Self::Item>;
-    fn exclude_components(self, components: &[&str]) -> IntoIter<Self::Item>;
+    fn exclude_components(self, components: &[String]) -> IntoIter<Self::Item>;
     fn exclude_component(self, component: &str) -> IntoIter<Self::Item>;
 }
 
@@ -15,8 +15,8 @@ impl<I> ComponentSelectors for I
 where
     I: Iterator<Item = Tile>,
 {
-    fn include_components(self, components: &[&str]) -> IntoIter<Self::Item> {
-        let binding = components.iter().map(|&c| c.into()).collect_vec();
+    fn include_components(self, components: &[String]) -> IntoIter<Self::Item> {
+        let binding = components.iter().map(|c| c.as_str().into()).collect_vec();
         let components = binding.as_slice();
 
         self.filter(|t| components.contains(&t.component))
@@ -25,11 +25,11 @@ where
     }
 
     fn include_component(self, component: &str) -> IntoIter<Self::Item> {
-        self.include_components(&[component])
+        self.include_components(&[component.to_string()])
     }
 
-    fn exclude_components(self, components: &[&str]) -> IntoIter<Self::Item> {
-        let binding = components.iter().map(|&c| c.into()).collect_vec();
+    fn exclude_components(self, components: &[String]) -> IntoIter<Self::Item> {
+        let binding = components.iter().map(|c| c.as_str().into()).collect_vec();
         let components = binding.as_slice();
 
         self.filter(|t| !components.contains(&t.component))
@@ -38,6 +38,6 @@ where
     }
 
     fn exclude_component(self, component: &str) -> IntoIter<Self::Item> {
-        self.exclude_components(&[component])
+        self.exclude_components(&[component.to_string()])
     }
 }

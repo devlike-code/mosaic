@@ -25,12 +25,12 @@ use crate::{
     },
 };
 
-pub enum Traversal {
+pub enum Traversal<'a> {
     Exclude {
-        components: &'static [&'static str],
+        components: &'a [String],
     },
     Include {
-        components: &'static [&'static str],
+        components: &'a [String],
     },
     Limited {
         tiles: Vec<Tile>,
@@ -39,7 +39,7 @@ pub enum Traversal {
     Default,
 }
 
-impl From<Vec<Tile>> for Traversal {
+impl From<Vec<Tile>> for Traversal<'_> {
     fn from(value: Vec<Tile>) -> Self {
         Traversal::Limited {
             tiles: value,
@@ -48,7 +48,7 @@ impl From<Vec<Tile>> for Traversal {
     }
 }
 
-impl From<IntoIter<Tile>> for Traversal {
+impl From<IntoIter<Tile>> for Traversal<'_> {
     fn from(value: IntoIter<Tile>) -> Self {
         Traversal::Limited {
             tiles: value.collect_vec(),
@@ -57,12 +57,16 @@ impl From<IntoIter<Tile>> for Traversal {
     }
 }
 
-pub struct TraversalOperator {
+pub struct TraversalOperator<'a> {
     pub(crate) mosaic: Arc<Mosaic>,
-    pub(crate) traversal: Traversal,
+    pub(crate) traversal: Traversal<'a>,
 }
 
-impl TraversalOperator {
+impl TraversalOperator<'_> {
+    pub fn get_all(&self) -> IntoIter<Tile> {
+        self.filter_traversal(self.mosaic.get_all()).into_iter()
+    }
+
     fn filter_traversal<I: Iterator<Item = Tile>>(&self, iter: I) -> Vec<Tile> {
         match &self.traversal {
             Traversal::Exclude { components } => iter.exclude_components(components).collect_vec(),
@@ -256,12 +260,12 @@ impl TraversalOperator {
     }
 }
 
-pub trait Traverse {
-    fn traverse(&self, traversal: Traversal) -> TraversalOperator;
+pub trait Traverse<'a> {
+    fn traverse(&self, traversal: Traversal<'a>) -> TraversalOperator<'a>;
 }
 
-impl Traverse for Arc<Mosaic> {
-    fn traverse(&self, traversal: Traversal) -> TraversalOperator {
+impl<'a> Traverse<'a> for Arc<Mosaic> {
+    fn traverse(&self, traversal: Traversal<'a>) -> TraversalOperator<'a> {
         TraversalOperator {
             mosaic: Arc::clone(self),
             traversal,

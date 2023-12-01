@@ -13,9 +13,9 @@ mod test_iterators {
     #[test]
     fn test_get_entities() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals());
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let _a_b = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals());
+        let b = mosaic.new_object("void", default_vals());
+        let _a_b = mosaic.new_arrow(&a, &b, "void", default_vals());
         // We want to select everything
         let all_entities = mosaic.get_all().collect_vec();
         assert_eq!(3, all_entities.len());
@@ -24,9 +24,9 @@ mod test_iterators {
     #[test]
     fn test_get_dependents() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("DEBUG", default_vals());
-        let b = mosaic.new_object("DEBUG", default_vals());
-        let a_b = mosaic.new_arrow(&a, &b, "DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals());
+        let b = mosaic.new_object("void", default_vals());
+        let a_b = mosaic.new_arrow(&a, &b, "void", default_vals());
 
         let mut dependents = a.into_iter().get_dependents();
         assert_eq!(dependents.next(), Some(a_b));
@@ -37,8 +37,8 @@ mod test_iterators {
     fn test_descriptor_directly_or_indirectly() {
         let mosaic = Mosaic::new();
 
-        let a = mosaic.new_object("DEBUG", default_vals());
-        let a_p = mosaic.new_descriptor(&a, "DEBUG", default_vals());
+        let a = mosaic.new_object("void", default_vals());
+        let a_p = mosaic.new_descriptor(&a, "void", default_vals());
         let a_desc = a.clone().into_iter().get_descriptors().collect_vec();
 
         assert_eq!(Some(&a_p), a_desc.first());
@@ -150,7 +150,7 @@ mod test_iterators {
             .get_all() // [ src, src2, tgt1, tgt2, tgt3, a1, a2, a3, a4 ]
             .filter_objects() // [ src, src2, tgt1, tgt2, tgt3 ]
             .get_arrows_from() // treba: [ [ a1, a2, a3 ], [ a4 ], [], [], [] ],  mislim: [ a1, a2, a3, a4 ]
-            .include_components(&["Arr2", "Arr3"]) // [ a2, a3, a4 ]
+            .include_components(&["Arr2".to_string(), "Arr3".to_string()]) // [ a2, a3, a4 ]
             .get_targets() // [ tgt2, tgt3, src ]
             .collect_vec();
         p.sort();

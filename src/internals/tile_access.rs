@@ -85,13 +85,13 @@ impl TileFieldSetter<bool> for Tile {
 pub trait TileFieldQuery<T> {
     type Output;
 
-    fn query(&self, index: T) -> Self::Output;
+    fn get_by(&self, index: T) -> Self::Output;
 }
 
 impl TileFieldQuery<(&str, &str)> for Tile {
     type Output = (Value, Value);
 
-    fn query(&self, index: (&str, &str)) -> Self::Output {
+    fn get_by(&self, index: (&str, &str)) -> Self::Output {
         let a = self.get(index.0);
         let b = self.get(index.1);
         (a, b)
