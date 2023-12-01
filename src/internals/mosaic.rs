@@ -12,7 +12,7 @@ use ordered_multimap::ListOrderedMultimap;
 
 use super::{
     slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile,
-    TileType, ToByteArray, Value, S32,
+    TileType, ToByteArray, Value, S32, self_val,
 };
 
 type ComponentName = String;
@@ -338,7 +338,7 @@ impl MosaicIO for Arc<Mosaic> {
     fn new_specific_object(&self, id: EntityId, component: &str) -> anyhow::Result<Tile> {
         let mut registry = self.tile_registry.lock().unwrap();
         if let std::collections::hash_map::Entry::Vacant(e) = registry.entry(id) {
-            let tile = Tile {
+            let mut tile = Tile {
                 id,
                 mosaic: Arc::clone(self),
                 tile_type: TileType::Object,
@@ -346,6 +346,10 @@ impl MosaicIO for Arc<Mosaic> {
             };
             self.object_ids.lock().unwrap().add(id);
             e.insert(tile.clone());
+            
+            tile.create_data_fields(self_val(Value::S32(id.to_string().into())))
+            .expect("Cannot create data fields, panicking!");
+
             Ok(tile)
         } else {
             format!(
@@ -452,6 +456,9 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
     }
 
     fn delete_tile(&self, id: EntityId) {
+        println!("!!!DELETE TILE BEGIN!!!");
+        println!("TILE ID : {:?}", id);
+        
         let dependents = self
             .dependent_ids_map
             .lock()
@@ -459,10 +466,20 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
             .get_all(&id)
             .cloned()
             .collect_vec();
-
+        println!("dependents {:?}", dependents);
+   
         dependents.into_iter().for_each(|t| {
             self.delete_tile(t);
         });
+
+        if !self.is_tile_valid(&id) {
+            println!("is_tile_valid = false");
+   
+            return;
+        } 
+
+        let tile = self.get(id).unwrap();
+        tile.remove_component();
 
         self.dependent_ids_map.lock().unwrap().remove(&id);
         if let Some(tile) = self.tile_registry.lock().unwrap().get(&id) {
@@ -473,7 +490,8 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
                 TileType::Extension { .. } => self.extension_ids.lock().unwrap().remove(id),
             }
         }
-
+        //TODO! REMOVE FROM data_registry ALL component of entity
+        //free id in freelist
         self.tile_registry.lock().unwrap().remove(&id);
     }
 }
