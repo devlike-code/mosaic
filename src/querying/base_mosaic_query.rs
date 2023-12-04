@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::internals::Tile;
 
-pub enum Composite {
+pub enum Pick {
     Arrows,
     Descriptors,
     Extensions,
@@ -21,16 +21,14 @@ pub enum Cut {
 
 pub enum Collage {
     Tiles,
-    Gather(Composite, Box<Collage>),
-    Filter(Cut, Box<Collage>),
+    Gather(Vec<Box<Collage>>),
+    Pick(Pick, Box<Collage>),
+    Cut(Cut, Box<Collage>),
 }
 
 pub trait MosaicCollage {
-    fn apply_collage(
-        &self,
-        mq: Box<super::base_mosaic_query::Collage>,
-        tiles: Option<Vec<Tile>>,
-    ) -> std::vec::IntoIter<crate::internals::Tile>;
+    fn apply_collage(&self, mq: Box<Collage>, tiles: Option<Vec<Tile>>)
+        -> std::vec::IntoIter<Tile>;
 }
 
 pub fn tiles() -> Box<Collage> {
@@ -38,53 +36,57 @@ pub fn tiles() -> Box<Collage> {
 }
 
 pub fn arrows_from(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Gather(Composite::Arrows, mq))
+    Box::new(Collage::Pick(Pick::Arrows, mq))
 }
 
 pub fn descriptors_from(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Gather(Composite::Descriptors, mq))
+    Box::new(Collage::Pick(Pick::Descriptors, mq))
 }
 
 pub fn extensions_from(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Gather(Composite::Extensions, mq))
+    Box::new(Collage::Pick(Pick::Extensions, mq))
 }
 
 pub fn targets_from(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Gather(Composite::Targets, mq))
+    Box::new(Collage::Pick(Pick::Targets, mq))
 }
 
 pub fn sources_from(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Gather(Composite::Sources, mq))
+    Box::new(Collage::Pick(Pick::Sources, mq))
 }
 
 pub fn take_components(comps: &[&str], mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Filter(
+    Box::new(Collage::Cut(
         Cut::Include(comps.iter().map(|s| s.to_string()).collect_vec()),
         mq,
     ))
 }
 
 pub fn leave_components(comps: &[&str], mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Filter(
+    Box::new(Collage::Cut(
         Cut::Exclude(comps.iter().map(|s| s.to_string()).collect_vec()),
         mq,
     ))
 }
 
 pub fn take_arrows(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Filter(Cut::Arrows, mq))
+    Box::new(Collage::Cut(Cut::Arrows, mq))
 }
 
 pub fn take_descriptors(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Filter(Cut::Descriptors, mq))
+    Box::new(Collage::Cut(Cut::Descriptors, mq))
 }
 
 pub fn take_extensions(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Filter(Cut::Extensions, mq))
+    Box::new(Collage::Cut(Cut::Extensions, mq))
 }
 
 pub fn take_objects(mq: Box<Collage>) -> Box<Collage> {
-    Box::new(Collage::Filter(Cut::Objects, mq))
+    Box::new(Collage::Cut(Cut::Objects, mq))
+}
+
+pub fn gather(mqs: Vec<Box<Collage>>) -> Box<Collage> {
+    Box::new(Collage::Gather(mqs))
 }
 
 #[cfg(test)]

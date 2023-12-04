@@ -25,6 +25,7 @@ use crate::{
     },
 };
 
+#[derive(Clone)]
 pub enum Traversal<'a> {
     Exclude {
         components: &'a [String],
