@@ -290,7 +290,7 @@ where
 impl ToByteArray for Value {
     fn to_byte_array(&self) -> Vec<u8> {
         match self {
-            Value::UNIT(()) => vec![],
+            Value::UNIT => vec![],
             Value::I8(i) => (*i).to_byte_array(),
             Value::I16(i) => (*i).to_byte_array(),
             Value::I32(i) => (*i).to_byte_array(),

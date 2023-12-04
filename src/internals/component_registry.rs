@@ -77,7 +77,7 @@ impl ComponentRegistry {
                     name: format!("<{}>", component).as_str().into(),
                     datatype: Datatype::UNIT,
                 },
-                Value::UNIT(()),
+                Value::UNIT,
             ))?
             .clone();
         let mut has_error = None;

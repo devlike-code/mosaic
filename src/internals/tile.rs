@@ -30,6 +30,20 @@ impl Tile {
     }
 
     pub fn get(&self, index: &str) -> Value {
+        if let Some(ct) = self
+            .mosaic
+            .component_registry
+            .component_type_map
+            .lock()
+            .unwrap()
+            .get(&self.component)
+        {
+            if let Some(field) = ct.get_field(index.into()) {
+                if field.datatype == Datatype::UNIT {
+                    return Value::UNIT;
+                }
+            }
+        }
         let storage = self.mosaic.data_storage.lock().unwrap();
         let e = storage.get(&self.component.to_string()).unwrap();
         let h = e.get(&self.id).unwrap();
@@ -211,7 +225,7 @@ impl Tile {
                     let comp_data = &data[ptr..ptr + size];
 
                     let value = match datatype {
-                        Datatype::UNIT => Value::UNIT(()),
+                        Datatype::UNIT => Value::UNIT,
                         Datatype::I8 => Value::I8(i8::from_byte_array(comp_data)),
                         Datatype::I16 => Value::I16(i16::from_byte_array(comp_data)),
                         Datatype::I32 => Value::I32(i32::from_byte_array(comp_data)),
@@ -252,7 +266,7 @@ impl Tile {
                 // temp.extend(name.to_byte_array());
 
                 let value_bytes: Vec<u8> = match value {
-                    Value::UNIT(()) => vec![],
+                    Value::UNIT => vec![],
                     Value::I8(x) => x.to_byte_array(),
                     Value::I16(x) => x.to_byte_array(),
                     Value::I32(x) => x.to_byte_array(),
