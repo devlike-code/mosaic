@@ -82,10 +82,10 @@ pub fn default_vals() -> Vec<(S32, Value)> {
 impl Datatype {
     pub fn get_default(&self) -> Value {
         match self {
-            Datatype::UNIT => Value::UNIT(()),
+            Datatype::UNIT => Value::UNIT,
             // COMP fields will disappear when the component is added to the engine state,
             // so this situation should never arise. However, we'll leave a log here just in case.
-            Datatype::COMP(_) => Value::UNIT(()),
+            Datatype::COMP(_) => Value::UNIT,
             Datatype::I8 => Value::I8(0),
             Datatype::I16 => Value::I16(0),
             Datatype::I32 => Value::I32(0),
@@ -209,7 +209,7 @@ pub type ComponentValues = Vec<(S32, Value)>;
 #[derive(Debug, PartialEq, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum Value {
-    UNIT(()),
+    UNIT,
     I8(i8),
     I16(i16),
     I32(i32),
@@ -228,7 +228,7 @@ pub enum Value {
 impl Value {
     pub fn get_datatype(&self) -> Datatype {
         match self {
-            Value::UNIT(()) => Datatype::UNIT,
+            Value::UNIT => Datatype::UNIT,
             Value::I8(_) => Datatype::I8,
             Value::I16(_) => Datatype::I16,
             Value::I32(_) => Datatype::I32,
