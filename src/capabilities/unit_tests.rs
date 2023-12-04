@@ -353,7 +353,9 @@ mod selection_tests {
 mod archetype_tests {
     use crate::{
         capabilities::ArchetypeSubject,
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Value},
+        internals::{
+            default_vals, self_val, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Value,
+        },
     };
 
     #[test]
@@ -386,5 +388,32 @@ mod archetype_tests {
         let q = a.get_component("Position");
         assert!(!mosaic.is_tile_valid(&p));
         assert!(q.is_none());
+    }
+
+    #[test]
+    fn test_matching_archetypes() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Position: { x: f32, y: f32 };").unwrap();
+        mosaic.new_type("Label: s32;").unwrap();
+
+        let a = mosaic.new_object("void", default_vals());
+        let p = a.add_component(
+            "Position",
+            vec![
+                ("x".into(), Value::F32(10.0)),
+                ("y".into(), Value::F32(6.0)),
+            ],
+        );
+
+        let l = a.add_component("Label", self_val(Value::S32("Hello world".into())));
+
+        if a.match_archetype(&["Position", "Label"]) {
+            let values = a.get_archetype(&["Position", "Label"]);
+            let pos = values.get("Position").unwrap();
+            let lab = values.get("Label").unwrap();
+
+            assert_eq!(pos, &p);
+            assert_eq!(lab, &l);
+        }
     }
 }
