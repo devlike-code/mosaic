@@ -348,3 +348,43 @@ mod selection_tests {
         assert_eq!(1, mosaic.get_selection(&s).len());
     }
 }
+
+#[cfg(test)]
+mod archetype_tests {
+    use crate::{
+        capabilities::{ArchetypeSubject, SelectionCapability},
+        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Value},
+    };
+
+    #[test]
+    fn test_archetypes() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("Position: { x: f32, y: f32 };").unwrap();
+
+        let a = mosaic.new_object("void", default_vals());
+        let p = a.add_component(
+            "Position",
+            vec![
+                ("x".into(), Value::F32(10.0)),
+                ("y".into(), Value::F32(6.0)),
+            ],
+        );
+
+        assert!(mosaic.is_tile_valid(&p));
+        assert!(p.is_descriptor());
+        assert_eq!(p.target_id(), a.id);
+        assert_eq!(p.component, "Position".into());
+        assert_eq!(p.get("x"), Value::F32(10.0));
+        assert_eq!(p.get("y"), Value::F32(6.0));
+
+        let r = a.get_component("Position");
+        assert!(r.is_some());
+        let r = r.unwrap();
+        assert_eq!(r, p);
+
+        a.remove_component("Position");
+        let q = a.get_component("Position");
+        assert!(!mosaic.is_tile_valid(&p));
+        assert!(q.is_none());
+    }
+}

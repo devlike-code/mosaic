@@ -50,7 +50,7 @@ impl Tile {
         h.get(&index.into()).unwrap().clone()
     }
 
-    pub fn remove_component(&self) {
+    pub fn remove_component_data(&self) {
         println!("SELF: {:?}", self);
         let mut storage = self.mosaic.data_storage.lock().unwrap();
         let e = storage.get_mut(&self.component.to_string()).unwrap();

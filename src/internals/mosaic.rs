@@ -11,8 +11,8 @@ use once_cell::sync::Lazy;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile,
-    TileType, ToByteArray, Value, S32, self_val,
+    self_val, slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet,
+    Tile, TileType, ToByteArray, Value, S32,
 };
 
 type ComponentName = String;
@@ -346,9 +346,9 @@ impl MosaicIO for Arc<Mosaic> {
             };
             self.object_ids.lock().unwrap().add(id);
             e.insert(tile.clone());
-            
+
             tile.create_data_fields(self_val(Value::S32(id.to_string().into())))
-            .expect("Cannot create data fields, panicking!");
+                .expect("Cannot create data fields, panicking!");
 
             Ok(tile)
         } else {
@@ -458,7 +458,7 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
     fn delete_tile(&self, id: EntityId) {
         println!("!!!DELETE TILE BEGIN!!!");
         println!("TILE ID : {:?}", id);
-        
+
         let dependents = self
             .dependent_ids_map
             .lock()
@@ -467,19 +467,19 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
             .cloned()
             .collect_vec();
         println!("dependents {:?}", dependents);
-   
+
         dependents.into_iter().for_each(|t| {
             self.delete_tile(t);
         });
 
         if !self.is_tile_valid(&id) {
             println!("is_tile_valid = false");
-   
+
             return;
-        } 
+        }
 
         let tile = self.get(id).unwrap();
-        tile.remove_component();
+        tile.remove_component_data();
 
         self.dependent_ids_map.lock().unwrap().remove(&id);
         if let Some(tile) = self.tile_registry.lock().unwrap().get(&id) {
