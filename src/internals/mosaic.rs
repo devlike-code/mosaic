@@ -11,8 +11,8 @@ use once_cell::sync::Lazy;
 use ordered_multimap::ListOrderedMultimap;
 
 use super::{
-    self_val, slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet,
-    Tile, TileType, ToByteArray, Value, S32,
+    slice_into_array, ComponentRegistry, ComponentValues, EntityId, Logging, SparseSet, Tile,
+    TileType, ToByteArray, Value, S32,
 };
 
 type ComponentName = String;
@@ -89,6 +89,130 @@ impl Mosaic {
             id = self.entity_counter.inc();
         }
         id
+    }
+}
+
+#[derive(Default)]
+pub struct ComponentValuesBuilder {
+    values: HashMap<S32, Value>,
+}
+
+pub fn par<T>(t: T) -> ComponentValues
+where
+    ComponentValuesBuilder: ComponentValuesBuilderSetter<T>,
+{
+    pars().is(t).ok()
+}
+
+pub fn pars() -> ComponentValuesBuilder {
+    ComponentValuesBuilder::default()
+}
+
+impl ComponentValuesBuilder {
+    pub fn ok(self) -> ComponentValues {
+        self.values.into_iter().map(|(k, v)| (k, v)).collect_vec()
+    }
+}
+
+pub trait ComponentValuesBuilderSetter<T>
+where
+    Self: std::marker::Sized,
+{
+    fn set(self, field: &str, value: T) -> ComponentValuesBuilder;
+
+    fn is(self, value: T) -> ComponentValuesBuilder {
+        self.set("self", value)
+    }
+}
+
+impl ComponentValuesBuilderSetter<u8> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: u8) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::U8(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<u16> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: u16) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::U16(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<u32> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: u32) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::U32(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<u64> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: u64) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::U64(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<i8> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: i8) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::I8(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<i16> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: i16) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::I16(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<i32> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: i32) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::I32(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<i64> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: i64) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::I64(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<&str> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: &str) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::S32(value.into()));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<&[u8]> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: &[u8]) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::S128(value.into()));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<f32> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: f32) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::F32(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<f64> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: f64) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::F64(value));
+        self
+    }
+}
+
+impl ComponentValuesBuilderSetter<bool> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: bool) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::BOOL(value));
+        self
     }
 }
 
@@ -347,7 +471,7 @@ impl MosaicIO for Arc<Mosaic> {
             self.object_ids.lock().unwrap().add(id);
             e.insert(tile.clone());
 
-            tile.create_data_fields(self_val(Value::S32(id.to_string().into())))
+            tile.create_data_fields(par(id.to_string().as_str()))
                 .expect("Cannot create data fields, panicking!");
 
             Ok(tile)

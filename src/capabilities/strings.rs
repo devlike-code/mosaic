@@ -7,11 +7,11 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{byte_utilities::FromByteArray, self_val, MosaicIO},
+    internals::{par, MosaicIO},
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 use crate::{
-    internals::{EntityId, Mosaic, MosaicCRUD, Tile, Value, S128},
+    internals::{EntityId, Mosaic, MosaicCRUD, Tile},
     iterators::tile_filters::TileFilters,
 };
 
@@ -45,11 +45,7 @@ impl StringCapability for Arc<Mosaic> {
         assert!(self.is_tile_valid(&str_hash));
 
         for part in split_str_into_parts(str, 128) {
-            self.new_extension(
-                &str_hash,
-                "String",
-                self_val(Value::S128(S128::from_byte_array(part.as_bytes()))),
-            );
+            self.new_extension(&str_hash, "String", par(part.as_bytes()));
         }
 
         Ok(tile)

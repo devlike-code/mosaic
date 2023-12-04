@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
+    internals::{void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 
@@ -21,12 +21,12 @@ impl DictionaryCapability for Arc<Mosaic> {
         self.new_type("Dictionary: unit;").unwrap();
         self.new_type("DictionaryEntry: unit;").unwrap();
 
-        self.new_object("Dictionary", default_vals())
+        self.new_object("Dictionary", void())
     }
 
     fn add_dictionary_entry(&self, dict: &Tile, key: &Tile, value: &Tile) {
         let entry = self.make_tuple(key, value);
-        self.new_arrow(dict, &entry, "DictionaryEntry", default_vals());
+        self.new_arrow(dict, &entry, "DictionaryEntry", void());
     }
 
     fn get_dictionary_value(&self, dict: &Tile, key: &Tile) -> Option<Tile> {

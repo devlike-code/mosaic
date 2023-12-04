@@ -2,15 +2,15 @@
 mod internals_tests {
     use crate::internals::tile_access::{TileFieldQuery, TileFieldSetter};
     use crate::internals::{
-        default_vals, load_mosaic_commands, self_val, Mosaic, MosaicCRUD, MosaicIO,
-        MosaicTypelevelCRUD, TileType, Value,
+        load_mosaic_commands, par, void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD,
+        TileType, Value,
     };
 
     #[test]
     fn test_reading_value_after_dropping() {
         let mosaic = Mosaic::new();
         mosaic.new_type("I: i32;").unwrap();
-        mosaic.new_object("I", default_vals());
+        mosaic.new_object("I", void());
 
         if let Some(mut a) = mosaic.get_all().next() {
             assert_eq!(Value::I32(0), a.get("self"));
@@ -28,7 +28,7 @@ mod internals_tests {
     fn test_tuple_get() {
         let mosaic = Mosaic::new();
         mosaic.new_type("Position: { x: i32, y: i32 };").unwrap();
-        let mut a = mosaic.new_object("Position", default_vals());
+        let mut a = mosaic.new_object("Position", void());
 
         a.set("x", 35i32);
         a.set("y", 64i32);
@@ -48,9 +48,9 @@ mod internals_tests {
         mosaic.new_type("B: unit;").unwrap();
         mosaic.new_type("A_to_B: unit;").unwrap();
         // We make two objects and an arrow: A --A_to_B--> B
-        let a = mosaic.new_object("A", default_vals());
-        let b = mosaic.new_object("B", default_vals());
-        let a_b = mosaic.new_arrow(&a, &b, "A_to_B", default_vals());
+        let a = mosaic.new_object("A", void());
+        let b = mosaic.new_object("B", void());
+        let a_b = mosaic.new_arrow(&a, &b, "A_to_B", void());
 
         // Check whether everything exists
         assert!(mosaic.is_tile_valid(&a));
@@ -77,7 +77,7 @@ mod internals_tests {
         // Create new arrow with the same endpoints, and then
         // delete one of those endpoints; we're expecting the arrows
         // to disappear as well
-        let a_b = mosaic.new_arrow(&a, &b, "A_to_B", default_vals());
+        let a_b = mosaic.new_arrow(&a, &b, "A_to_B", void());
         let a_b_id = a_b.id;
         mosaic.delete_tile(a);
         assert!(!mosaic.is_tile_valid(&a_id));
@@ -90,9 +90,9 @@ mod internals_tests {
         mosaic.new_type("A: unit;").unwrap();
         mosaic.new_type("B: unit;").unwrap();
         mosaic.new_type("A_to_B: unit;").unwrap();
-        let a = mosaic.new_object("A", default_vals());
-        let b = mosaic.new_object("B", default_vals());
-        let a_b = mosaic.new_arrow(&a, &b, "A_to_B", default_vals());
+        let a = mosaic.new_object("A", void());
+        let b = mosaic.new_object("B", void());
+        let a_b = mosaic.new_arrow(&a, &b, "A_to_B", void());
 
         let a_b_id = a_b.id;
         mosaic.delete_tile(a_b.clone());
@@ -103,9 +103,9 @@ mod internals_tests {
     fn test_cannot_commit_invalid_tile() {
         let mosaic = Mosaic::new();
 
-        let a = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let a_b = mosaic.new_arrow(&a, &b, "void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let a_b = mosaic.new_arrow(&a, &b, "void", void());
 
         let a_b_id = a_b.id;
         mosaic.delete_tile(a_b);
@@ -117,7 +117,7 @@ mod internals_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Foo: { x: i32, y: f32 };").unwrap();
 
-        let mut a = mosaic.new_object("Foo", default_vals());
+        let mut a = mosaic.new_object("Foo", void());
         assert_eq!(0, a.get("x").as_i32());
         assert_eq!(0.0, a.get("y").as_f32());
 
@@ -130,7 +130,7 @@ mod internals_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Foo: i32;").unwrap();
 
-        let mut a = mosaic.new_object("Foo", default_vals());
+        let mut a = mosaic.new_object("Foo", void());
         assert_eq!(0, a.get("self").as_i32());
 
         a.set("self", 7i32);
@@ -166,11 +166,11 @@ mod internals_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Foo: i32;").unwrap();
 
-        let a = mosaic.new_object("Foo", self_val(Value::I32(101)));
-        let b = mosaic.new_object("void", default_vals());
-        let c = mosaic.new_object("void", default_vals());
-        let _ab = a.arrow_to(&b, "void", default_vals());
-        let _bc = b.arrow_to(&c, "void", default_vals());
+        let a = mosaic.new_object("Foo", par(101i32));
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+        let _ab = a.arrow_to(&b, "void", void());
+        let _bc = b.arrow_to(&c, "void", void());
         println!("{:?}", mosaic.save().as_slice());
         assert_eq!(&test_data(), mosaic.save().as_slice());
     }
@@ -184,7 +184,7 @@ mod internals_tests {
         assert_eq!(16, loaded.len());
 
         mosaic.load(data.as_slice()).unwrap();
-        let new_obj = mosaic.new_object("void", default_vals());
+        let new_obj = mosaic.new_object("void", void());
         assert!(mosaic.is_tile_valid(&0));
         assert!(mosaic.is_tile_valid(&1));
         assert!(mosaic.is_tile_valid(&2));
@@ -202,7 +202,7 @@ mod internals_tests {
         let loaded = load_mosaic_commands(data.as_slice()).unwrap();
         assert_eq!(16, loaded.len());
 
-        let new_obj = mosaic.new_object("void", default_vals());
+        let new_obj = mosaic.new_object("void", void());
         mosaic.load(data.as_slice()).unwrap();
 
         assert!(mosaic.is_tile_valid(&1));

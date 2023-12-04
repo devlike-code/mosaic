@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 
-use crate::internals::{self_val, Logging, MosaicIO};
-use crate::internals::{Mosaic, MosaicCRUD, Tile, Value};
+use crate::internals::{par, Logging, MosaicIO};
+use crate::internals::{Mosaic, MosaicCRUD, Tile};
 use crate::iterators::component_selectors::ComponentSelectors;
 use crate::iterators::tile_getters::TileGetters;
 
@@ -45,21 +45,16 @@ impl GroupingCapability for Arc<Mosaic> {
             self.delete_tile(previous_owner_descriptor.id);
         }
 
-        let desc = self.new_descriptor(owner, "GroupOwner", self_val(Value::S32(group.into())));
+        let desc = self.new_descriptor(owner, "GroupOwner", par(group));
 
         for member in members {
-            self.new_arrow(&desc, member, "Group", self_val(Value::S32(group.into())));
+            self.new_arrow(&desc, member, "Group", par(group));
         }
     }
 
     fn add_group_member(&self, group: &str, owner: &Tile, member: &Tile) -> anyhow::Result<()> {
         if let Some(owner_descriptor) = get_existing_owner_descriptor(group, owner) {
-            self.new_arrow(
-                &owner_descriptor,
-                member,
-                "Group",
-                self_val(Value::S32(group.into())),
-            );
+            self.new_arrow(&owner_descriptor, member, "Group", par(group));
             Ok(())
         } else {
             format!(

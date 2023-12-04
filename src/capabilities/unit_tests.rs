@@ -35,7 +35,7 @@ mod traversal_tests {
 
     use crate::{
         capabilities::{traversal::Traverse, Traversal},
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
+        internals::{void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
     };
 
     #[test]
@@ -45,10 +45,10 @@ mod traversal_tests {
         };
 
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let c = mosaic.new_object("void", default_vals());
-        let d = mosaic.new_object("void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+        let d = mosaic.new_object("void", void());
 
         /*
                       /----> b
@@ -57,13 +57,13 @@ mod traversal_tests {
 
            a ----> b <----> c -----> d
         */
-        mosaic.new_arrow(&a, &b, "GroupOwner", default_vals());
-        mosaic.new_arrow(&a, &c, "GroupOwner", default_vals());
-        mosaic.new_arrow(&a, &d, "GroupOwner", default_vals());
-        mosaic.new_arrow(&a, &b, "void", default_vals());
-        mosaic.new_arrow(&b, &c, "void", default_vals());
-        mosaic.new_arrow(&c, &b, "void", default_vals());
-        mosaic.new_arrow(&c, &d, "void", default_vals());
+        mosaic.new_arrow(&a, &b, "GroupOwner", void());
+        mosaic.new_arrow(&a, &c, "GroupOwner", void());
+        mosaic.new_arrow(&a, &d, "GroupOwner", void());
+        mosaic.new_arrow(&a, &b, "void", void());
+        mosaic.new_arrow(&b, &c, "void", void());
+        mosaic.new_arrow(&c, &b, "void", void());
+        mosaic.new_arrow(&c, &d, "void", void());
 
         let p = mosaic.traverse(t);
         assert_eq!(1, p.out_degree(&a));
@@ -104,11 +104,11 @@ mod traversal_tests {
         let t = Traversal::Exclude { components: &[] };
 
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let c = mosaic.new_object("void", default_vals());
-        let d = mosaic.new_object("void", default_vals());
-        let e = mosaic.new_object("void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+        let d = mosaic.new_object("void", void());
+        let e = mosaic.new_object("void", void());
 
         /*
                       /----> b
@@ -127,12 +127,12 @@ mod traversal_tests {
                    1 -----> x
 
         */
-        mosaic.new_arrow(&a, &b, "void", default_vals());
-        mosaic.new_arrow(&e, &c, "void", default_vals());
-        mosaic.new_arrow(&a, &e, "void", default_vals());
-        mosaic.new_arrow(&b, &c, "void", default_vals());
-        mosaic.new_arrow(&c, &b, "void", default_vals());
-        mosaic.new_arrow(&c, &d, "void", default_vals());
+        mosaic.new_arrow(&a, &b, "void", void());
+        mosaic.new_arrow(&e, &c, "void", void());
+        mosaic.new_arrow(&a, &e, "void", void());
+        mosaic.new_arrow(&b, &c, "void", void());
+        mosaic.new_arrow(&c, &b, "void", void());
+        mosaic.new_arrow(&c, &d, "void", void());
 
         let op = mosaic.traverse(t);
 
@@ -156,10 +156,10 @@ mod traversal_tests {
 
         let _ = mosaic.new_type("Object: unit; Arrow: unit;");
 
-        let a = mosaic.new_object("Object", default_vals());
-        let b = mosaic.new_object("Object", default_vals());
-        let d = mosaic.new_object("Object", default_vals());
-        let e = mosaic.new_object("Object", default_vals());
+        let a = mosaic.new_object("Object", void());
+        let b = mosaic.new_object("Object", void());
+        let d = mosaic.new_object("Object", void());
+        let e = mosaic.new_object("Object", void());
         /*
             a -- x ---> b ----- y
                         |       |
@@ -167,10 +167,10 @@ mod traversal_tests {
                         v ----> d -- z --> e
 
         */
-        let _x = mosaic.new_arrow(&a, &b, "Arrow", default_vals());
-        let y = mosaic.new_arrow(&b, &d, "Arrow", default_vals());
-        let v = mosaic.new_arrow(&b, &d, "Arrow", default_vals());
-        let _z = mosaic.new_arrow(&d, &e, "Arrow", default_vals());
+        let _x = mosaic.new_arrow(&a, &b, "Arrow", void());
+        let y = mosaic.new_arrow(&b, &d, "Arrow", void());
+        let v = mosaic.new_arrow(&b, &d, "Arrow", void());
+        let _z = mosaic.new_arrow(&d, &e, "Arrow", void());
 
         let t = Traversal::Exclude { components: &[] };
 
@@ -186,18 +186,18 @@ mod traversal_tests {
     #[test]
     fn test_limited_traversal() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals()); // 0
-        let b = mosaic.new_object("void", default_vals()); // 1
-        let c = mosaic.new_object("void", default_vals());
-        let d = mosaic.new_object("void", default_vals());
-        let e = mosaic.new_object("void", default_vals());
+        let a = mosaic.new_object("void", void()); // 0
+        let b = mosaic.new_object("void", void()); // 1
+        let c = mosaic.new_object("void", void());
+        let d = mosaic.new_object("void", void());
+        let e = mosaic.new_object("void", void());
 
-        let _ab = mosaic.new_arrow(&a, &b, "void", default_vals());
-        let _ec = mosaic.new_arrow(&e, &c, "void", default_vals());
-        let _ae = mosaic.new_arrow(&a, &e, "void", default_vals());
-        let _bc = mosaic.new_arrow(&b, &c, "void", default_vals());
-        let _cb = mosaic.new_arrow(&c, &b, "void", default_vals());
-        let _cd = mosaic.new_arrow(&c, &d, "void", default_vals());
+        let _ab = mosaic.new_arrow(&a, &b, "void", void());
+        let _ec = mosaic.new_arrow(&e, &c, "void", void());
+        let _ae = mosaic.new_arrow(&a, &e, "void", void());
+        let _bc = mosaic.new_arrow(&b, &c, "void", void());
+        let _cb = mosaic.new_arrow(&c, &b, "void", void());
+        let _cd = mosaic.new_arrow(&c, &d, "void", void());
 
         let traversal = Traversal::Limited {
             tiles: vec![a.clone(), b.clone()],
@@ -222,7 +222,7 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
+        internals::{void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
     };
 
     #[test]
@@ -230,10 +230,10 @@ mod grouping_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Group: s32;").unwrap();
 
-        let o = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let c = mosaic.new_object("void", default_vals());
-        let d = mosaic.new_object("void", default_vals());
+        let o = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+        let d = mosaic.new_object("void", void());
 
         /*
                          /----> b
@@ -270,9 +270,7 @@ mod process_tests {
 
     use crate::{
         capabilities::{process::ProcessCapability, GroupingCapability},
-        internals::{
-            self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile, Value,
-        },
+        internals::{par, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
         iterators::tile_getters::TileGetters,
     };
 
@@ -282,8 +280,8 @@ mod process_tests {
         mosaic.new_type("Number: u32;").unwrap();
 
         let add = mosaic.create_process("add", &["a", "b"]).unwrap();
-        let x = mosaic.new_object("Number", self_val(Value::U32(7)));
-        let y = mosaic.new_object("Number", self_val(Value::U32(5)));
+        let x = mosaic.new_object("Number", par(7u32));
+        let y = mosaic.new_object("Number", par(5u32));
 
         mosaic.pass_process_parameter(&add, "a", &x).unwrap();
         mosaic.pass_process_parameter(&add, "b", &y).unwrap();
@@ -327,18 +325,18 @@ mod process_tests {
 mod selection_tests {
     use crate::{
         capabilities::SelectionCapability,
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO},
+        internals::{void, Mosaic, MosaicCRUD, MosaicIO},
     };
 
     #[test]
     fn test_selection() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let c = mosaic.new_object("void", default_vals());
-        let ab = mosaic.new_arrow(&a, &b, "void", default_vals());
-        let _ac = mosaic.new_arrow(&a, &c, "void", default_vals());
-        let _bc = mosaic.new_arrow(&b, &c, "void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+        let ab = mosaic.new_arrow(&a, &b, "void", void());
+        let _ac = mosaic.new_arrow(&a, &c, "void", void());
+        let _bc = mosaic.new_arrow(&b, &c, "void", void());
         let s = mosaic.make_selection();
         mosaic.fill_selection(&s, &[a.clone(), b.clone(), ab]);
         assert_eq!(3, mosaic.get_selection(&s).len());
@@ -354,7 +352,8 @@ mod archetype_tests {
     use crate::{
         capabilities::ArchetypeSubject,
         internals::{
-            default_vals, self_val, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Value,
+            pars, void, ComponentValuesBuilderSetter, Mosaic, MosaicCRUD, MosaicIO,
+            MosaicTypelevelCRUD, Value,
         },
     };
 
@@ -363,14 +362,8 @@ mod archetype_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Position: { x: f32, y: f32 };").unwrap();
 
-        let a = mosaic.new_object("void", default_vals());
-        let p = a.add_component(
-            "Position",
-            vec![
-                ("x".into(), Value::F32(10.0)),
-                ("y".into(), Value::F32(6.0)),
-            ],
-        );
+        let a = mosaic.new_object("void", void());
+        let p = a.add_component("Position", pars().set("x", 10.0f32).set("y", 6.0f32).ok());
 
         assert!(mosaic.is_tile_valid(&p));
         assert!(p.is_descriptor());
@@ -396,16 +389,9 @@ mod archetype_tests {
         mosaic.new_type("Position: { x: f32, y: f32 };").unwrap();
         mosaic.new_type("Label: s32;").unwrap();
 
-        let a = mosaic.new_object("void", default_vals());
-        let p = a.add_component(
-            "Position",
-            vec![
-                ("x".into(), Value::F32(10.0)),
-                ("y".into(), Value::F32(6.0)),
-            ],
-        );
-
-        let l = a.add_component("Label", self_val(Value::S32("Hello world".into())));
+        let a = mosaic.new_object("void", void());
+        let p = a.add_component("Position", pars().set("x", 10.0f32).set("y", 6.0f32).ok());
+        let l = a.add_component("Label", pars().set("self", "Hello world").ok());
 
         if a.match_archetype(&["Position", "Label"]) {
             let values = a.get_archetype(&["Position", "Label"]);

@@ -9,7 +9,7 @@ use crate::{
         process::ProcessCapability, DictionaryCapability, SelectionCapability, TraversalOperator,
         Traverse,
     },
-    internals::{default_vals, EntityId, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
+    internals::{void, EntityId, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
     iterators::tile_deletion::TileDeletion,
 };
 
@@ -127,7 +127,7 @@ pub fn pattern_match(match_process: &Tile) -> anyhow::Result<Tile> {
         let start_candidates = state.candidates.get_all(&start_node.id).collect_vec();
 
         for &sc in &start_candidates {
-            let candidate = mosaic.new_object("PatternMatchCandidate", default_vals());
+            let candidate = mosaic.new_object("PatternMatchCandidate", void());
             state.candidate_mapping.insert(candidate.id, (pid, *sc));
             state.rev_candidate_mapping.insert((pid, *sc), candidate.id);
             state.pattern_candidates.append(pid, candidate.id);
@@ -156,8 +156,7 @@ pub fn pattern_match(match_process: &Tile) -> anyhow::Result<Tile> {
                     let cand1 = state.rev_candidate_mapping.get(&(pid, *sc)).unwrap();
                     let cand2 = state.rev_candidate_mapping.get(&(tid, *ec)).unwrap();
 
-                    let binding =
-                        mosaic.new_arrow(cand1, cand2, "PatternMatchBinding", default_vals());
+                    let binding = mosaic.new_arrow(cand1, cand2, "PatternMatchBinding", void());
 
                     transient.push(binding);
                 }
@@ -201,7 +200,7 @@ mod pattern_match_tests {
 
     use crate::{
         capabilities::{process::ProcessCapability, DictionaryCapability, SelectionCapability},
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO},
+        internals::{void, Mosaic, MosaicCRUD, MosaicIO},
     };
 
     use super::pattern_match;
@@ -213,24 +212,24 @@ mod pattern_match_tests {
     #[test]
     fn test_pattern_match() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals()); // 0
-        let b = mosaic.new_object("void", default_vals()); // 1
-        let c = mosaic.new_object("void", default_vals()); // 2
-        mosaic.new_arrow(&a, &b, "void", default_vals()); // 3
-        mosaic.new_arrow(&a, &c, "void", default_vals()); // 4
-        mosaic.new_arrow(&b, &c, "void", default_vals()); // 5
+        let a = mosaic.new_object("void", void()); // 0
+        let b = mosaic.new_object("void", void()); // 1
+        let c = mosaic.new_object("void", void()); // 2
+        mosaic.new_arrow(&a, &b, "void", void()); // 3
+        mosaic.new_arrow(&a, &c, "void", void()); // 4
+        mosaic.new_arrow(&b, &c, "void", void()); // 5
 
-        let g = mosaic.new_object("void", default_vals()); // 6
-        let h = mosaic.new_object("void", default_vals()); // 7
-        let i = mosaic.new_object("void", default_vals()); // 8
-        let j = mosaic.new_object("void", default_vals()); // 9
-        let k = mosaic.new_object("void", default_vals()); // 10
-        mosaic.new_arrow(&g, &h, "void", default_vals()); // 11
-        mosaic.new_arrow(&g, &i, "void", default_vals()); // 12
-        mosaic.new_arrow(&h, &i, "void", default_vals()); // 13
-        mosaic.new_arrow(&g, &j, "void", default_vals()); // 14
-        mosaic.new_arrow(&i, &j, "void", default_vals()); // 15
-        mosaic.new_arrow(&h, &k, "void", default_vals()); // 16
+        let g = mosaic.new_object("void", void()); // 6
+        let h = mosaic.new_object("void", void()); // 7
+        let i = mosaic.new_object("void", void()); // 8
+        let j = mosaic.new_object("void", void()); // 9
+        let k = mosaic.new_object("void", void()); // 10
+        mosaic.new_arrow(&g, &h, "void", void()); // 11
+        mosaic.new_arrow(&g, &i, "void", void()); // 12
+        mosaic.new_arrow(&h, &i, "void", void()); // 13
+        mosaic.new_arrow(&g, &j, "void", void()); // 14
+        mosaic.new_arrow(&i, &j, "void", void()); // 15
+        mosaic.new_arrow(&h, &k, "void", void()); // 16
 
         let p = mosaic.make_selection();
         mosaic.fill_selection(&p, &[a, b, c]);

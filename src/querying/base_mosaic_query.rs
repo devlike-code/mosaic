@@ -94,7 +94,7 @@ mod query_utility_tests {
     use itertools::Itertools;
 
     use crate::{
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO},
+        internals::{void, Mosaic, MosaicCRUD, MosaicIO},
         querying::base_mosaic_query::targets_from,
     };
 
@@ -103,11 +103,11 @@ mod query_utility_tests {
     #[test]
     fn collage_test() {
         let mosaic = Mosaic::new();
-        let t = mosaic.new_object("void", default_vals());
-        let u = mosaic.new_object("void", default_vals());
-        let v = mosaic.new_object("void", default_vals());
-        mosaic.new_arrow(&t, &u, "void", default_vals());
-        mosaic.new_arrow(&t, &v, "void", default_vals());
+        let t = mosaic.new_object("void", void());
+        let u = mosaic.new_object("void", void());
+        let v = mosaic.new_object("void", void());
+        mosaic.new_arrow(&t, &u, "void", void());
+        mosaic.new_arrow(&t, &v, "void", void());
 
         let mq = targets_from(take_arrows(tiles()));
         let mut result = mosaic.apply_collage(mq, None).collect_vec();
@@ -119,11 +119,11 @@ mod query_utility_tests {
     #[test]
     fn collage_test_limited_to_some_tiles() {
         let mosaic = Mosaic::new();
-        let t = mosaic.new_object("void", default_vals());
-        let u = mosaic.new_object("void", default_vals());
-        let v = mosaic.new_object("void", default_vals());
-        mosaic.new_arrow(&t, &u, "void", default_vals());
-        mosaic.new_arrow(&t, &v, "void", default_vals());
+        let t = mosaic.new_object("void", void());
+        let u = mosaic.new_object("void", void());
+        let v = mosaic.new_object("void", void());
+        mosaic.new_arrow(&t, &u, "void", void());
+        mosaic.new_arrow(&t, &v, "void", void());
 
         let mq = targets_from(take_arrows(tiles()));
         let selection = vec![t.clone(), u.clone()];

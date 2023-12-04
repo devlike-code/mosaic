@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{default_vals, self_val, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, Value, S32},
+    internals::{par, void, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, S32},
     iterators::{
         component_selectors::ComponentSelectors, tile_deletion::TileDeletion,
         tile_getters::TileGetters,
@@ -39,17 +39,13 @@ pub trait ProcessCapability: GroupingCapability {
 
 impl ProcessCapability for Arc<Mosaic> {
     fn create_process(&self, name: &str, params: &[&str]) -> anyhow::Result<Tile> {
-        let process = self.new_object("Process", self_val(Value::S32(name.into())));
+        let process = self.new_object("Process", par(name));
 
         self.group(name, &process, &[]);
         let process_desc = self.get_group_owner_descriptor(name, &process).unwrap();
 
         for &param in params {
-            let param_obj = self.new_extension(
-                &process_desc,
-                "ProcessParameter",
-                self_val(Value::S32(param.into())),
-            );
+            let param_obj = self.new_extension(&process_desc, "ProcessParameter", par(param));
             self.add_group_member(name, &process, &param_obj)?;
         }
 
@@ -80,12 +76,7 @@ impl ProcessCapability for Arc<Mosaic> {
 
         let param = param.first().unwrap();
         param.clone().into_iter().get_arrows_from().delete();
-        self.new_arrow(
-            param,
-            value,
-            "ParameterBinding",
-            self_val(Value::S32(param_name.into())),
-        );
+        self.new_arrow(param, value, "ParameterBinding", par(param_name));
 
         Ok(())
     }
@@ -165,10 +156,10 @@ impl ProcessCapability for Arc<Mosaic> {
             .get_group_owner_descriptor(group_name, process)
             .unwrap();
 
-        let result_ext = self.new_extension(&process_desc, "ProcessResult", default_vals());
+        let result_ext = self.new_extension(&process_desc, "ProcessResult", void());
         self.add_group_member(group_name, process, &result_ext)?;
 
-        self.new_arrow(&result_ext, result, "ResultBinding", default_vals());
+        self.new_arrow(&result_ext, result, "ResultBinding", void());
 
         Ok(())
     }

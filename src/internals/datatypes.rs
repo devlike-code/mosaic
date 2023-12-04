@@ -71,11 +71,7 @@ pub enum Datatype {
     COMP(S32),
 }
 
-pub fn self_val(value: Value) -> Vec<(S32, Value)> {
-    vec![("self".into(), value)]
-}
-
-pub fn default_vals() -> Vec<(S32, Value)> {
+pub fn void() -> Vec<(S32, Value)> {
     vec![]
 }
 

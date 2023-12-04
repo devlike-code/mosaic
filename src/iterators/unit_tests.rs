@@ -3,7 +3,7 @@ mod test_iterators {
     use itertools::Itertools;
 
     use crate::{
-        internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
+        internals::{void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
         iterators::{
             component_selectors::ComponentSelectors, tile_filters::TileFilters,
             tile_getters::TileGetters,
@@ -13,9 +13,9 @@ mod test_iterators {
     #[test]
     fn test_get_entities() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let _a_b = mosaic.new_arrow(&a, &b, "void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let _a_b = mosaic.new_arrow(&a, &b, "void", void());
         // We want to select everything
         let all_entities = mosaic.get_all().collect_vec();
         assert_eq!(3, all_entities.len());
@@ -24,9 +24,9 @@ mod test_iterators {
     #[test]
     fn test_get_dependents() {
         let mosaic = Mosaic::new();
-        let a = mosaic.new_object("void", default_vals());
-        let b = mosaic.new_object("void", default_vals());
-        let a_b = mosaic.new_arrow(&a, &b, "void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let a_b = mosaic.new_arrow(&a, &b, "void", void());
 
         let mut dependents = a.into_iter().get_dependents();
         assert_eq!(dependents.next(), Some(a_b));
@@ -37,8 +37,8 @@ mod test_iterators {
     fn test_descriptor_directly_or_indirectly() {
         let mosaic = Mosaic::new();
 
-        let a = mosaic.new_object("void", default_vals());
-        let a_p = mosaic.new_descriptor(&a, "void", default_vals());
+        let a = mosaic.new_object("void", void());
+        let a_p = mosaic.new_descriptor(&a, "void", void());
         let a_desc = a.clone().into_iter().get_descriptors().collect_vec();
 
         assert_eq!(Some(&a_p), a_desc.first());
@@ -62,13 +62,13 @@ mod test_iterators {
         mosaic.new_type("P: unit;").unwrap(); // Property
         mosaic.new_type("C_to_C: unit;").unwrap(); // C -> C
         mosaic.new_type("C_to_C_sqr: unit;").unwrap(); // (C -> C) -> (C -> C)
-        let a = mosaic.new_object("C", default_vals());
-        let b = mosaic.new_object("C", default_vals());
-        let c = mosaic.new_object("C", default_vals());
-        let a_p = mosaic.new_descriptor(&a, "P", default_vals());
-        let a_b = mosaic.new_arrow(&a, &b, "C_to_C", default_vals());
-        let a_c = mosaic.new_arrow(&a, &c, "C_to_C", default_vals());
-        let ab_ac = mosaic.new_arrow(&a_b, &a_c, "C_to_C_sqr", default_vals());
+        let a = mosaic.new_object("C", void());
+        let b = mosaic.new_object("C", void());
+        let c = mosaic.new_object("C", void());
+        let a_p = mosaic.new_descriptor(&a, "P", void());
+        let a_b = mosaic.new_arrow(&a, &b, "C_to_C", void());
+        let a_c = mosaic.new_arrow(&a, &c, "C_to_C", void());
+        let ab_ac = mosaic.new_arrow(&a_b, &a_c, "C_to_C_sqr", void());
 
         let a_arrows = a.clone().into_iter().get_arrows().collect_vec();
         assert_eq!(2, a_arrows.len());
@@ -110,11 +110,11 @@ mod test_iterators {
         mosaic.new_type("Src: unit;").unwrap();
         mosaic.new_type("Tgt: unit;").unwrap();
         mosaic.new_type("Arr: unit;").unwrap();
-        let src = mosaic.new_object("Src", default_vals()); // 0
-        let tgt1 = mosaic.new_object("Tgt", default_vals()); // 1
-        let tgt2 = mosaic.new_object("Tgt", default_vals()); // 2
-        let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr", default_vals()); // 3
-        let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr", default_vals()); // 4
+        let src = mosaic.new_object("Src", void()); // 0
+        let tgt1 = mosaic.new_object("Tgt", void()); // 1
+        let tgt2 = mosaic.new_object("Tgt", void()); // 2
+        let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr", void()); // 3
+        let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr", void()); // 4
 
         let into_tgt1 = tgt1.into_iter().get_arrows_into().collect_vec();
         let into_tgt2 = tgt2.into_iter().get_arrows_into().collect_vec();
@@ -136,15 +136,15 @@ mod test_iterators {
         mosaic.new_type("Arr1: unit;").unwrap();
         mosaic.new_type("Arr2: unit;").unwrap();
         mosaic.new_type("Arr3: unit;").unwrap();
-        let src = mosaic.new_object("Src", default_vals());
-        let src2 = mosaic.new_object("Src", default_vals());
-        let tgt1 = mosaic.new_object("Tgt", default_vals());
-        let tgt2 = mosaic.new_object("Tgt", default_vals());
-        let tgt3 = mosaic.new_object("Tgt", default_vals());
-        let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr1", default_vals());
-        let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr2", default_vals());
-        let _a3 = mosaic.new_arrow(&src, &tgt3, "Arr3", default_vals());
-        let _a4 = mosaic.new_arrow(&src2, &src, "Arr2", default_vals());
+        let src = mosaic.new_object("Src", void());
+        let src2 = mosaic.new_object("Src", void());
+        let tgt1 = mosaic.new_object("Tgt", void());
+        let tgt2 = mosaic.new_object("Tgt", void());
+        let tgt3 = mosaic.new_object("Tgt", void());
+        let _a1 = mosaic.new_arrow(&src, &tgt1, "Arr1", void());
+        let _a2 = mosaic.new_arrow(&src, &tgt2, "Arr2", void());
+        let _a3 = mosaic.new_arrow(&src, &tgt3, "Arr3", void());
+        let _a4 = mosaic.new_arrow(&src2, &src, "Arr2", void());
 
         let mut p = mosaic
             .get_all() // [ src, src2, tgt1, tgt2, tgt3, a1, a2, a3, a4 ]

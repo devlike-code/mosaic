@@ -3,11 +3,8 @@ use std::sync::Arc;
 use itertools::Itertools;
 
 use crate::{
-    internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
-    iterators::{
-        component_selectors::ComponentSelectors,
-        tile_getters::TileGetters,
-    },
+    internals::{void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
+    iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 
 pub trait TupleCapability {
@@ -30,9 +27,9 @@ impl TupleCapability for Arc<Mosaic> {
     fn make_tuple(&self, fst: &Tile, snd: &Tile) -> Tile {
         self.new_type("Tuple: unit; TupleOwner: unit; TupleFirst: unit; TupleSecond: unit;")
             .unwrap();
-        let tuple_owner = self.new_object("TupleOwner", default_vals());
-        self.new_arrow(&tuple_owner, fst, "TupleFirst", default_vals());
-        self.new_arrow(&tuple_owner, snd, "TupleSecond", default_vals());
+        let tuple_owner = self.new_object("TupleOwner", void());
+        self.new_arrow(&tuple_owner, fst, "TupleFirst", void());
+        self.new_arrow(&tuple_owner, snd, "TupleSecond", void());
         tuple_owner
     }
 

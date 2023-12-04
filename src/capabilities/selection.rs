@@ -1,6 +1,6 @@
 use std::{sync::Arc, vec::IntoIter};
 
-use crate::internals::{default_vals, Mosaic, MosaicIO, MosaicTypelevelCRUD, Tile};
+use crate::internals::{void, Mosaic, MosaicIO, MosaicTypelevelCRUD, Tile};
 
 use super::GroupingCapability;
 
@@ -13,7 +13,7 @@ pub trait SelectionCapability: GroupingCapability {
 impl SelectionCapability for Arc<Mosaic> {
     fn make_selection(&self) -> Tile {
         self.new_type("SelectionOwner: unit;").unwrap();
-        let owner = self.new_object("SelectionOwner", default_vals());
+        let owner = self.new_object("SelectionOwner", void());
         self.group("Selection", &owner, &[]);
         owner
     }
