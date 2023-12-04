@@ -352,7 +352,7 @@ mod selection_tests {
 #[cfg(test)]
 mod archetype_tests {
     use crate::{
-        capabilities::{ArchetypeSubject, SelectionCapability},
+        capabilities::ArchetypeSubject,
         internals::{default_vals, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Value},
     };
 
