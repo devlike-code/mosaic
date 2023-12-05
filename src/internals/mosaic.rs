@@ -580,9 +580,6 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
     }
 
     fn delete_tile(&self, id: EntityId) {
-        println!("!!!DELETE TILE BEGIN!!!");
-        println!("TILE ID : {:?}", id);
-
         let dependents = self
             .dependent_ids_map
             .lock()
@@ -590,15 +587,12 @@ impl MosaicCRUD<EntityId> for Arc<Mosaic> {
             .get_all(&id)
             .cloned()
             .collect_vec();
-        println!("dependents {:?}", dependents);
 
         dependents.into_iter().for_each(|t| {
             self.delete_tile(t);
         });
 
         if !self.is_tile_valid(&id) {
-            println!("is_tile_valid = false");
-
             return;
         }
 

@@ -403,3 +403,38 @@ mod archetype_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod queue_tests {
+    use itertools::Itertools;
+
+    use crate::{
+        capabilities::QueueCapability,
+        internals::{void, Mosaic, MosaicIO},
+        iterators::tile_getters::TileGetters,
+    };
+
+    #[test]
+    fn test_queues() {
+        let mosaic = Mosaic::new();
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+
+        let q = mosaic.make_queue();
+        println!("{:?}: {:?}", q, q.iter().get_arrows().collect_vec());
+        assert!(mosaic.is_queue_empty(&q));
+        mosaic.enqueue(&q, &a);
+        println!("{:?}: {:?}", q, q.iter().get_arrows().collect_vec());
+        assert!(!mosaic.is_queue_empty(&q));
+        mosaic.enqueue(&q, &b);
+        println!("{:?}: {:?}", q, q.iter().get_arrows().collect_vec());
+        mosaic.enqueue(&q, &c);
+        println!("{:?}: {:?}", q, q.iter().get_arrows().collect_vec());
+
+        assert_eq!(Some(a), mosaic.dequeue(&q));
+        assert_eq!(Some(b), mosaic.dequeue(&q));
+        assert_eq!(Some(c), mosaic.dequeue(&q));
+        assert_eq!(None, mosaic.dequeue(&q));
+    }
+}
