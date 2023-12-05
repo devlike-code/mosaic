@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 pub mod byte_utilities;
+pub mod collage;
+pub mod collage_impl;
 pub mod component_grammar;
 pub mod component_registry;
 pub mod datatypes;
@@ -16,6 +18,8 @@ pub mod tile_access;
 mod unit_tests;
 
 pub use byte_utilities::*;
+pub use collage::*;
+pub use collage::*;
 pub use component_registry::*;
 pub use datatypes::*;
 pub use freelist::*;

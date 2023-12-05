@@ -4,20 +4,20 @@ use itertools::Itertools;
 
 use crate::{
     capabilities::{Traversal, Traverse},
+    internals::collage::Cut,
     internals::{Mosaic, MosaicIO, Tile},
     iterators::{
         component_selectors::ComponentSelectors, tile_filters::TileFilters,
         tile_getters::TileGetters,
     },
-    querying::base_mosaic_query::Cut,
 };
 
-use super::base_mosaic_query::{Collage, MosaicCollage, Pick};
+use super::collage::{Collage, MosaicCollage, Pick};
 
 impl MosaicCollage for Arc<Mosaic> {
     fn apply_collage(
         &self,
-        mq: Box<super::base_mosaic_query::Collage>,
+        mq: Box<super::collage::Collage>,
         tiles: Option<Vec<Tile>>,
     ) -> std::vec::IntoIter<crate::internals::Tile> {
         let traversal: Traversal = tiles.unwrap_or(self.get_all().collect_vec()).into();

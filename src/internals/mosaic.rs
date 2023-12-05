@@ -4,6 +4,7 @@ use std::{
     vec::IntoIter,
 };
 
+use anyhow::anyhow;
 use atomic_counter::{AtomicCounter, RelaxedCounter};
 use fstr::FStr;
 use itertools::Itertools;
@@ -46,6 +47,45 @@ impl PartialEq for Mosaic {
 impl Eq for Mosaic {}
 
 impl Mosaic {
+    pub fn dot(&self) -> String {
+        let mut output = vec!["digraph G {".to_string()];
+        let tiles = {
+            let reg = self.tile_registry.lock().unwrap();
+            reg.values().cloned().collect_vec()
+        };
+
+        tiles.into_iter().for_each(|t| {
+            let dt = format!("{:?}", t);
+            if t.is_object() {
+                output.push(format!("\t{} [label={:?}]", t.id, dt));
+            } else if t.is_arrow() {
+                output.push(format!(
+                    "\t{} -> {} [label={:?}]",
+                    t.source_id(),
+                    t.target_id(),
+                    dt
+                ));
+            } else if t.is_descriptor() {
+                output.push(format!(
+                    "\t{} -> {} [style=dashed, label={:?}]",
+                    t.source_id(),
+                    t.target_id(),
+                    dt
+                ));
+            } else if t.is_extension() {
+                output.push(format!(
+                    "\t{} -> {} [style=dotted, label={:?}]",
+                    t.source_id(),
+                    t.target_id(),
+                    dt
+                ));
+            }
+        });
+
+        output.push("}".to_string());
+        output.join("\n")
+    }
+
     pub fn new() -> Arc<Mosaic> {
         let mosaic = Arc::new(Mosaic {
             id: MOSAIC_INSTANCES.lock().unwrap().len(),
@@ -59,19 +99,6 @@ impl Mosaic {
             descriptor_ids: Mutex::new(SparseSet::default()),
             extension_ids: Mutex::new(SparseSet::default()),
         });
-
-        mosaic.new_type("String: s128;").unwrap();
-        mosaic.new_type("Group: s32;").unwrap();
-        mosaic.new_type("GroupOwner: s32;").unwrap();
-
-        mosaic.new_type("Process: s32;").unwrap();
-        mosaic.new_type("ProcessParameter: s32;").unwrap();
-        mosaic.new_type("ParameterBinding: s32;").unwrap();
-        mosaic.new_type("ProcessResult: unit;").unwrap();
-        mosaic.new_type("ResultBinding: unit;").unwrap();
-        mosaic
-            .new_type("Error: { position: s32, message: s128 };")
-            .unwrap();
 
         mosaic.new_type("void: unit;").unwrap();
 
@@ -498,8 +525,23 @@ impl MosaicIO for Arc<Mosaic> {
 
 impl MosaicTypelevelCRUD for Arc<Mosaic> {
     fn new_type(&self, type_def: &str) -> anyhow::Result<()> {
-        let types = self.component_registry.add_component_types(type_def)?;
+        let d = type_def.to_string();
+        let defs = d.chars().filter(|c| *c == ';').count();
+        if defs > 1 {
+            return Err(anyhow!(
+                "Cannot have more than one type definition at once."
+            ));
+        }
 
+        let type_name = d.split(':').collect_vec().first().cloned().unwrap();
+        if self
+            .component_registry
+            .has_component_type(&type_name.into())
+        {
+            return Ok(());
+        }
+
+        let types = self.component_registry.add_component_types(type_def)?;
         let mut storage = self.data_storage.lock().unwrap();
         for typ in types {
             storage.insert(typ.name(), HashMap::new());

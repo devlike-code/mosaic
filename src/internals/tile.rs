@@ -44,10 +44,17 @@ impl Tile {
                 }
             }
         }
+
         let storage = self.mosaic.data_storage.lock().unwrap();
-        let e = storage.get(&self.component.to_string()).unwrap();
-        let h = e.get(&self.id).unwrap();
-        h.get(&index.into()).unwrap().clone()
+        if let Some(e) = storage.get(&self.component.to_string()) {
+            if let Some(h) = e.get(&self.id) {
+                h.get(&index.into()).unwrap().clone()
+            } else {
+                Value::UNIT
+            }
+        } else {
+            Value::UNIT
+        }
     }
 
     pub fn remove_component_data(&self) {
@@ -89,13 +96,22 @@ impl std::fmt::Debug for Tile {
         };
 
         let data = if self.mosaic.is_tile_valid(&self.id) {
-            let storage = self.mosaic.data_storage.lock().unwrap();
-            let by_component = storage.get(&self.component.to_string()).unwrap();
-
-            if let Some(by_component) = by_component.get(&self.id) {
-                by_component.clone()
-            } else {
+            let comp_type = self
+                .mosaic
+                .component_registry
+                .get_component_type(self.component)
+                .unwrap();
+            if comp_type.is_alias() {
                 HashMap::new()
+            } else {
+                let storage = self.mosaic.data_storage.lock().unwrap();
+                let by_component = storage.get(&self.component.to_string()).unwrap();
+
+                if let Some(by_component) = by_component.get(&self.id) {
+                    by_component.clone()
+                } else {
+                    HashMap::new()
+                }
             }
         } else {
             HashMap::new()

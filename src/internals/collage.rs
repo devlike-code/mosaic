@@ -2,6 +2,8 @@ use itertools::Itertools;
 
 use crate::internals::Tile;
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
 pub enum Pick {
     Arrows,
     Descriptors,
@@ -10,6 +12,7 @@ pub enum Pick {
     Sources,
 }
 
+#[derive(Debug, Clone)]
 pub enum Cut {
     Include(Vec<String>),
     Exclude(Vec<String>),
@@ -19,6 +22,20 @@ pub enum Cut {
     Extensions,
 }
 
+impl Cut {
+    pub fn into_u8(&self) -> u8 {
+        match self {
+            Cut::Include(_) => 0,
+            Cut::Exclude(_) => 1,
+            Cut::Objects => 2,
+            Cut::Arrows => 3,
+            Cut::Descriptors => 4,
+            Cut::Extensions => 5,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum Collage {
     Tiles,
     Gather(Vec<Box<Collage>>),
@@ -93,10 +110,7 @@ pub fn gather(mqs: Vec<Box<Collage>>) -> Box<Collage> {
 mod query_utility_tests {
     use itertools::Itertools;
 
-    use crate::{
-        internals::{void, Mosaic, MosaicCRUD, MosaicIO},
-        querying::base_mosaic_query::targets_from,
-    };
+    use crate::internals::{targets_from, void, Mosaic, MosaicCRUD, MosaicIO};
 
     use super::{take_arrows, tiles, MosaicCollage};
 

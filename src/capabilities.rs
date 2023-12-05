@@ -1,4 +1,5 @@
 pub mod archetype;
+pub mod collage;
 pub mod dictionary;
 pub mod grouping;
 pub mod process;
@@ -11,6 +12,7 @@ pub mod tuple;
 mod unit_tests;
 
 pub use archetype::*;
+pub use collage::*;
 pub use dictionary::*;
 pub use grouping::*;
 pub use queue::*;

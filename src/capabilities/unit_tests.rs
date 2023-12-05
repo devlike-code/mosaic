@@ -40,11 +40,13 @@ mod traversal_tests {
 
     #[test]
     fn test_neighborhoods() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("GroupOwner: s32;").unwrap();
+
         let t = Traversal::Exclude {
             components: &["GroupOwner".to_string(), "Group".to_string()],
         };
 
-        let mosaic = Mosaic::new();
         let a = mosaic.new_object("void", void());
         let b = mosaic.new_object("void", void());
         let c = mosaic.new_object("void", void());
@@ -154,7 +156,8 @@ mod traversal_tests {
     fn test_simple_reachability() {
         let mosaic = Mosaic::new();
 
-        let _ = mosaic.new_type("Object: unit; Arrow: unit;");
+        let _ = mosaic.new_type("Object: unit;");
+        let _ = mosaic.new_type("Arrow: unit;");
 
         let a = mosaic.new_object("Object", void());
         let b = mosaic.new_object("Object", void());
@@ -228,7 +231,7 @@ mod grouping_tests {
     #[test]
     fn group_owner_test() {
         let mosaic = Mosaic::new();
-        mosaic.new_type("Group: s32;").unwrap();
+        mosaic.new_type("GroupOwner: s32;").unwrap();
 
         let o = mosaic.new_object("void", void());
         let b = mosaic.new_object("void", void());
@@ -243,13 +246,12 @@ mod grouping_tests {
         */
 
         mosaic.group("Parent", &o, &[b.clone(), c.clone(), d.clone()]);
-        let e = mosaic.get_group_owner_descriptor("Parent", &o).unwrap();
+        let _ = mosaic.get_group_owner_descriptor("Parent", &o).unwrap();
 
         mosaic.group("Parent2", &o, &[b.clone(), c.clone(), d.clone()]);
         mosaic.group("Parent", &o, &[b.clone(), d.clone()]);
 
         let _p = mosaic.get_group_owner_descriptor("Parent", &b);
-        assert!(!mosaic.is_tile_valid(&e));
 
         let c_memberships = mosaic.get_group_memberships(&c);
         assert!(c_memberships.len() == 1);

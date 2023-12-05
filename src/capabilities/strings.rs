@@ -7,7 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    internals::{par, MosaicIO},
+    internals::{par, MosaicIO, MosaicTypelevelCRUD},
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 use crate::{
@@ -31,6 +31,7 @@ impl StringCapability for Arc<Mosaic> {
     }
 
     fn create_string_object(&self, str: &str) -> anyhow::Result<Tile> {
+        self.new_type("String: s128;").unwrap();
         fn split_str_into_parts(input: &str, part_size: usize) -> impl Iterator<Item = &str> {
             input
                 .char_indices()
@@ -39,6 +40,9 @@ impl StringCapability for Arc<Mosaic> {
         }
 
         let str_hash = Self::hash_string(str);
+        if self.string_exists(str) {
+            return Ok(self.get(str_hash).unwrap());
+        }
 
         let tile = self.new_specific_object(str_hash, "String")?;
 

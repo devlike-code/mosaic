@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use itertools::Itertools;
 
 use crate::{
-    internals::{par, void, Logging, Mosaic, MosaicCRUD, MosaicIO, Tile, S32},
+    internals::{par, void, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile, S32},
     iterators::{
         component_selectors::ComponentSelectors, tile_deletion::TileDeletion,
         tile_getters::TileGetters,
@@ -39,6 +39,14 @@ pub trait ProcessCapability: GroupingCapability {
 
 impl ProcessCapability for Arc<Mosaic> {
     fn create_process(&self, name: &str, params: &[&str]) -> anyhow::Result<Tile> {
+        self.new_type("Process: s32;").unwrap();
+        self.new_type("ProcessParameter: s32;").unwrap();
+        self.new_type("ParameterBinding: s32;").unwrap();
+        self.new_type("ProcessResult: unit;").unwrap();
+        self.new_type("ResultBinding: unit;").unwrap();
+        self.new_type("Error: { position: s32, message: s128 };")
+            .unwrap();
+
         let process = self.new_object("Process", par(name));
 
         self.group(name, &process, &[]);

@@ -25,8 +25,10 @@ pub trait TupleCapability {
 
 impl TupleCapability for Arc<Mosaic> {
     fn make_tuple(&self, fst: &Tile, snd: &Tile) -> Tile {
-        self.new_type("Tuple: unit; TupleOwner: unit; TupleFirst: unit; TupleSecond: unit;")
-            .unwrap();
+        self.new_type("Tuple: unit;").unwrap();
+        self.new_type("TupleOwner: unit;").unwrap();
+        self.new_type("TupleFirst: unit;").unwrap();
+        self.new_type("TupleSecond: unit;").unwrap();
         let tuple_owner = self.new_object("TupleOwner", void());
         self.new_arrow(&tuple_owner, fst, "TupleFirst", void());
         self.new_arrow(&tuple_owner, snd, "TupleSecond", void());

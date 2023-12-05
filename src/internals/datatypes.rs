@@ -314,7 +314,7 @@ impl Value {
     pub fn as_s32(&self) -> S32 {
         match self {
             Value::S32(v) => *v,
-            _ => panic!("Cannot get type variant S32"),
+            _ => panic!("Cannot get type variant S32 from {:?}", self),
         }
     }
 

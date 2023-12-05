@@ -100,7 +100,8 @@ fn assign_candidate_and_test(
 
 pub fn pattern_match(match_process: &Tile) -> anyhow::Result<Tile> {
     let mosaic = Arc::clone(&match_process.mosaic);
-    mosaic.new_type("PatternMatchCandidate: s32; PatternMatchBinding: s32;")?;
+    mosaic.new_type("PatternMatchCandidate: s32;")?;
+    mosaic.new_type("PatternMatchBinding: s32;")?;
 
     let pattern_param = mosaic
         .get_process_parameter_value(match_process, "pattern")?
