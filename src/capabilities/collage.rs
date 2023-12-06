@@ -89,11 +89,11 @@ impl CollageCapability for Arc<Mosaic> {
     }
 }
 
-trait CollageExportCapability {
+pub trait CollageExportCapability {
     fn to_tiles(&self, mosaic: &Arc<Mosaic>) -> Tile;
 }
 
-trait CollageImportCapability {
+pub trait CollageImportCapability {
     fn to_collage(&self) -> Option<Box<Collage>>;
 }
 

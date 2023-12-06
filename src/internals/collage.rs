@@ -44,8 +44,11 @@ pub enum Collage {
 }
 
 pub trait MosaicCollage {
-    fn apply_collage(&self, mq: Box<Collage>, tiles: Option<Vec<Tile>>)
-        -> std::vec::IntoIter<Tile>;
+    fn apply_collage(
+        &self,
+        mq: &Box<Collage>,
+        tiles: Option<Vec<Tile>>,
+    ) -> std::vec::IntoIter<Tile>;
 }
 
 pub fn tiles() -> Box<Collage> {
@@ -124,7 +127,7 @@ mod query_utility_tests {
         mosaic.new_arrow(&t, &v, "void", void());
 
         let mq = targets_from(take_arrows(tiles()));
-        let mut result = mosaic.apply_collage(mq, None).collect_vec();
+        let mut result = mosaic.apply_collage(&mq, None).collect_vec();
 
         result.sort();
         assert_eq!(vec![u.clone(), v.clone()], result);
@@ -141,7 +144,7 @@ mod query_utility_tests {
 
         let mq = targets_from(take_arrows(tiles()));
         let selection = vec![t.clone(), u.clone()];
-        let mut result = mosaic.apply_collage(mq, Some(selection)).collect_vec();
+        let mut result = mosaic.apply_collage(&mq, Some(selection)).collect_vec();
 
         result.sort();
         assert_eq!(vec![u.clone()], result);

@@ -17,7 +17,7 @@ use super::collage::{Collage, MosaicCollage, Pick};
 impl MosaicCollage for Arc<Mosaic> {
     fn apply_collage(
         &self,
-        mq: Box<super::collage::Collage>,
+        mq: &Box<super::collage::Collage>,
         tiles: Option<Vec<Tile>>,
     ) -> std::vec::IntoIter<crate::internals::Tile> {
         let traversal: Traversal = tiles.unwrap_or(self.get_all().collect_vec()).into();
