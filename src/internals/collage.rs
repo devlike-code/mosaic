@@ -44,11 +44,7 @@ pub enum Collage {
 }
 
 pub trait MosaicCollage {
-    fn apply_collage(
-        &self,
-        mq: &Box<Collage>,
-        tiles: Option<Vec<Tile>>,
-    ) -> std::vec::IntoIter<Tile>;
+    fn apply_collage(&self, mq: &Collage, tiles: Option<Vec<Tile>>) -> std::vec::IntoIter<Tile>;
 }
 
 pub fn tiles() -> Box<Collage> {

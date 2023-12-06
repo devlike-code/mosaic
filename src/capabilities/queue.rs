@@ -21,8 +21,8 @@ pub trait PrivateQueueCapability {
     fn get_next_in_queue(&self, q: &Tile) -> Option<Tile>;
     fn get_prev_from_end_in_queue(&self, queue: &Tile) -> Option<Tile>;
     fn get_prev_from_queue(&self, stop: &Tile) -> Option<Tile>;
-    fn get_arrow_to_end_in_queue(&self, queue: &Tile) -> Tile;
-    fn get_end_in_queue(&self, queue: &Tile) -> Tile;
+    fn get_arrow_to_sentinel_in_queue(&self, queue: &Tile) -> Tile;
+    fn get_sentinel_in_queue(&self, queue: &Tile) -> Tile;
 }
 
 impl PrivateQueueCapability for Arc<Mosaic> {
@@ -44,42 +44,42 @@ impl PrivateQueueCapability for Arc<Mosaic> {
     }
 
     fn get_prev_from_end_in_queue(&self, queue: &Tile) -> Option<Tile> {
-        let end = self.get_end_in_queue(queue);
+        let end = self.get_sentinel_in_queue(queue);
         self.get_prev_from_queue(&end)
     }
 
-    fn get_arrow_to_end_in_queue(&self, queue: &Tile) -> Tile {
+    fn get_arrow_to_sentinel_in_queue(&self, queue: &Tile) -> Tile {
         queue
             .iter()
             .get_arrows_from()
-            .include_component("ToQueueHead")
+            .include_component("ToQueueSentinel")
             .next()
             .unwrap()
     }
 
-    fn get_end_in_queue(&self, queue: &Tile) -> Tile {
-        self.get_arrow_to_end_in_queue(queue).target()
+    fn get_sentinel_in_queue(&self, queue: &Tile) -> Tile {
+        self.get_arrow_to_sentinel_in_queue(queue).target()
     }
 }
 
 impl QueueCapability for Arc<Mosaic> {
     fn make_queue(&self) -> Tile {
         self.new_type("Queue: void;").unwrap();
-        self.new_type("QueueHead: void;").unwrap();
-        self.new_type("ToQueueHead: void;").unwrap();
+        self.new_type("QueueSentinel: void;").unwrap();
+        self.new_type("ToQueueSentinel: void;").unwrap();
         self.new_type("Enqueued: void;").unwrap();
 
         let q = self.new_object("Queue", void());
-        let h = self.new_object("QueueHead", void());
-        self.new_arrow(&q, &h, "ToQueueHead", void());
+        let h = self.new_object("QueueSentinel", void());
+        self.new_arrow(&q, &h, "ToQueueSentinel", void());
         self.new_arrow(&q, &h, "Enqueued", void());
-        assert_eq!(self.get_end_in_queue(&q), h);
+        assert_eq!(self.get_sentinel_in_queue(&q), h);
         q
     }
 
     fn is_queue_empty(&self, q: &Tile) -> bool {
         if let Some(queue) = q.get_component("Queue") {
-            let queue_end = Some(self.get_end_in_queue(&queue));
+            let queue_end = Some(self.get_sentinel_in_queue(&queue));
             let enqueued = self.get_next_in_queue(&queue);
 
             println!("{:?} {:?}", queue_end, enqueued);
@@ -92,37 +92,34 @@ impl QueueCapability for Arc<Mosaic> {
     fn enqueue(&self, q: &Tile, v: &Tile) {
         if let Some(queue) = q.get_component("Queue") {
             if let Some(next) = self.get_next_in_queue(q) {
-                let old_arrows = next.iter().get_arrows_into().include_component("Enqueued");
+                let old_enq_arrows = next.iter().get_arrows_into().include_component("Enqueued");
 
                 self.new_arrow(&queue, v, "Enqueued", void());
                 self.new_arrow(v, &next, "Enqueued", void());
 
-                old_arrows.delete();
+                old_enq_arrows.delete();
             }
         }
     }
 
     fn dequeue(&self, q: &Tile) -> Option<Tile> {
-        if let Some(queue) = q.get_component("Queue") {
-            let end = self.get_end_in_queue(&queue);
-            match self.get_prev_from_queue(&end) {
-                Some(prev) if prev != queue => {
-                    if let Some(before) = self.get_prev_from_queue(&prev) {
+        q.get_component("Queue").and_then(|queue| {
+            let end = self.get_sentinel_in_queue(&queue);
+            self.get_prev_from_queue(&end).and_then(|prev| {
+                if prev != queue {
+                    self.get_prev_from_queue(&prev).map(|before| {
                         prev.iter()
                             .get_arrows()
                             .include_component("Enqueued")
                             .delete();
                         self.new_arrow(&before, &end, "Enqueued", void());
-                        Some(prev)
-                    } else {
-                        None
-                    }
+                        prev
+                    })
+                } else {
+                    None
                 }
-                _ => None,
-            }
-        } else {
-            None
-        }
+            })
+        })
     }
 }
 
@@ -162,7 +159,7 @@ mod queue_unit_tests {
         assert_eq!(1, end.len());
 
         let end = end.first().unwrap();
-        assert_eq!(end, &mosaic.get_end_in_queue(&q));
+        assert_eq!(end, &mosaic.get_sentinel_in_queue(&q));
     }
 
     #[test]
@@ -188,9 +185,7 @@ mod queue_unit_tests {
         assert!(ends_after_enqueue.contains(end));
         assert!(ends_after_enqueue.contains(&a));
 
-        println!("ARROWS (Q): {:?}", q.iter().get_arrows());
-        println!("ARROWS (A): {:?}", a.iter().get_arrows());
-        println!("ARROWS (E): {:?}", end.iter().get_arrows());
+        println!("{}", mosaic.dot());
     }
 
     #[test]
@@ -207,7 +202,7 @@ mod queue_unit_tests {
         let mosaic = Mosaic::new();
 
         let q = mosaic.make_queue();
-        let _ = mosaic.get_end_in_queue(&q);
+        let _ = mosaic.get_sentinel_in_queue(&q);
 
         let a = mosaic.new_object("void", void());
         mosaic.enqueue(&q, &a);
