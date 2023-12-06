@@ -225,7 +225,7 @@ mod grouping_tests {
 
     use crate::{
         capabilities::GroupingCapability,
-        internals::{void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD},
+        internals::{void, Mosaic, MosaicIO, MosaicTypelevelCRUD},
     };
 
     #[test]
