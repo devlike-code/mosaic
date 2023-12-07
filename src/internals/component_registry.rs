@@ -31,6 +31,12 @@ impl PartialEq for ComponentRegistry {
 impl Eq for ComponentRegistry {}
 
 impl ComponentRegistry {
+    pub fn clear(&self) {
+        self.component_definitions.lock().unwrap().clear();
+        self.component_offset_size_map.lock().unwrap().clear();
+        self.component_type_map.lock().unwrap().clear();
+    }
+
     fn flatten_component_type(&self, definition: ComponentType) -> anyhow::Result<ComponentType> {
         use ComponentType::*;
         match &definition {
@@ -61,7 +67,7 @@ impl ComponentRegistry {
             offset += size;
         }
 
-        definition
+        definition.clone()
     }
 
     fn unify_fields_and_values_into_data(
@@ -109,6 +115,16 @@ impl ComponentRegistry {
     }
 
     pub fn add_component_types(&self, definition: &str) -> anyhow::Result<Vec<ComponentType>> {
+        println!(
+            "{:?}",
+            self.flatten_component_type(
+                ComponentParser::parse_all(definition)
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .clone()
+            )
+        );
         let types = ComponentParser::parse_all(definition)?
             .into_iter()
             .flat_map(|t| self.flatten_component_type(t))

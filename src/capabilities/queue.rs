@@ -62,12 +62,14 @@ impl PrivateQueueCapability for Arc<Mosaic> {
     }
 }
 
+pub type QueueTile = Tile;
+
 impl QueueCapability for Arc<Mosaic> {
     fn make_queue(&self) -> Tile {
-        self.new_type("Queue: void;").unwrap();
-        self.new_type("QueueSentinel: void;").unwrap();
-        self.new_type("ToQueueSentinel: void;").unwrap();
-        self.new_type("Enqueued: void;").unwrap();
+        self.new_type("Queue: unit;").unwrap();
+        self.new_type("QueueSentinel: unit;").unwrap();
+        self.new_type("ToQueueSentinel: unit;").unwrap();
+        self.new_type("Enqueued: unit;").unwrap();
 
         let q = self.new_object("Queue", void());
         let h = self.new_object("QueueSentinel", void());

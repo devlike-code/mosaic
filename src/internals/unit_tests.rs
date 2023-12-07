@@ -137,6 +137,16 @@ mod internals_tests {
         assert_eq!(7, a.get("self").as_i32());
     }
 
+    #[test]
+    fn test_aliasing_types() {
+        let mosaic = Mosaic::new();
+        assert!(mosaic.component_registry.has_component_type(&"void".into()));
+        mosaic.new_type("void2: void;").unwrap();
+        assert!(mosaic
+            .component_registry
+            .has_component_type(&"void2".into()));
+    }
+
     fn test_data() -> [u8; 229] {
         [
             0, 9, 70, 111, 111, 58, 32, 105, 51, 50, 59, 0, 11, 118, 111, 105, 100, 58, 32, 117,

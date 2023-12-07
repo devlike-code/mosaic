@@ -283,6 +283,7 @@ pub(crate) enum MosaicLoadCommand {
 }
 
 pub trait MosaicIO {
+    fn clear(&self);
     fn save(&self) -> Vec<u8>;
     fn load(&self, data: &[u8]) -> anyhow::Result<()>;
     fn get(&self, i: EntityId) -> Option<Tile>;
@@ -388,15 +389,39 @@ impl MosaicIO for Arc<Mosaic> {
         result
     }
 
+    fn clear(&self) {
+        self.tile_registry.lock().unwrap().clear();
+        self.dependent_ids_map.lock().unwrap().clear();
+        self.data_storage.lock().unwrap().clear();
+        self.object_ids.lock().unwrap().clear();
+        self.arrow_ids.lock().unwrap().clear();
+        self.descriptor_ids.lock().unwrap().clear();
+        self.extension_ids.lock().unwrap().clear();
+        self.entity_counter.reset();
+        self.component_registry.clear();
+        self.new_type("void: unit;").unwrap();
+    }
+
     fn load(&self, data: &[u8]) -> anyhow::Result<()> {
         let offset = self.entity_counter.get();
         let loaded = load_mosaic_commands(data)?;
 
         loaded.into_iter().for_each(|command| match command {
             MosaicLoadCommand::AddType(definition) => {
+                println!("Loading type: {:?}", definition);
                 self.component_registry
                     .add_component_types(definition.as_str())
                     .unwrap();
+
+                let typename: S32 = definition
+                    .split(":")
+                    .collect_vec()
+                    .first()
+                    .unwrap()
+                    .trim()
+                    .into();
+
+                assert!(self.component_registry.has_component_type(&typename));
             }
             MosaicLoadCommand::CreateTile(id, src, tgt, component, data) => {
                 let id = id + offset;
