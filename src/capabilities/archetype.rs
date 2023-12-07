@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use array_tool::vec::Uniq;
 use itertools::Itertools;
 
 use crate::{
@@ -31,12 +32,27 @@ pub trait Archetype {
         )
     }
 
-    fn get_archetypes(&self, target: &Tile, components: &[&str]) -> HashMap<String, Vec<Tile>> {
-        HashMap::from_iter(
-            components
-                .iter()
-                .map(|c| (c.to_string(), self.get_components(target, c))),
-        )
+    fn get_full_archetype(&self, target: &Tile) -> HashMap<String, Vec<Tile>> {
+        let mut types: Vec<String> = vec![target.component.into()];
+        for desc in target.iter().get_descriptors() {
+            types.push(desc.component.into());
+        }
+        types = types.unique();
+
+        self.get_archetypes(target, types.as_slice())
+    }
+
+    fn get_archetypes<S: AsRef<str>>(
+        &self,
+        target: &Tile,
+        components: &[S],
+    ) -> HashMap<String, Vec<Tile>> {
+        HashMap::from_iter(components.iter().map(|c| {
+            (
+                c.as_ref().to_string(),
+                self.get_components(target, c.as_ref()),
+            )
+        }))
     }
 }
 
@@ -47,6 +63,7 @@ pub trait ArchetypeSubject {
     fn remove_component(&self, component: &str) -> Option<Tile>;
     fn remove_components(&self, component: &str) -> Vec<Tile>;
     fn match_archetype(&self, components: &[&str]) -> bool;
+    fn get_full_archetype(&self) -> HashMap<String, Vec<Tile>>;
     fn get_archetype(&self, components: &[&str]) -> HashMap<String, Tile>;
     fn get_archetypes(&self, components: &[&str]) -> HashMap<String, Vec<Tile>>;
 }
@@ -136,6 +153,10 @@ impl ArchetypeSubject for Tile {
 
     fn match_archetype(&self, components: &[&str]) -> bool {
         self.mosaic.match_archetype(self, components)
+    }
+
+    fn get_full_archetype(&self) -> HashMap<String, Vec<Tile>> {
+        self.mosaic.get_full_archetype(self)
     }
 
     fn get_archetype(&self, components: &[&str]) -> HashMap<String, Tile> {

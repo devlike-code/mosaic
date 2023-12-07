@@ -28,7 +28,7 @@ pub static MOSAIC_INSTANCES: Lazy<Arc<Mutex<HashMap<usize, Arc<Mosaic>>>>> =
 pub struct Mosaic {
     id: usize,
     pub(crate) entity_counter: RelaxedCounter,
-    pub(crate) component_registry: ComponentRegistry,
+    pub component_registry: ComponentRegistry,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
     pub(crate) data_storage: Mutex<DataStorage>,
     pub(crate) dependent_ids_map: Mutex<ListOrderedMultimap<EntityId, EntityId>>,
@@ -352,6 +352,7 @@ impl MosaicIO for Arc<Mosaic> {
             .clone()
             .into_iter()
             .sorted()
+            .unique()
             .for_each(|v| {
                 result.extend((v.len() as u16).to_be_bytes());
                 result.extend(v.as_bytes());
@@ -408,11 +409,6 @@ impl MosaicIO for Arc<Mosaic> {
 
         loaded.into_iter().for_each(|command| match command {
             MosaicLoadCommand::AddType(definition) => {
-                println!("Loading type: {:?}", definition);
-                self.component_registry
-                    .add_component_types(definition.as_str())
-                    .unwrap();
-
                 let typename: S32 = definition
                     .split(":")
                     .collect_vec()
@@ -420,6 +416,12 @@ impl MosaicIO for Arc<Mosaic> {
                     .unwrap()
                     .trim()
                     .into();
+
+                if !self.component_registry.has_component_type(&typename) {
+                    self.component_registry
+                        .add_component_types(definition.as_str())
+                        .unwrap();
+                }
 
                 assert!(self.component_registry.has_component_type(&typename));
             }
