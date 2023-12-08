@@ -410,7 +410,7 @@ impl MosaicIO for Arc<Mosaic> {
         loaded.into_iter().for_each(|command| match command {
             MosaicLoadCommand::AddType(definition) => {
                 let typename: S32 = definition
-                    .split(":")
+                    .split(':')
                     .collect_vec()
                     .first()
                     .unwrap()
