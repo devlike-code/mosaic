@@ -32,9 +32,9 @@ use itertools::Itertools;
 
 use crate::{
     internals::{
-        arrows_from, descriptors_from, extensions_from, gather, leave_components, par,
+        all_tiles, arrows_from, descriptors_from, extensions_from, gather, leave_components, par,
         sources_from, take_arrows, take_components, take_descriptors, take_extensions,
-        take_objects, targets_from, tiles, void, Collage, Cut, Mosaic, MosaicCRUD, MosaicIO,
+        take_objects, targets_from, void, Collage, Cut, Mosaic, MosaicCRUD, MosaicIO,
         MosaicTypelevelCRUD, Pick, Tile,
     },
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
@@ -43,19 +43,26 @@ use crate::{
 use super::StringCapability;
 
 pub trait CollageCapability {
-    fn make_collage(&self) -> Tile;
+    fn make_collage(&self, tiles: Option<Vec<Tile>>) -> Tile;
     fn apply_collage_pick(&self, pick: Pick, target: &Tile) -> Tile;
     fn apply_collage_gather(&self, subs: &[Tile]) -> Tile;
     fn apply_collage_cut(&self, cut: Cut, target: &Tile) -> Tile;
 }
 
 impl CollageCapability for Arc<Mosaic> {
-    fn make_collage(&self) -> Tile {
+    fn make_collage(&self, tiles: Option<Vec<Tile>>) -> Tile {
         self.new_type("Collage: unit;").unwrap();
+        self.new_type("CollageTarget: u64;").unwrap();
         self.new_type("CollagePick: u8;").unwrap();
         self.new_type("CollageCut: u8;").unwrap();
         self.new_type("CollageGather: unit;").unwrap();
-        self.new_object("Collage", void())
+
+        let collage = self.new_object("Collage", void());
+        for tile in &tiles.unwrap_or_default() {
+            self.new_extension(&collage, "CollageTarget", par(tile.id as u64));
+        }
+
+        collage
     }
 
     fn apply_collage_pick(&self, pick: Pick, target: &Tile) -> Tile {
@@ -100,7 +107,16 @@ pub trait CollageImportCapability {
 impl CollageExportCapability for Box<Collage> {
     fn to_tiles(&self, mosaic: &Arc<Mosaic>) -> Tile {
         match self.as_ref() {
-            Collage::Tiles => mosaic.make_collage(),
+            Collage::Tiles(None) => mosaic.make_collage(None),
+            Collage::Tiles(tiles) => {
+                let tiles = tiles
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .map(|v| mosaic.get(*v).unwrap())
+                    .collect_vec();
+                mosaic.make_collage(Some(tiles))
+            }
             Collage::Gather(gs) => {
                 mosaic.apply_collage_gather(&gs.iter().map(|g| g.to_tiles(mosaic)).collect_vec())
             }
@@ -115,7 +131,7 @@ impl CollageExportCapability for Box<Collage> {
 impl CollageImportCapability for Tile {
     fn to_collage(&self) -> Option<Box<Collage>> {
         if self.component == "Collage".into() {
-            Some(tiles())
+            Some(all_tiles())
         } else if self.component == "CollageGather".into() {
             Some(gather(
                 self.iter()
@@ -156,14 +172,14 @@ impl CollageImportCapability for Tile {
 
 #[cfg(test)]
 mod collage_tests {
-    use crate::internals::{take_arrows, targets_from, tiles, Mosaic};
+    use crate::internals::{all_tiles, take_arrows, targets_from, Mosaic};
 
     use super::{CollageExportCapability, CollageImportCapability};
 
     #[test]
     fn test_collage_caps() {
         let mosaic = Mosaic::new();
-        let mq = targets_from(take_arrows(tiles()));
+        let mq = targets_from(take_arrows(all_tiles()));
         let _ = mq.to_tiles(&mosaic);
 
         println!("{}", mosaic.dot());
@@ -172,7 +188,7 @@ mod collage_tests {
     #[test]
     fn test_collage_back() {
         let mosaic = Mosaic::new();
-        let mq = targets_from(take_arrows(tiles()));
+        let mq = targets_from(take_arrows(all_tiles()));
         let t = mq.to_tiles(&mosaic);
         let c = t.to_collage();
         assert!(c.is_some());

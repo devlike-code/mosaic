@@ -17,7 +17,7 @@ use itertools::Itertools;
 use crate::{
     internals::{
         sparse_matrix::{BidirectionalMatrix, Matrix},
-        Mosaic, MosaicIO, Tile, TileGetById,
+        EntityId, Mosaic, MosaicIO, Tile, TileGetById,
     },
     iterators::{
         component_selectors::ComponentSelectors, tile_filters::TileFilters,
@@ -66,6 +66,11 @@ pub struct TraversalOperator<'a> {
 impl TraversalOperator<'_> {
     pub fn get_all(&self) -> IntoIter<Tile> {
         self.filter_traversal(self.mosaic.get_all()).into_iter()
+    }
+
+    pub fn get_just(&self, ids: Vec<EntityId>) -> IntoIter<Tile> {
+        self.filter_traversal(ids.iter().flat_map(|id| self.mosaic.get(*id)))
+            .into_iter()
     }
 
     fn filter_traversal<I: Iterator<Item = Tile>>(&self, iter: I) -> Vec<Tile> {

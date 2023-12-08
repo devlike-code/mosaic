@@ -35,7 +35,8 @@ impl Collage {
         use Pick as S;
 
         match self {
-            Collage::Tiles => mosaic.traverse(traversal).get_all(),
+            Collage::Tiles(None) => mosaic.traverse(traversal).get_all(),
+            Collage::Tiles(Some(tiles)) => mosaic.traverse(traversal).get_just(tiles.clone()),
             Collage::Pick(S::Arrows, b) => b.query(mosaic, traversal).get_arrows(),
             Collage::Pick(S::Descriptors, b) => b.query(mosaic, traversal).get_descriptors(),
             Collage::Pick(S::Extensions, b) => b.query(mosaic, traversal).get_extensions(),
