@@ -207,6 +207,21 @@ impl FromByteArray for S32 {
     }
 }
 
+/// The `ToByteArray` implementation for `String`
+impl ToByteArray for String {
+    fn to_byte_array(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
+/// The `FromByteArray` implementation for `String`
+impl FromByteArray for String {
+    fn from_byte_array(data: &[u8]) -> Self {
+        let str = std::str::from_utf8(data);
+        String::from_utf8_lossy(str.unwrap().as_bytes()).into_owned()
+    }
+}
+
 /// The `ToByteArray` implementation for `s32`
 impl ToByteArray for S32 {
     fn to_byte_array(&self) -> Vec<u8> {
