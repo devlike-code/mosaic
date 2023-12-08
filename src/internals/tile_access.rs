@@ -88,6 +88,12 @@ impl TileFieldSetter<bool> for Tile {
     }
 }
 
+pub trait TileFieldEmptyQuery {
+    type Output;
+
+    fn query(&self) -> Self::Output;
+}
+
 pub trait TileFieldQuery<T> {
     type Output;
 
