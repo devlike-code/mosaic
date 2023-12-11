@@ -53,7 +53,7 @@ pub fn all_tiles() -> Box<Collage> {
     Box::new(Collage::Tiles(None))
 }
 
-pub fn tiles(tiles: Vec<&Tile>) -> Box<Collage> {
+pub fn tiles(tiles: Vec<Tile>) -> Box<Collage> {
     Box::new(Collage::Tiles(Some(
         tiles.iter().map(|t| t.id).collect_vec(),
     )))
@@ -118,8 +118,11 @@ mod query_utility_tests {
     use itertools::Itertools;
 
     use crate::{
-        capabilities::SelectionCapability,
-        internals::{all_tiles, targets_from, void, Mosaic, MosaicCRUD, MosaicIO},
+        capabilities::{CollageExportCapability, CollageImportCapability, SelectionCapability},
+        internals::{
+            all_tiles, descriptors_from, par, targets_from, void, Mosaic, MosaicCRUD, MosaicIO,
+            MosaicTypelevelCRUD,
+        },
     };
 
     use super::{arrows_from, take_arrows, take_components, tiles, MosaicCollage};
@@ -169,7 +172,10 @@ mod query_utility_tests {
         let s = mosaic.make_selection();
         mosaic.fill_selection(&s, &[t.clone(), u.clone(), v.clone()]);
 
-        let c = targets_from(take_components(&["Group"], arrows_from(tiles(vec![&s]))));
+        let c = targets_from(take_components(
+            &["Group"],
+            arrows_from(descriptors_from(tiles(vec![s.clone()]))),
+        ));
         let mut selection = mosaic.apply_collage(&c, None).unique().collect_vec();
         selection.sort();
         assert_eq!(vec![t.clone(), u.clone(), v.clone()], selection);
@@ -180,5 +186,31 @@ mod query_utility_tests {
         let mut selection = mosaic.apply_collage(&c, None).unique().collect_vec();
         selection.sort();
         assert_eq!(vec![t.clone(), u.clone(), v.clone(), w.clone()], selection);
+    }
+
+    #[test]
+    fn collage_from_tile_apply() {
+        let mosaic = Mosaic::new();
+        let _ = mosaic.new_type("Label : s32;");
+        let t = mosaic.new_object("void", void());
+        let u = mosaic.new_object("Label", par("test"));
+        let v = mosaic.new_object("void", void());
+        let _x = mosaic.new_arrow(&t, &u, "void", void());
+        let _y = mosaic.new_arrow(&t, &v, "void", void());
+
+        let collage = take_components(&["Label"], targets_from(arrows_from(tiles(vec![t]))));
+        let mut selection = mosaic.apply_collage(&collage, None).unique().collect_vec();
+        selection.sort();
+        assert_eq!(vec![u.clone()], selection);
+
+        let tile = collage.to_tiles(&mosaic);
+        let collage_from_tile = tile.to_collage().unwrap();
+        let mut selection_second = mosaic
+            .apply_collage(&collage_from_tile, None)
+            .unique()
+            .collect_vec();
+        selection_second.sort();
+
+        assert_eq!(vec![u.clone()], selection_second);
     }
 }

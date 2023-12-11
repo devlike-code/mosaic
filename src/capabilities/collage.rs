@@ -34,13 +34,13 @@ use crate::{
     internals::{
         all_tiles, arrows_from, descriptors_from, extensions_from, gather, leave_components, par,
         sources_from, take_arrows, take_components, take_descriptors, take_extensions,
-        take_objects, targets_from, void, Collage, Cut, Mosaic, MosaicCRUD, MosaicIO,
+        take_objects, targets_from, tiles, void, Collage, Cut, Mosaic, MosaicCRUD, MosaicIO,
         MosaicTypelevelCRUD, Pick, Tile,
     },
     iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
 };
 
-use super::StringCapability;
+use super::{ArchetypeSubject, StringCapability};
 
 pub trait CollageCapability {
     fn make_collage(&self, tiles: Option<Vec<Tile>>) -> Tile;
@@ -131,7 +131,21 @@ impl CollageExportCapability for Box<Collage> {
 impl CollageImportCapability for Tile {
     fn to_collage(&self) -> Option<Box<Collage>> {
         if self.component == "Collage".into() {
-            Some(all_tiles())
+            let p = self.source();
+            if let Some(extension) = p.get_component("CollageTarget") {
+                let mut tile_id = vec![];
+
+                let value = extension.get("self").as_u64();
+                tile_id.push(self.mosaic.get(value.try_into().unwrap()).unwrap());
+
+                if tile_id.is_empty() {
+                    Some(all_tiles())
+                } else {
+                    Some(tiles(tile_id))
+                }
+            } else {
+                Some(all_tiles())
+            }
         } else if self.component == "CollageGather".into() {
             Some(gather(
                 self.iter()
@@ -155,9 +169,29 @@ impl CollageImportCapability for Tile {
         } else if self.component == "CollageCut".into() {
             let p = self.source();
             let mq = p.to_collage().unwrap();
+            let extensions = p.into_iter().get_extensions().collect_vec();
+            let mut strings: Vec<String> = vec![];
+            for extension in &extensions {
+                let string_extensions = extension
+                    .clone()
+                    .into_iter()
+                    .get_arrows_from()
+                    .get_targets()
+                    .collect_vec();
+
+                for string in string_extensions {
+                    strings.push(self.mosaic.get_string_value(&string).unwrap().clone());
+                }
+            }
+
+            let mut components = vec![];
+            for s in &strings {
+                components.push(s.as_str());
+            }
+
             match self.get("self").as_u8() {
-                0 => Some(take_components(&[], mq)),
-                1 => Some(leave_components(&[], mq)),
+                0 => Some(take_components(&components, mq)),
+                1 => Some(leave_components(&components, mq)),
                 2 => Some(take_objects(mq)),
                 3 => Some(take_arrows(mq)),
                 4 => Some(take_descriptors(mq)),
