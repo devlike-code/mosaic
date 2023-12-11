@@ -44,8 +44,6 @@ impl ProcessCapability for Arc<Mosaic> {
         self.new_type("ParameterBinding: s32;").unwrap();
         self.new_type("ProcessResult: unit;").unwrap();
         self.new_type("ResultBinding: unit;").unwrap();
-        self.new_type("Error: { position: s32, message: s128 };")
-            .unwrap();
 
         let process = self.new_object("Process", par(name));
 

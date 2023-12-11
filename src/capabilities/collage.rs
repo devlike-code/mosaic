@@ -1,31 +1,3 @@
-/*
-
-pub enum Pick {
-    Arrows,
-    Descriptors,
-    Extensions,
-    Targets,
-    Sources,
-}
-
-pub enum Cut {
-    Include(Vec<String>),
-    Exclude(Vec<String>),
-    Objects,
-    Arrows,
-    Descriptors,
-    Extensions,
-}
-
-pub enum Collage {
-    Tiles,
-    Gather(Vec<Box<Collage>>),
-    Pick(Pick, Box<Collage>),
-    Cut(Cut, Box<Collage>),
-}
-
-*/
-
 use std::sync::Arc;
 
 use itertools::Itertools;
