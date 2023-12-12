@@ -1,6 +1,9 @@
 use std::{collections::HashMap, sync::Arc, vec::IntoIter};
 
-use crate::internals::ToByteArray;
+use itertools::Itertools;
+use log::debug;
+
+use crate::internals::{ComponentField, ToByteArray};
 
 use super::{
     Bytesize, ComponentType, ComponentValues, Datatype, EntityId, Mosaic, MosaicCRUD, MosaicIO,
@@ -89,6 +92,73 @@ impl std::fmt::Display for Tile {
 
 impl std::fmt::Debug for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn stringify(tile: &Tile, fields: Vec<ComponentField>) -> String {
+            fields
+                .iter()
+                .map(|f| {
+                    let mut f_name = f.name.to_string();
+                    if f_name == tile.component.to_string() {
+                        f_name = "self".to_string();
+                    }
+                    match f.datatype {
+                        Datatype::UNIT => f.name.to_string(),
+                        Datatype::I8 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_i8())
+                        }
+                        Datatype::I16 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_i16())
+                        }
+                        Datatype::I32 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_i32())
+                        }
+                        Datatype::I64 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_i64())
+                        }
+                        Datatype::U8 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_u8())
+                        }
+                        Datatype::U16 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_u16())
+                        }
+                        Datatype::U32 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_u32())
+                        }
+                        Datatype::U64 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_u64())
+                        }
+                        Datatype::F32 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_f32())
+                        }
+                        Datatype::F64 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_f64())
+                        }
+                        Datatype::S32 => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_s32())
+                        }
+                        Datatype::S128 => {
+                            format!(
+                                "{}: {}",
+                                f.name,
+                                String::from_byte_array(&tile.get(f_name.as_str()).as_s128())
+                            )
+                        }
+                        Datatype::BOOL => {
+                            format!(
+                                "{}: {}",
+                                f.name,
+                                if tile.get(f_name.as_str()).as_bool() {
+                                    "true".to_string()
+                                } else {
+                                    "false".to_string()
+                                }
+                            )
+                        }
+                        Datatype::COMP(_) => "".to_string(),
+                    }
+                })
+                .join(", ")
+        }
+
         let mark = match self.tile_type {
             TileType::Object => "x".to_string(),
             TileType::Arrow { source, target } => format!("{} > {}", source, target),
@@ -102,26 +172,13 @@ impl std::fmt::Debug for Tile {
                 .component_registry
                 .get_component_type(self.component)
                 .unwrap();
-            if comp_type.is_alias() {
-                HashMap::new()
-            } else {
-                let storage = self.mosaic.data_storage.lock().unwrap();
-                let by_component = storage.get(&self.component.to_string()).unwrap();
-
-                if let Some(by_component) = by_component.get(&self.id) {
-                    by_component.clone()
-                } else {
-                    HashMap::new()
-                }
-            }
+            debug!("{} => {:?}", comp_type.name(), comp_type.get_fields());
+            stringify(self, comp_type.get_fields())
         } else {
-            HashMap::new()
+            "err: !".to_string()
         };
 
-        f.write_fmt(format_args!(
-            "({}|{}|{}|{:?})",
-            mark, self.id, self.component, data
-        ))
+        f.write_fmt(format_args!("({}|{}|{})", mark, self.id, data))
     }
 }
 
