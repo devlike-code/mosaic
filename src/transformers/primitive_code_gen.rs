@@ -10,7 +10,7 @@ use crate::{
 pub fn generate_enum(enum_tile: &Tile) -> Tile {
     let mosaic = Arc::clone(&enum_tile.mosaic);
     mosaic
-        .new_type("Error: { message: s32, target: u64 };")
+        .new_type("Error: { message: s128, target: u64 };")
         .unwrap();
 
     match generate_enum_code(enum_tile) {
@@ -18,7 +18,7 @@ pub fn generate_enum(enum_tile: &Tile) -> Tile {
         Err((str, target)) => mosaic.new_object(
             "Error",
             pars()
-                .set("message", str.as_str())
+                .set("message", str.as_bytes())
                 .set("target", target.id as u64)
                 .ok(),
         ),

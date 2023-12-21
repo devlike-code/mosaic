@@ -100,7 +100,11 @@ impl QueueCapability for Arc<Mosaic> {
                 self.new_arrow(v, &next, "Enqueued", void());
 
                 old_enq_arrows.delete();
+            } else {
+                panic!("No next in queue");
             }
+        } else {
+            panic!("No Queue found");
         }
     }
 
