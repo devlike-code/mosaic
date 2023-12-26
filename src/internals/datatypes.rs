@@ -8,6 +8,13 @@ pub type EntityId = usize;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct S32(pub FStr<32>);
+
+impl S32 {
+    pub fn is(&self, s: &str) -> bool {
+        self.to_string().as_str() == s
+    }
+}
+
 impl Copy for S32 {}
 
 impl From<S32> for String {
@@ -330,5 +337,16 @@ impl Value {
             Value::BOOL(v) => *v,
             _ => panic!("Cannot get type variant bool"),
         }
+    }
+}
+
+#[cfg(test)]
+mod s32_tests {
+    use super::S32;
+
+    #[test]
+    pub fn test_is() {
+        let s: S32 = "hello".into();
+        assert!(s.is("hello"), "hello");
     }
 }
