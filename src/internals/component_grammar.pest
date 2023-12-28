@@ -8,7 +8,7 @@ struct_expr = { identifier ~ ":" ~ (datatype_expr ~ ";" | product_type_expr ~ ";
 
 field_expr = { identifier ~ ":" ~ field_datatype_expr ~ ","? }
 
-identifier = { ASCII_ALPHANUMERIC ~ ("-" | "_" | ASCII_ALPHANUMERIC)* }
+identifier = { ASCII_ALPHANUMERIC ~ ("-" | "_" | "." | ASCII_ALPHANUMERIC)* }
 
 string_expr = _{ "\"" ~ string ~ "\"" }
 string = { (!"\"" ~ ANY)+ }
