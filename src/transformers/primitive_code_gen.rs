@@ -47,6 +47,13 @@ pub fn option_indent_with_spaces(enum_tile: &Tile) -> String {
 }
 
 fn validate_enum(mosaic: &Arc<Mosaic>, enum_tile: &Tile) -> Result<(), (String, Tile)> {
+    if enum_tile.get_component("Enum").is_none() {
+        return Err((
+            format!("Missing Enum component on #{}.", enum_tile.id),
+            enum_tile.clone(),
+        ));
+    }
+
     if mosaic.get_group_owner("Enum", enum_tile).is_none() {
         return Err((
             format!("Missing enum group component on #{}.", enum_tile.id),
@@ -113,6 +120,7 @@ mod primitive_code_gen_tests {
     fn test_enums() {
         let mosaic = Mosaic::new();
         mosaic.new_type("Label: s32;").unwrap();
+        mosaic.new_type("Enum: s32;").unwrap();
         mosaic.new_type("CodeIndentWithSpaces: unit;").unwrap();
         mosaic
             .new_type("CodeUseCSharpNamingConvention: unit;")

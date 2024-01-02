@@ -115,16 +115,6 @@ impl ComponentRegistry {
     }
 
     pub fn add_component_types(&self, definition: &str) -> anyhow::Result<Vec<ComponentType>> {
-        println!(
-            "{:?}",
-            self.flatten_component_type(
-                ComponentParser::parse_all(definition)
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .clone()
-            )
-        );
         let types = ComponentParser::parse_all(definition)?
             .into_iter()
             .flat_map(|t| self.flatten_component_type(t))
