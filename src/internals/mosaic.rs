@@ -276,7 +276,7 @@ impl TileGetById for Arc<Mosaic> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum MosaicLoadCommand {
     AddType(String),
     CreateTile(EntityId, EntityId, EntityId, S32, Vec<u8>),
@@ -310,6 +310,8 @@ pub(crate) fn load_mosaic_commands(data: &[u8]) -> anyhow::Result<Vec<MosaicLoad
         }
     }
 
+    let mut types_used = HashSet::new();
+
     loop {
         if ptr == total {
             break;
@@ -336,8 +338,19 @@ pub(crate) fn load_mosaic_commands(data: &[u8]) -> anyhow::Result<Vec<MosaicLoad
         result.push(MosaicLoadCommand::CreateTile(
             id, src, tgt, comp_name, comp_data,
         ));
+
+        types_used.insert(comp_name.to_string());
     }
 
+    result = result
+        .iter()
+        .flat_map(|command| match command {
+            MosaicLoadCommand::AddType(t) if !types_used.contains(t.split(':').next().unwrap()) => {
+                None
+            }
+            c => Some(c.clone()),
+        })
+        .collect_vec();
     Ok(result)
 }
 
