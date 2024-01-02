@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     vec::IntoIter,
 };
@@ -47,8 +47,8 @@ impl PartialEq for Mosaic {
 impl Eq for Mosaic {}
 
 impl Mosaic {
-    pub fn dot(&self) -> String {
-        let mut output = vec!["digraph G {".to_string()];
+    pub fn dot(&self, name: &str) -> String {
+        let mut output = vec![format!("digraph {} {{", name)];
         let tiles = {
             let reg = self.tile_registry.lock().unwrap();
             reg.values().cloned().collect_vec()
@@ -345,21 +345,6 @@ impl MosaicIO for Arc<Mosaic> {
     fn save(&self) -> Vec<u8> {
         let mut result = vec![];
 
-        self.component_registry
-            .component_definitions
-            .lock()
-            .unwrap()
-            .clone()
-            .into_iter()
-            .sorted()
-            .unique()
-            .for_each(|v| {
-                result.extend((v.len() as u16).to_be_bytes());
-                result.extend(v.as_bytes());
-            });
-
-        result.extend(0u16.to_be_bytes());
-
         let mut entries = self
             .tile_registry
             .lock()
@@ -367,6 +352,30 @@ impl MosaicIO for Arc<Mosaic> {
             .clone()
             .into_iter()
             .collect_vec();
+
+        let used_types = entries
+            .iter()
+            .map(|(_, b)| b.component.to_string())
+            .collect::<HashSet<_>>();
+
+        println!("USED TYPES: {:?}", used_types);
+
+        self.component_registry
+            .component_definitions
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .filter(|c| used_types.contains(c.split(':').next().unwrap()))
+            .sorted()
+            .unique()
+            .for_each(|v| {
+                println!("Saving {:?}", v);
+                result.extend((v.len() as u16).to_be_bytes());
+                result.extend(v.as_bytes());
+            });
+
+        result.extend(0u16.to_be_bytes());
 
         entries.sort_by(|a, b| a.0.cmp(&b.0));
 

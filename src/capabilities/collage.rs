@@ -28,6 +28,7 @@ impl CollageCapability for Arc<Mosaic> {
         self.new_type("CollagePick: u8;").unwrap();
         self.new_type("CollageCut: u8;").unwrap();
         self.new_type("CollageGather: unit;").unwrap();
+        self.new_type("COLLAGE_FAKE: unit;").unwrap();
 
         let collage = self.new_object("Collage", void());
         for tile in &tiles.unwrap_or_default() {
@@ -188,7 +189,7 @@ mod collage_tests {
         let mq = targets_from(take_arrows(all_tiles()));
         let _ = mq.to_tiles(&mosaic);
 
-        println!("{}", mosaic.dot());
+        println!("{}", mosaic.dot("COLLAGE_TEST"));
     }
 
     #[test]

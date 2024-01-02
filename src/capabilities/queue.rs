@@ -21,7 +21,6 @@ pub trait PrivateQueueCapability {
     fn get_next_in_queue(&self, q: &Tile) -> Option<Tile>;
     fn get_prev_from_end_in_queue(&self, queue: &Tile) -> Option<Tile>;
     fn get_prev_from_queue(&self, stop: &Tile) -> Option<Tile>;
-    fn get_arrow_to_sentinel_in_queue(&self, queue: &Tile) -> Tile;
     fn get_sentinel_in_queue(&self, queue: &Tile) -> Tile;
 }
 
@@ -48,17 +47,8 @@ impl PrivateQueueCapability for Arc<Mosaic> {
         self.get_prev_from_queue(&end)
     }
 
-    fn get_arrow_to_sentinel_in_queue(&self, queue: &Tile) -> Tile {
-        queue
-            .iter()
-            .get_arrows_from()
-            .include_component("ToQueueSentinel")
-            .next()
-            .unwrap()
-    }
-
     fn get_sentinel_in_queue(&self, queue: &Tile) -> Tile {
-        self.get_arrow_to_sentinel_in_queue(queue).target()
+        queue.get_component("QueueSentinel").unwrap()
     }
 }
 
@@ -68,15 +58,13 @@ impl QueueCapability for Arc<Mosaic> {
     fn make_queue(&self) -> Tile {
         self.new_type("Queue: unit;").unwrap();
         self.new_type("QueueSentinel: unit;").unwrap();
-        self.new_type("ToQueueSentinel: unit;").unwrap();
         self.new_type("Enqueued: unit;").unwrap();
 
-        let q = self.new_object("Queue", void());
-        let h = self.new_object("QueueSentinel", void());
-        self.new_arrow(&q, &h, "ToQueueSentinel", void());
-        self.new_arrow(&q, &h, "Enqueued", void());
-        assert_eq!(self.get_sentinel_in_queue(&q), h);
-        q
+        let queue = self.new_object("Queue", void());
+        let sentinel = self.new_extension(&queue, "QueueSentinel", void());
+        self.new_arrow(&queue, &sentinel, "Enqueued", void());
+        assert_eq!(self.get_sentinel_in_queue(&queue), sentinel);
+        queue
     }
 
     fn is_queue_empty(&self, q: &Tile) -> bool {
@@ -101,7 +89,7 @@ impl QueueCapability for Arc<Mosaic> {
 
                 old_enq_arrows.delete();
             } else {
-                panic!("No next in queue");
+                panic!("No next element found in queue - tail potentially lost");
             }
         } else {
             panic!("No Queue found");
@@ -175,7 +163,7 @@ mod queue_unit_tests {
         let q = mosaic.make_queue();
         let q_arrows = q.iter().get_arrows().collect_vec();
 
-        assert_eq!(2, q_arrows.len());
+        assert_eq!(1, q_arrows.len());
         let end = q_arrows.iter().map(|a| a.target()).unique().collect_vec();
         assert_eq!(1, end.len());
         let end = end.first().unwrap();
@@ -184,14 +172,12 @@ mod queue_unit_tests {
 
         mosaic.enqueue(&q, &a);
         let q_arrows = q.iter().get_arrows().collect_vec();
-        assert_eq!(2, q_arrows.len());
+        assert_eq!(1, q_arrows.len());
         let ends_after_enqueue: HashSet<Tile> =
             HashSet::from_iter(q_arrows.iter().map(|a| a.target()));
 
-        assert!(ends_after_enqueue.contains(end));
+        println!("{}", mosaic.dot("QUEUE_TEST"));
         assert!(ends_after_enqueue.contains(&a));
-
-        println!("{}", mosaic.dot());
     }
 
     #[test]

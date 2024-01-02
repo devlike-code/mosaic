@@ -52,10 +52,13 @@ impl ComponentRegistry {
     }
 
     fn add_raw_component_type(&self, definition: ComponentType) -> ComponentType {
-        self.component_type_map
-            .lock()
-            .unwrap()
-            .insert(definition.name().into(), definition.clone());
+        let mut type_map = self.component_type_map.lock().unwrap();
+        if type_map.contains_key(&definition.name().into()) {
+            println!(" -- type already found {:?}", definition.name());
+            return definition;
+        }
+
+        type_map.insert(definition.name().into(), definition.clone());
 
         let mut offset_size_index = self.component_offset_size_map.lock().unwrap();
 
@@ -67,7 +70,7 @@ impl ComponentRegistry {
             offset += size;
         }
 
-        definition.clone()
+        definition
     }
 
     fn unify_fields_and_values_into_data(
@@ -115,6 +118,17 @@ impl ComponentRegistry {
     }
 
     pub fn add_component_types(&self, definition: &str) -> anyhow::Result<Vec<ComponentType>> {
+        println!(
+            "ADDING COMPONENT TYPES: {:?}",
+            self.flatten_component_type(
+                ComponentParser::parse_all(definition)
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .clone()
+            )
+        );
+
         let types = ComponentParser::parse_all(definition)?
             .into_iter()
             .flat_map(|t| self.flatten_component_type(t))
