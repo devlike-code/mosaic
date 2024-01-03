@@ -26,7 +26,7 @@ pub static MOSAIC_INSTANCES: Lazy<Arc<Mutex<HashMap<usize, Arc<Mosaic>>>>> =
 
 #[derive(Debug)]
 pub struct Mosaic {
-    id: usize,
+    pub id: usize,
     pub(crate) entity_counter: RelaxedCounter,
     pub component_registry: ComponentRegistry,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
@@ -87,8 +87,10 @@ impl Mosaic {
     }
 
     pub fn new() -> Arc<Mosaic> {
+        let id = { MOSAIC_INSTANCES.lock().unwrap().len() };
+
         let mosaic = Arc::new(Mosaic {
-            id: MOSAIC_INSTANCES.lock().unwrap().len(),
+            id,
             entity_counter: RelaxedCounter::default(),
             component_registry: ComponentRegistry::default(),
             tile_registry: Mutex::new(HashMap::default()),
@@ -102,10 +104,12 @@ impl Mosaic {
 
         mosaic.new_type("void: unit;").unwrap();
 
-        MOSAIC_INSTANCES
-            .lock()
-            .unwrap()
-            .insert(mosaic.id, Arc::clone(&mosaic));
+        {
+            MOSAIC_INSTANCES
+                .lock()
+                .unwrap()
+                .insert(mosaic.id, Arc::clone(&mosaic));
+        }
         mosaic
     }
 

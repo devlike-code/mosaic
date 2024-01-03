@@ -177,8 +177,9 @@ mod internals_tests {
 
     #[test]
     fn test_clean_load() {
-        let data = test_data();
         let mosaic = Mosaic::new();
+
+        let data = test_data();
 
         let loaded = load_mosaic_commands(data.as_slice()).unwrap();
         assert_eq!(7, loaded.len());
