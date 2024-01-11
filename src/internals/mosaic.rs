@@ -48,11 +48,18 @@ impl Eq for Mosaic {}
 
 impl Mosaic {
     pub fn dot(&self, name: &str) -> String {
-        let mut output = vec![format!("digraph {} {{", name)];
         let tiles = {
             let reg = self.tile_registry.lock().unwrap();
             reg.values().cloned().collect_vec()
         };
+
+        let horizontal = tiles.len() < 50;
+
+        let mut output = vec![format!(
+            "digraph {} {{\n\trankdir=\"{}\";\n",
+            name,
+            if horizontal { "TB" } else { "LR" }
+        )];
 
         tiles.into_iter().for_each(|t| {
             let dt = format!("{:?}", t);

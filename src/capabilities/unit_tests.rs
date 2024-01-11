@@ -281,10 +281,10 @@ mod process_tests {
         let mosaic = Mosaic::new();
         mosaic.new_type("Number: u32;").unwrap();
 
-        let add = mosaic.create_process("add", &["a", "b"]).unwrap();
         let x = mosaic.new_object("Number", par(7u32));
         let y = mosaic.new_object("Number", par(5u32));
 
+        let add = mosaic.create_process("add", &["a", "b"]).unwrap();
         mosaic.pass_process_parameter(&add, "a", &x).unwrap();
         mosaic.pass_process_parameter(&add, "b", &y).unwrap();
 
@@ -311,15 +311,13 @@ mod process_tests {
         assert_eq!(12, do_add(&mosaic, &add).unwrap());
 
         mosaic.delete_tile(add);
-        for i in 0..=5 {
+
+        assert!(mosaic.is_tile_valid(&0));
+        assert!(mosaic.is_tile_valid(&1));
+
+        for i in 2..=9 {
             assert!(!mosaic.is_tile_valid(&i));
         }
-
-        assert!(mosaic.is_tile_valid(&6));
-        assert!(mosaic.is_tile_valid(&7));
-
-        assert!(!mosaic.is_tile_valid(&8));
-        assert!(!mosaic.is_tile_valid(&9));
     }
 }
 
