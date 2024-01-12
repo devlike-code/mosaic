@@ -51,7 +51,15 @@ impl Tile {
         let storage = self.mosaic.data_storage.lock().unwrap();
         if let Some(e) = storage.get(&self.component.to_string()) {
             if let Some(h) = e.get(&self.id) {
-                h.get(&index.into()).unwrap().clone()
+                if h.contains_key(&index.into()) {
+                    h.get(&index.into()).unwrap().clone()
+                } else {
+                    panic!(
+                        "Cannot find component {:?} in id {}",
+                        self.component.to_string(),
+                        self.id
+                    );
+                }
             } else {
                 Value::UNIT
             }
@@ -81,12 +89,17 @@ impl IntoIterator for Tile {
 impl std::fmt::Display for Tile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mark = match self.tile_type {
-            TileType::Object => "x",
-            TileType::Arrow { .. } => ">",
-            TileType::Descriptor { .. } => "d",
-            TileType::Extension { .. } => "e",
+            TileType::Object => "o".to_string(),
+            TileType::Arrow { source, target } => format!("a {}->{}", source, target),
+            TileType::Descriptor { subject } => format!("d->{}", subject),
+            TileType::Extension { subject } => format!("e<-{}", subject),
         };
-        f.write_fmt(format_args!("({}|{})", mark, self.id))
+        f.write_fmt(format_args!(
+            "({}|{}: {})",
+            self.id,
+            mark,
+            self.component.to_string()
+        ))
     }
 }
 
@@ -160,10 +173,10 @@ impl std::fmt::Debug for Tile {
         }
 
         let mark = match self.tile_type {
-            TileType::Object => "x".to_string(),
-            TileType::Arrow { source, target } => format!("{} > {}", source, target),
-            TileType::Descriptor { .. } => "d".to_string(),
-            TileType::Extension { .. } => "e".to_string(),
+            TileType::Object => "o".to_string(),
+            TileType::Arrow { source, target } => format!("a {}->{}", source, target),
+            TileType::Descriptor { subject } => format!("d->{}", subject),
+            TileType::Extension { subject } => format!("e<-{}", subject),
         };
 
         let data = if self.mosaic.is_tile_valid(&self.id) {
@@ -178,7 +191,13 @@ impl std::fmt::Debug for Tile {
             "err: !".to_string()
         };
 
-        f.write_fmt(format_args!("({}|{}|{})", mark, self.id, data))
+        f.write_fmt(format_args!(
+            "({}|{}:{}|{})",
+            self.id,
+            mark,
+            self.component.to_string(),
+            data
+        ))
     }
 }
 
