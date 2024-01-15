@@ -328,7 +328,7 @@ impl Value {
     pub fn as_s128(&self) -> S128 {
         match self {
             Value::S128(v) => v.clone(),
-            _ => panic!("Cannot get type variant s128"),
+            _ => panic!("Cannot get type variant s128 from {:?}", self),
         }
     }
 

@@ -1,29 +1,38 @@
 use std::{sync::Arc, vec::IntoIter};
 
-use crate::internals::{void, Mosaic, MosaicIO, MosaicTypelevelCRUD, Tile};
+use itertools::Itertools;
+
+use crate::{
+    internals::{par, void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
+    iterators::{component_selectors::ComponentSelectors, tile_getters::TileGetters},
+};
 
 use super::GroupingCapability;
 
 pub trait SelectionCapability: GroupingCapability {
-    fn make_selection(&self) -> Tile;
-    fn fill_selection(&self, selection: &Tile, members: &[Tile]);
+    fn make_selection(&self, members: &[Tile]) -> Tile;
     fn get_selection(&self, selection: &Tile) -> IntoIter<Tile>;
 }
 
 impl SelectionCapability for Arc<Mosaic> {
-    fn make_selection(&self) -> Tile {
+    fn make_selection(&self, members: &[Tile]) -> Tile {
         self.new_type("SelectionOwner: unit;").unwrap();
+        self.new_type("Selection: u64;").unwrap();
+
         let owner = self.new_object("SelectionOwner", void());
-        self.group("Selection", &owner, &[]);
+        for member in members {
+            self.new_extension(&owner, "Selection", par(member.id as u64));
+        }
         owner
     }
 
-    fn fill_selection(&self, selection: &Tile, members: &[Tile]) {
-        self.ungroup("Selection", selection);
-        self.group("Selection", selection, members);
-    }
-
     fn get_selection(&self, selection: &Tile) -> IntoIter<Tile> {
-        self.get_group_members("Selection", selection)
+        selection
+            .iter()
+            .get_extensions()
+            .include_component("Selection")
+            .map(|t| t.mosaic.get(t.get("self").as_u64() as usize).unwrap())
+            .collect_vec()
+            .into_iter()
     }
 }

@@ -62,7 +62,7 @@ impl Mosaic {
         )];
 
         tiles.into_iter().for_each(|t| {
-            let dt = format!("{:?}", t);
+            let dt = format!("{:?}", t.component);
             if t.is_object() {
                 output.push(format!("\t{} [label={:?}]", t.id, dt));
             } else if t.is_arrow() {
@@ -274,6 +274,38 @@ pub trait MosaicCRUD<Id> {
     fn delete_tile(&self, tile: Id);
 }
 
+pub trait MosaicCopy<Id>: MosaicCRUD<Id> {
+    fn copy_from(&self, from: &Self);
+}
+
+impl MosaicCopy<EntityId> for Arc<Mosaic> {
+    fn copy_from(&self, from: &Self) {
+        let mut mapping = HashMap::new();
+        for foreign_entity in from.get_all() {
+            let comp = foreign_entity.component.to_string();
+            let data = foreign_entity.data();
+
+            let local_entity = match foreign_entity.tile_type {
+                TileType::Object => self.new_object(comp.as_str(), data),
+                TileType::Arrow { source, target } => self.new_arrow(
+                    mapping.get(&source).unwrap(),
+                    mapping.get(&target).unwrap(),
+                    comp.as_str(),
+                    data,
+                ),
+                TileType::Descriptor { subject } => {
+                    self.new_descriptor(mapping.get(&subject).unwrap(), comp.as_str(), data)
+                }
+                TileType::Extension { subject } => {
+                    self.new_extension(mapping.get(&subject).unwrap(), comp.as_str(), data)
+                }
+            };
+
+            mapping.insert(foreign_entity.id, local_entity.id);
+        }
+    }
+}
+
 pub trait TileGetById {
     fn get_tiles(&self, iter: Vec<EntityId>) -> IntoIter<Tile>;
 }
@@ -440,91 +472,96 @@ impl MosaicIO for Arc<Mosaic> {
         let offset = self.entity_counter.get();
         let loaded = load_mosaic_commands(data)?;
 
-        loaded.into_iter().for_each(|command| match command {
-            MosaicLoadCommand::AddType(definition) => {
-                let typename: S32 = definition
-                    .split(':')
-                    .collect_vec()
-                    .first()
-                    .unwrap()
-                    .trim()
-                    .into();
+        for command in loaded.into_iter() {
+            match command {
+                MosaicLoadCommand::AddType(definition) => {
+                    let typename: S32 = definition
+                        .split(':')
+                        .collect_vec()
+                        .first()
+                        .unwrap()
+                        .trim()
+                        .into();
 
-                if !self.component_registry.has_component_type(&typename) {
-                    self.component_registry
-                        .add_component_types(definition.as_str())
+                    if !self.component_registry.has_component_type(&typename) {
+                        self.component_registry
+                            .add_component_types(definition.as_str())
+                            .unwrap();
+                    }
+                }
+                MosaicLoadCommand::CreateTile(id, src, tgt, component, data) => {
+                    let id = id + offset;
+                    let src = src + offset;
+                    let tgt = tgt + offset;
+                    let component_type = &self
+                        .component_registry
+                        .get_component_type(component)
                         .unwrap();
-                }
 
-                assert!(self.component_registry.has_component_type(&typename));
-            }
-            MosaicLoadCommand::CreateTile(id, src, tgt, component, data) => {
-                let id = id + offset;
-                let src = src + offset;
-                let tgt = tgt + offset;
-                let component_type = &self
-                    .component_registry
-                    .get_component_type(component)
-                    .unwrap();
+                    let field_access =
+                        Tile::create_fields_from_binary_data(self, component_type, data);
 
-                let fields = Tile::create_fields_from_binary_data(self, component_type, data);
+                    if let Ok(fields) = field_access {
+                        if id == src && id == tgt {
+                            // ID : ID -> ID
+                            let tile = Tile::new(
+                                Arc::clone(self),
+                                id,
+                                TileType::Object,
+                                component,
+                                fields.into_iter().collect(),
+                            );
+                            self.object_ids.lock().unwrap().add(id);
+                            self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                        } else if id == src && src != tgt {
+                            // ID : ID -> TGT (descriptor)
+                            self.dependent_ids_map.lock().unwrap().append(tgt, id);
 
-                if id == src && id == tgt {
-                    // ID : ID -> ID
-                    let tile = Tile::new(
-                        Arc::clone(self),
-                        id,
-                        TileType::Object,
-                        component,
-                        fields.into_iter().collect(),
-                    );
-                    self.object_ids.lock().unwrap().add(id);
-                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
-                } else if id == src && src != tgt {
-                    // ID : ID -> TGT (descriptor)
-                    self.dependent_ids_map.lock().unwrap().append(tgt, id);
+                            let tile = Tile::new(
+                                Arc::clone(self),
+                                id,
+                                TileType::Descriptor { subject: tgt },
+                                component,
+                                fields.into_iter().collect(),
+                            );
+                            self.descriptor_ids.lock().unwrap().add(id);
+                            self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                        } else if id == tgt && src != tgt {
+                            // ID : SRC -> ID (extension)
+                            self.dependent_ids_map.lock().unwrap().append(src, id);
 
-                    let tile = Tile::new(
-                        Arc::clone(self),
-                        id,
-                        TileType::Descriptor { subject: tgt },
-                        component,
-                        fields.into_iter().collect(),
-                    );
-                    self.descriptor_ids.lock().unwrap().add(id);
-                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
-                } else if id == tgt && src != tgt {
-                    // ID : SRC -> ID (extension)
-                    self.dependent_ids_map.lock().unwrap().append(src, id);
+                            let tile = Tile::new(
+                                Arc::clone(self),
+                                id,
+                                TileType::Extension { subject: src },
+                                component,
+                                fields.into_iter().collect(),
+                            );
+                            self.extension_ids.lock().unwrap().add(id);
+                            self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                        } else {
+                            self.dependent_ids_map.lock().unwrap().append(src, id);
+                            self.dependent_ids_map.lock().unwrap().append(tgt, id);
 
-                    let tile = Tile::new(
-                        Arc::clone(self),
-                        id,
-                        TileType::Extension { subject: src },
-                        component,
-                        fields.into_iter().collect(),
-                    );
-                    self.extension_ids.lock().unwrap().add(id);
-                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
-                } else {
-                    self.dependent_ids_map.lock().unwrap().append(src, id);
-                    self.dependent_ids_map.lock().unwrap().append(tgt, id);
-
-                    let tile = Tile::new(
-                        Arc::clone(self),
-                        id,
-                        TileType::Arrow {
-                            source: src,
-                            target: tgt,
-                        },
-                        component,
-                        fields.into_iter().collect(),
-                    );
-                    self.arrow_ids.lock().unwrap().add(id);
-                    self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                            let tile = Tile::new(
+                                Arc::clone(self),
+                                id,
+                                TileType::Arrow {
+                                    source: src,
+                                    target: tgt,
+                                },
+                                component,
+                                fields.into_iter().collect(),
+                            );
+                            self.arrow_ids.lock().unwrap().add(id);
+                            self.tile_registry.lock().unwrap().insert(id, tile.clone());
+                        }
+                    } else {
+                        return Err(field_access.unwrap_err());
+                    }
                 }
             }
-        });
+        }
 
         Ok(())
     }

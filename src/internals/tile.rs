@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc, vec::IntoIter};
 
+use anyhow::anyhow;
 use itertools::Itertools;
 use log::debug;
 
@@ -28,6 +29,22 @@ pub struct Tile {
 }
 
 impl Tile {
+    pub fn data(&self) -> Vec<(S32, Value)> {
+        let storage = self.mosaic.data_storage.lock().unwrap();
+        if let Some(e) = storage.get(&self.component.to_string()) {
+            if let Some(h) = e.get(&self.id) {
+                h.clone()
+                    .iter()
+                    .map(|(a, b)| (a.clone(), b.clone()))
+                    .collect_vec()
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        }
+    }
+
     pub fn iter(&self) -> IntoIter<Tile> {
         vec![self.clone()].into_iter()
     }
@@ -299,8 +316,8 @@ impl Tile {
         mosaic: &Mosaic,
         component: &ComponentType,
         data: Vec<u8>,
-    ) -> HashMap<S32, Value> {
-        let (_, fields) = component
+    ) -> anyhow::Result<HashMap<S32, Value>> {
+        let result: anyhow::Result<(usize, HashMap<S32, Value>)> = component
             .get_fields()
             .into_iter()
             .map(|f| {
@@ -310,37 +327,45 @@ impl Tile {
                     (f.name, f.datatype)
                 }
             })
-            .fold(
+            .try_fold(
                 (0usize, HashMap::<S32, Value>::new()),
                 |(ptr, mut old), (name, datatype)| {
                     let size = datatype.bytesize(&mosaic.component_registry);
-                    let comp_data = &data[ptr..ptr + size];
+                    if data.len() >= ptr + size {
+                        let comp_data = &data[ptr..ptr + size];
 
-                    let value = match datatype {
-                        Datatype::UNIT => Value::UNIT,
-                        Datatype::I8 => Value::I8(i8::from_byte_array(comp_data)),
-                        Datatype::I16 => Value::I16(i16::from_byte_array(comp_data)),
-                        Datatype::I32 => Value::I32(i32::from_byte_array(comp_data)),
-                        Datatype::I64 => Value::I64(i64::from_byte_array(comp_data)),
-                        Datatype::U8 => Value::U8(u8::from_byte_array(comp_data)),
-                        Datatype::U16 => Value::U16(u16::from_byte_array(comp_data)),
-                        Datatype::U32 => Value::U32(u32::from_byte_array(comp_data)),
-                        Datatype::U64 => Value::U64(u64::from_byte_array(comp_data)),
-                        Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
-                        Datatype::F64 => Value::F64(f64::from_byte_array(comp_data)),
-                        Datatype::S32 => Value::S32(S32::from_byte_array(comp_data)),
-                        Datatype::S128 => Value::S128(comp_data.to_vec().clone()),
-                        Datatype::BOOL => Value::BOOL(bool::from_byte_array(comp_data)),
-                        Datatype::COMP(_) => panic!("Unreachable"),
-                    };
+                        let value = match datatype {
+                            Datatype::UNIT => Value::UNIT,
+                            Datatype::I8 => Value::I8(i8::from_byte_array(comp_data)),
+                            Datatype::I16 => Value::I16(i16::from_byte_array(comp_data)),
+                            Datatype::I32 => Value::I32(i32::from_byte_array(comp_data)),
+                            Datatype::I64 => Value::I64(i64::from_byte_array(comp_data)),
+                            Datatype::U8 => Value::U8(u8::from_byte_array(comp_data)),
+                            Datatype::U16 => Value::U16(u16::from_byte_array(comp_data)),
+                            Datatype::U32 => Value::U32(u32::from_byte_array(comp_data)),
+                            Datatype::U64 => Value::U64(u64::from_byte_array(comp_data)),
+                            Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
+                            Datatype::F64 => Value::F64(f64::from_byte_array(comp_data)),
+                            Datatype::S32 => Value::S32(S32::from_byte_array(comp_data)),
+                            Datatype::S128 => Value::S128(comp_data.to_vec().clone()),
+                            Datatype::BOOL => Value::BOOL(bool::from_byte_array(comp_data)),
+                            Datatype::COMP(_) => panic!("Unreachable"),
+                        };
 
-                    old.insert(name, value);
-                    (ptr + size, old)
+                        old.insert(name, value);
+                        Ok((ptr + size, old))
+                    } else {
+                        Err(anyhow!(
+                            "Wrong data layout in component {:?} with field {} -- maybe it changed recently?",
+                            component.name(), name,
+                        ))
+                    }
                 },
             );
 
-        fields
+        result.map(|(_, fields)| fields)
     }
+
     pub(crate) fn create_binary_data_from_fields(&self, component: &ComponentType) -> Vec<u8> {
         component
             .get_fields()

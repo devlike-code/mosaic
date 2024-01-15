@@ -15,6 +15,7 @@ pub trait QueueCapability {
     fn is_queue_empty(&self, q: &Tile) -> bool;
     fn enqueue(&self, q: &Tile, v: &Tile);
     fn dequeue(&self, q: &Tile) -> Option<Tile>;
+    fn peek_queue(&self, q: &Tile) -> Option<Tile>;
 }
 
 pub trait PrivateQueueCapability {
@@ -109,6 +110,19 @@ impl QueueCapability for Arc<Mosaic> {
                         self.new_arrow(&before, &end, "Enqueued", void());
                         prev
                     })
+                } else {
+                    None
+                }
+            })
+        })
+    }
+
+    fn peek_queue(&self, q: &Tile) -> Option<Tile> {
+        q.get_component("Queue").and_then(|queue| {
+            let end = self.get_sentinel_in_queue(&queue);
+            self.get_prev_from_queue(&end).and_then(|prev| {
+                if prev != queue {
+                    self.get_prev_from_queue(&prev).map(|_| prev)
                 } else {
                     None
                 }

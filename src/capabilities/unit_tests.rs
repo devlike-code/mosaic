@@ -337,12 +337,12 @@ mod selection_tests {
         let ab = mosaic.new_arrow(&a, &b, "void", void());
         let _ac = mosaic.new_arrow(&a, &c, "void", void());
         let _bc = mosaic.new_arrow(&b, &c, "void", void());
-        let s = mosaic.make_selection();
-        mosaic.fill_selection(&s, &[a.clone(), b.clone(), ab]);
+        let s = mosaic.make_selection(&[a.clone(), b.clone(), ab]);
+
         assert_eq!(3, mosaic.get_selection(&s).len());
-        mosaic.fill_selection(&s, &[a.clone(), b]);
+        let s = mosaic.make_selection(&[a.clone(), b]);
         assert_eq!(2, mosaic.get_selection(&s).len());
-        mosaic.fill_selection(&s, &[a]);
+        let s = mosaic.make_selection(&[a]);
         assert_eq!(1, mosaic.get_selection(&s).len());
     }
 }
