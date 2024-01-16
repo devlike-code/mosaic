@@ -33,10 +33,7 @@ impl Tile {
         let storage = self.mosaic.data_storage.lock().unwrap();
         if let Some(e) = storage.get(&self.component.to_string()) {
             if let Some(h) = e.get(&self.id) {
-                h.clone()
-                    .iter()
-                    .map(|(a, b)| (a.clone(), b.clone()))
-                    .collect_vec()
+                h.clone().iter().map(|(a, b)| (*a, b.clone())).collect_vec()
             } else {
                 vec![]
             }
@@ -111,12 +108,7 @@ impl std::fmt::Display for Tile {
             TileType::Descriptor { subject } => format!("d->{}", subject),
             TileType::Extension { subject } => format!("e<-{}", subject),
         };
-        f.write_fmt(format_args!(
-            "({}|{}: {})",
-            self.id,
-            mark,
-            self.component.to_string()
-        ))
+        f.write_fmt(format_args!("({}|{}: {})", self.id, mark, self.component))
     }
 }
 
@@ -165,12 +157,8 @@ impl std::fmt::Debug for Tile {
                         Datatype::S32 => {
                             format!("{}: {}", f.name, tile.get(f_name.as_str()).as_s32())
                         }
-                        Datatype::S128 => {
-                            format!(
-                                "{}: {}",
-                                f.name,
-                                String::from_byte_array(&tile.get(f_name.as_str()).as_s128())
-                            )
+                        Datatype::STR => {
+                            format!("{}: {}", f.name, tile.get(f_name.as_str()).as_str())
                         }
                         Datatype::BOOL => {
                             format!(
@@ -210,10 +198,7 @@ impl std::fmt::Debug for Tile {
 
         f.write_fmt(format_args!(
             "({}|{}:{}|{})",
-            self.id,
-            mark,
-            self.component.to_string(),
-            data
+            self.id, mark, self.component, data
         ))
     }
 }
@@ -347,7 +332,7 @@ impl Tile {
                             Datatype::F32 => Value::F32(f32::from_byte_array(comp_data)),
                             Datatype::F64 => Value::F64(f64::from_byte_array(comp_data)),
                             Datatype::S32 => Value::S32(S32::from_byte_array(comp_data)),
-                            Datatype::S128 => Value::S128(comp_data.to_vec().clone()),
+                            Datatype::STR => Value::STR(String::from_byte_array(comp_data)),
                             Datatype::BOOL => Value::BOOL(bool::from_byte_array(comp_data)),
                             Datatype::COMP(_) => panic!("Unreachable"),
                         };
@@ -395,7 +380,7 @@ impl Tile {
                     Value::F32(x) => x.to_byte_array(),
                     Value::F64(x) => x.to_byte_array(),
                     Value::S32(x) => x.to_byte_array(),
-                    Value::S128(x) => x.clone(),
+                    Value::STR(x) => x.to_byte_array(),
                     Value::BOOL(x) => x.to_byte_array(),
                 };
                 temp.extend(value_bytes);

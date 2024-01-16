@@ -1,4 +1,4 @@
-use super::{Tile, ToByteArray, Value, S128, S32};
+use super::{Tile, ToByteArray, Value, S32};
 
 pub trait TileFieldSetter<T: ToByteArray> {
     fn set(&mut self, index: &str, value: T);
@@ -72,13 +72,7 @@ impl TileFieldSetter<S32> for Tile {
 
 impl TileFieldSetter<String> for Tile {
     fn set(&mut self, index: &str, value: String) {
-        self.set_field(index, Value::S32(value.as_str().into()))
-    }
-}
-
-impl TileFieldSetter<S128> for Tile {
-    fn set(&mut self, index: &str, value: S128) {
-        self.set_field(index, Value::S128(value))
+        self.set_field(index, Value::STR(value.as_str().into()))
     }
 }
 

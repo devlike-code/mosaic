@@ -31,7 +31,7 @@ impl ComponentParser {
             "f32" => Some(Datatype::F32),
             "f64" => Some(Datatype::F64),
             "s32" => Some(Datatype::S32),
-            "s128" => Some(Datatype::S128),
+            "str" => Some(Datatype::STR),
             "bool" => Some(Datatype::BOOL),
             _ => None,
         }

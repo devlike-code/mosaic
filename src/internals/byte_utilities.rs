@@ -2,8 +2,8 @@ use fstr::FStr;
 use std::convert::AsMut;
 
 use super::component_registry::ComponentRegistry;
-use super::datatypes::{ComponentField, ComponentType, Datatype, Str, S32};
-use super::{Value, S128};
+use super::datatypes::{ComponentField, ComponentType, Datatype, S32};
+use super::Value;
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
 pub(crate) trait Bytesize {
@@ -210,14 +210,19 @@ impl FromByteArray for S32 {
 /// The `ToByteArray` implementation for `String`
 impl ToByteArray for String {
     fn to_byte_array(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+        let mut v = vec![];
+        v.extend((self.len() as u64).to_byte_array());
+        v.extend(self.as_bytes().to_vec());
+
+        v
     }
 }
 
 /// The `FromByteArray` implementation for `String`
 impl FromByteArray for String {
     fn from_byte_array(data: &[u8]) -> Self {
-        let str = std::str::from_utf8(data);
+        let len = u64::from_byte_array(&data[0..8]);
+        let str = std::str::from_utf8(&data[8..(8 + len as usize)]);
         String::from_utf8_lossy(str.unwrap().as_bytes()).into_owned()
     }
 }
@@ -226,35 +231,6 @@ impl FromByteArray for String {
 impl ToByteArray for S32 {
     fn to_byte_array(&self) -> Vec<u8> {
         self.0.as_bytes().to_vec()
-    }
-}
-
-/// The `FromByteArray` implementation for `str`
-impl FromByteArray for Str {
-    fn from_byte_array(data: &[u8]) -> Self {
-        Str(u64::from_byte_array(data))
-    }
-}
-
-/// The `ToByteArray` implementation for `s32`
-impl ToByteArray for S128 {
-    fn to_byte_array(&self) -> Vec<u8> {
-        self.to_vec()
-    }
-}
-
-/// The `FromByteArray` implementation for `str`
-impl FromByteArray for S128 {
-    fn from_byte_array(data: &[u8]) -> Self {
-        data.try_into()
-            .expect("Cannot turn slice into array and satisfy conditions for s128")
-    }
-}
-
-/// The `ToByteArray` implementation for `str`
-impl ToByteArray for Str {
-    fn to_byte_array(&self) -> Vec<u8> {
-        self.0.to_byte_array()
     }
 }
 
@@ -283,7 +259,7 @@ impl Bytesize for Datatype {
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,
             Datatype::I64 | Datatype::U64 | Datatype::F64 => 8usize,
             Datatype::S32 => 32usize,
-            Datatype::S128 => 128usize,
+            Datatype::STR => 128usize,
             Datatype::COMP(component_name) => engine
                 .get_component_type(*component_name)
                 .map(|t| t.bytesize(engine))
@@ -317,7 +293,7 @@ impl ToByteArray for Value {
             Value::F32(f) => (*f).to_byte_array(),
             Value::F64(f) => (*f).to_byte_array(),
             Value::S32(s) => s.to_byte_array(),
-            Value::S128(b) => b.to_byte_array(),
+            Value::STR(b) => b.to_byte_array(),
             Value::BOOL(b) => b.to_byte_array(),
         }
     }

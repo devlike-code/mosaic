@@ -180,7 +180,7 @@ mod queue_unit_tests {
         assert_eq!(1, q_arrows.len());
         let end = q_arrows.iter().map(|a| a.target()).unique().collect_vec();
         assert_eq!(1, end.len());
-        let end = end.first().unwrap();
+        let _end = end.first().unwrap();
 
         let a = mosaic.new_object("void", void());
 

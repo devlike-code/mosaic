@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod internals_tests {
+    use random_string::generate;
+
     use crate::internals::tile_access::{TileFieldQuery, TileFieldSetter};
     use crate::internals::{
-        load_mosaic_commands, par, void, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD,
-        TileType, Value,
+        load_mosaic_commands, par, pars, void, ComponentValuesBuilderSetter, Mosaic, MosaicCRUD,
+        MosaicIO, MosaicTypelevelCRUD, TileType, Value,
     };
 
     #[test]
@@ -193,6 +195,49 @@ mod internals_tests {
         assert!(mosaic.is_tile_valid(&4));
         assert!(mosaic.is_tile_valid(&new_obj));
         assert_eq!(5, new_obj.id);
+    }
+
+    #[test]
+    fn test_strings() {
+        let mosaic = Mosaic::new();
+        mosaic.new_type("S: str;").unwrap();
+        let o = mosaic.new_object("S", par("hello world".to_string()));
+        assert_eq!("hello world".to_string(), o.get("self").as_str());
+    }
+
+    #[test]
+    fn test_really_big_strings() {
+        let mosaic = Mosaic::new();
+        let charset = "1234567890abcdefghijklmnopqrstuvwxyz.,!?";
+        let size = 256 * 256 * 256;
+        let str = generate(size, charset);
+        assert_eq!(size, str.len());
+        mosaic.new_type("S: str;").unwrap();
+        let o = mosaic.new_object("S", par(str.clone()));
+        assert_eq!(str, o.get("self").as_str());
+    }
+
+    #[test]
+    fn test_really_big_strings_in_structs() {
+        let mosaic = Mosaic::new();
+        let charset = "1234567890abcdefghijklmnopqrstuvwxyz.,!?";
+        let size = 256 * 256 * 256;
+        let str1 = generate(size + 5, charset);
+        let str2 = generate(size + 6, charset);
+        assert_eq!(size + 5, str1.len());
+        assert_eq!(size + 6, str2.len());
+        mosaic.new_type("S2: { a: str, i: u32, b: str };").unwrap();
+        let o = mosaic.new_object(
+            "S2",
+            pars()
+                .set("a", str1.clone())
+                .set("b", str2.clone())
+                .set("i", 8u32)
+                .ok(),
+        );
+        assert_eq!(str2, o.get("b").as_str());
+        assert_eq!(8, o.get("i").as_u32());
+        assert_eq!(str1, o.get("a").as_str());
     }
 
     #[test]

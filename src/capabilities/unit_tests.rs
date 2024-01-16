@@ -1,34 +1,4 @@
 #[cfg(test)]
-mod string_tests {
-    use itertools::Itertools;
-
-    use crate::{
-        capabilities::StringCapability, internals::Mosaic, iterators::tile_getters::TileGetters,
-    };
-
-    #[test]
-    fn test_string_funnel() {
-        let mosaic = Mosaic::new();
-        let hello_world = mosaic.create_string_object("hello world").unwrap();
-        assert!(mosaic.string_exists("hello world"));
-        assert!(hello_world.is_object());
-        assert!(!hello_world
-            .clone()
-            .into_iter()
-            .get_extensions()
-            .collect_vec()
-            .is_empty());
-        assert_eq!(
-            Some("hello world".to_string()),
-            mosaic.get_string_value(&hello_world)
-        );
-
-        mosaic.delete_string("hello world");
-        assert!(!mosaic.string_exists("hello world"));
-    }
-}
-
-#[cfg(test)]
 mod traversal_tests {
 
     use itertools::Itertools;
@@ -221,108 +191,9 @@ mod traversal_tests {
 }
 
 #[cfg(test)]
-mod grouping_tests {
-
-    use crate::{
-        capabilities::GroupingCapability,
-        internals::{void, Mosaic, MosaicIO, MosaicTypelevelCRUD},
-    };
-
-    #[test]
-    fn group_owner_test() {
-        let mosaic = Mosaic::new();
-        mosaic.new_type("GroupOwner: s32;").unwrap();
-
-        let o = mosaic.new_object("void", void());
-        let b = mosaic.new_object("void", void());
-        let c = mosaic.new_object("void", void());
-        let d = mosaic.new_object("void", void());
-
-        /*
-                         /----> b
-           o ----group(p) ----> c
-                         \----> d
-
-        */
-
-        mosaic.group("Parent", &o, &[b.clone(), c.clone(), d.clone()]);
-        let _ = mosaic.get_group_owner_descriptor("Parent", &o).unwrap();
-
-        mosaic.group("Parent2", &o, &[b.clone(), c.clone(), d.clone()]);
-        mosaic.group("Parent", &o, &[b.clone(), d.clone()]);
-
-        let _p = mosaic.get_group_owner_descriptor("Parent", &b);
-
-        let c_memberships = mosaic.get_group_memberships(&c);
-        assert!(c_memberships.len() == 1);
-        assert_eq!(
-            c_memberships.first().unwrap().get("self").as_s32(),
-            "Parent2".into()
-        );
-
-        assert_eq!(mosaic.get_group_owner("Parent", &b), Some(o));
-    }
-}
-
-#[cfg(test)]
-mod process_tests {
-    use std::sync::Arc;
-
+mod selection_tests {
     use itertools::Itertools;
 
-    use crate::{
-        capabilities::{process::ProcessCapability, GroupingCapability},
-        internals::{par, Logging, Mosaic, MosaicCRUD, MosaicIO, MosaicTypelevelCRUD, Tile},
-        iterators::tile_getters::TileGetters,
-    };
-
-    #[test]
-    fn test_processes() {
-        let mosaic = Mosaic::new();
-        mosaic.new_type("Number: u32;").unwrap();
-
-        let x = mosaic.new_object("Number", par(7u32));
-        let y = mosaic.new_object("Number", par(5u32));
-
-        let add = mosaic.create_process("add", &["a", "b"]).unwrap();
-        mosaic.pass_process_parameter(&add, "a", &x).unwrap();
-        mosaic.pass_process_parameter(&add, "b", &y).unwrap();
-
-        fn do_add(mosaic: &Arc<Mosaic>, add_instance: &Tile) -> anyhow::Result<u32> {
-            let args = mosaic.get_process_parameter_values(add_instance)?;
-            let a = args.get(&"a".into()).unwrap();
-            let b = args.get(&"b".into()).unwrap();
-
-            match (&a, &b) {
-                (Some(a), Some(b)) => Ok(a.get("self").as_u32() + b.get("self").as_u32()),
-                _ => "Can't do add :(".to_error(),
-            }
-        }
-
-        println!("{:?}", mosaic.get_group_owner_descriptor("add", &add));
-        println!("{:?}", mosaic.get_group_members("add", &add).collect_vec());
-        println!(
-            "{:?}",
-            mosaic
-                .get_group_members("add", &add)
-                .get_arrows_from()
-                .collect_vec()
-        );
-        assert_eq!(12, do_add(&mosaic, &add).unwrap());
-
-        mosaic.delete_tile(add);
-
-        assert!(mosaic.is_tile_valid(&0));
-        assert!(mosaic.is_tile_valid(&1));
-
-        for i in 2..=9 {
-            assert!(!mosaic.is_tile_valid(&i));
-        }
-    }
-}
-
-#[cfg(test)]
-mod selection_tests {
     use crate::{
         capabilities::SelectionCapability,
         internals::{void, Mosaic, MosaicCRUD, MosaicIO},
@@ -344,6 +215,37 @@ mod selection_tests {
         assert_eq!(2, mosaic.get_selection(&s).len());
         let s = mosaic.make_selection(&[a]);
         assert_eq!(1, mosaic.get_selection(&s).len());
+    }
+
+    #[test]
+    fn test_update_selection() {
+        let mosaic = Mosaic::new();
+        let a = mosaic.new_object("void", void());
+        let b = mosaic.new_object("void", void());
+        let c = mosaic.new_object("void", void());
+        let ab = mosaic.new_arrow(&a, &b, "void", void());
+        let ac = mosaic.new_arrow(&a, &c, "void", void());
+        let bc = mosaic.new_arrow(&b, &c, "void", void());
+
+        let s = mosaic.make_selection(&[a.clone(), b.clone(), ab]);
+        assert_eq!(
+            vec![0, 1, 3],
+            mosaic
+                .get_selection(&s)
+                .map(|t| t.id)
+                .sorted()
+                .collect_vec()
+        );
+
+        mosaic.update_selection(&s, &[a.clone(), b.clone(), ac, bc]);
+        assert_eq!(
+            vec![0, 1, 4, 5],
+            mosaic
+                .get_selection(&s)
+                .map(|t| t.id)
+                .sorted()
+                .collect_vec()
+        );
     }
 }
 

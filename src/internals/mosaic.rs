@@ -226,9 +226,9 @@ impl ComponentValuesBuilderSetter<&str> for ComponentValuesBuilder {
     }
 }
 
-impl ComponentValuesBuilderSetter<&[u8]> for ComponentValuesBuilder {
-    fn set(mut self, field: &str, value: &[u8]) -> ComponentValuesBuilder {
-        self.values.insert(field.into(), Value::S128(value.into()));
+impl ComponentValuesBuilderSetter<String> for ComponentValuesBuilder {
+    fn set(mut self, field: &str, value: String) -> ComponentValuesBuilder {
+        self.values.insert(field.into(), Value::STR(value));
         self
     }
 }

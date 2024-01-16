@@ -73,7 +73,7 @@ pub enum Datatype {
     F32,
     F64,
     S32,
-    S128,
+    STR,
     BOOL,
     COMP(S32),
 }
@@ -100,7 +100,7 @@ impl Datatype {
             Datatype::F32 => Value::F32(0.0),
             Datatype::F64 => Value::F64(0.0),
             Datatype::S32 => Value::S32("".into()),
-            Datatype::S128 => Value::S128(vec![]),
+            Datatype::STR => Value::STR("".to_string()),
             Datatype::BOOL => Value::BOOL(false),
         }
     }
@@ -205,8 +205,6 @@ pub fn try_read_component_type(
     }
 }
 
-pub type S128 = Vec<u8>;
-
 pub type ComponentValues = Vec<(S32, Value)>;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -224,7 +222,7 @@ pub enum Value {
     F32(f32),
     F64(f64),
     S32(S32),
-    S128(S128),
+    STR(String),
     BOOL(bool),
 }
 
@@ -243,7 +241,7 @@ impl Value {
             Value::F32(_) => Datatype::F32,
             Value::F64(_) => Datatype::F64,
             Value::S32(_) => Datatype::S32,
-            Value::S128(_) => Datatype::S128,
+            Value::STR(_) => Datatype::STR,
             Value::BOOL(_) => Datatype::BOOL,
         }
     }
@@ -325,9 +323,9 @@ impl Value {
         }
     }
 
-    pub fn as_s128(&self) -> S128 {
+    pub fn as_str(&self) -> String {
         match self {
-            Value::S128(v) => v.clone(),
+            Value::STR(v) => v.clone(),
             _ => panic!("Cannot get type variant s128 from {:?}", self),
         }
     }
