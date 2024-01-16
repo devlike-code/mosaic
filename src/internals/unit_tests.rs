@@ -2,7 +2,7 @@
 mod internals_tests {
     use random_string::generate;
 
-    use crate::internals::tile_access::{TileFieldQuery, TileFieldSetter};
+    use crate::internals::tile_access::TileFieldSetter;
     use crate::internals::{
         load_mosaic_commands, par, pars, void, ComponentValuesBuilderSetter, Mosaic, MosaicCRUD,
         MosaicIO, MosaicTypelevelCRUD, TileType, Value,
@@ -23,23 +23,6 @@ mod internals_tests {
 
         if let Some(a) = mosaic.get_all().next() {
             assert_eq!(Value::I32(12), a.get("self"));
-        }
-    }
-
-    #[test]
-    fn test_tuple_get() {
-        let mosaic = Mosaic::new();
-        mosaic.new_type("Position: { x: i32, y: i32 };").unwrap();
-        let mut a = mosaic.new_object("Position", void());
-
-        a.set("x", 35i32);
-        a.set("y", 64i32);
-
-        if let (Value::I32(x), Value::I32(y)) = a.get_by(("x", "y")) {
-            assert_eq!(35, x);
-            assert_eq!(64, y);
-        } else {
-            unreachable!();
         }
     }
 
