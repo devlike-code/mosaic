@@ -4,12 +4,11 @@ use super::{
     component_grammar::ComponentParser,
     datatypes::{ComponentType, S32 as ComponentName},
     logging::Logging,
-    Bytesize, ComponentField, Datatype, ToByteArray, Value,
+    ComponentField, Datatype, ToByteArray, Value,
 };
 
 use std::{
     collections::HashMap,
-    ops::Range,
     sync::{Arc, Mutex},
 };
 
@@ -18,7 +17,6 @@ type FieldName = ComponentName;
 #[derive(Default, Debug)]
 pub struct ComponentRegistry {
     pub component_type_map: Mutex<HashMap<ComponentName, ComponentType>>,
-    pub component_offset_size_map: Mutex<HashMap<(String, FieldName), Range<usize>>>,
     pub component_definitions: Mutex<Vec<String>>,
 }
 
@@ -33,7 +31,6 @@ impl Eq for ComponentRegistry {}
 impl ComponentRegistry {
     pub fn clear(&self) {
         self.component_definitions.lock().unwrap().clear();
-        self.component_offset_size_map.lock().unwrap().clear();
         self.component_type_map.lock().unwrap().clear();
     }
 
@@ -59,16 +56,6 @@ impl ComponentRegistry {
         }
 
         type_map.insert(definition.name().into(), definition.clone());
-
-        let mut offset_size_index = self.component_offset_size_map.lock().unwrap();
-
-        let mut offset = 0usize;
-        for field in definition.get_fields() {
-            let size = field.datatype.bytesize(self);
-            let range = offset..offset + size;
-            offset_size_index.insert((definition.name().to_string(), field.name), range);
-            offset += size;
-        }
 
         definition
     }

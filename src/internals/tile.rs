@@ -315,7 +315,7 @@ impl Tile {
             .try_fold(
                 (0usize, HashMap::<S32, Value>::new()),
                 |(ptr, mut old), (name, datatype)| {
-                    let size = datatype.bytesize(&mosaic.component_registry);
+                    let size = datatype.bytesize(&mosaic.component_registry, &data);
                     if data.len() >= ptr + size {
                         let comp_data = &data[ptr..ptr + size];
 

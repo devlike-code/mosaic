@@ -7,7 +7,7 @@ use super::Value;
 
 /// A trait that makes it very clear what the bytesize of a particular struct is meant to be, when statically known
 pub(crate) trait Bytesize {
-    fn bytesize(&self, engine: &ComponentRegistry) -> usize;
+    fn bytesize(&self, engine: &ComponentRegistry, data: &[u8]) -> usize;
 }
 
 /// Representation for anything that can be deserialized from a byte array
@@ -219,6 +219,9 @@ impl ToByteArray for String {
 }
 
 /// The `FromByteArray` implementation for `String`
+/// 01234567hello world
+/// 00000011hello world
+/// 0------78---------19
 impl FromByteArray for String {
     fn from_byte_array(data: &[u8]) -> Self {
         let len = u64::from_byte_array(&data[0..8]);
@@ -236,13 +239,13 @@ impl ToByteArray for S32 {
 
 /// A bytesize check for complex component datatypes
 impl Bytesize for ComponentType {
-    fn bytesize(&self, engine: &ComponentRegistry) -> usize {
+    fn bytesize(&self, engine: &ComponentRegistry, data: &[u8]) -> usize {
         match self {
-            ComponentType::Alias(field) => field.datatype.bytesize(engine),
+            ComponentType::Alias(field) => field.datatype.bytesize(engine, data),
             ComponentType::Product { fields, .. } => fields
                 .iter()
                 .fold(0usize, |old, ComponentField { datatype, .. }| {
-                    old + datatype.bytesize(engine)
+                    old + datatype.bytesize(engine, data)
                 }),
         }
     }
@@ -250,7 +253,7 @@ impl Bytesize for ComponentType {
 
 /// A bytesize check for all basic component datatypes
 impl Bytesize for Datatype {
-    fn bytesize(&self, engine: &ComponentRegistry) -> usize {
+    fn bytesize(&self, engine: &ComponentRegistry, data: &[u8]) -> usize {
         match self {
             Datatype::UNIT => 0usize,
             Datatype::BOOL => 1usize,
@@ -259,10 +262,10 @@ impl Bytesize for Datatype {
             Datatype::I32 | Datatype::U32 | Datatype::F32 => 4usize,
             Datatype::I64 | Datatype::U64 | Datatype::F64 => 8usize,
             Datatype::S32 => 32usize,
-            Datatype::STR => 128usize,
+            Datatype::STR => 8usize + u64::from_be_bytes(slice_into_array(&data[0..8])) as usize,
             Datatype::COMP(component_name) => engine
                 .get_component_type(*component_name)
-                .map(|t| t.bytesize(engine))
+                .map(|t| t.bytesize(engine, data))
                 .unwrap_or(0usize),
         }
     }

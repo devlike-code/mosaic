@@ -201,7 +201,7 @@ pub fn try_read_component_type(
     let component_name: S32 = utf8_name.into();
 
     let component_type = engine.get_component_type(component_name)?;
-    let bytesize = component_type.bytesize(engine);
+    let bytesize = component_type.bytesize(engine, input);
     if 8 * bytesize != message_length {
         format!(
             "Expected message length for type '{}' is {} bytes, but {} bytes found in input: {:?}.",
