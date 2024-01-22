@@ -43,7 +43,7 @@ datatype_expr = {
     | "f32"
     | "f64"
     | "s32"
-    | "s128"
+    | "str"
     | "bool"
     | identifier
 }

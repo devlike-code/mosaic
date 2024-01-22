@@ -334,14 +334,14 @@ impl Value {
     pub fn as_str(&self) -> String {
         match self {
             Value::STR(v) => v.clone(),
-            _ => panic!("Cannot get type variant s128 from {:?}", self),
+            _ => panic!("Cannot get type variant STR from {:?}", self),
         }
     }
 
     pub fn as_bool(&self) -> bool {
         match self {
             Value::BOOL(v) => *v,
-            _ => panic!("Cannot get type variant bool"),
+            _ => panic!("Cannot get type variant BOOL"),
         }
     }
 }
