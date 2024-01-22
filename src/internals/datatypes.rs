@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use fstr::FStr;
 
@@ -26,6 +26,14 @@ impl From<S32> for String {
 impl From<&str> for S32 {
     fn from(value: &str) -> Self {
         S32(FStr::<32>::from_str_lossy(value, b'\0'))
+    }
+}
+
+impl FromStr for S32 {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(s.into())
     }
 }
 

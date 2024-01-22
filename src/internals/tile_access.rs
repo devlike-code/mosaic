@@ -72,7 +72,7 @@ impl TileFieldSetter<S32> for Tile {
 
 impl TileFieldSetter<String> for Tile {
     fn set(&mut self, index: &str, value: String) {
-        self.set_field(index, Value::STR(value.as_str().into()))
+        self.set_field(index, Value::STR(value))
     }
 }
 
