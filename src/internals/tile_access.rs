@@ -103,3 +103,15 @@ impl TileFieldQuery<(&str, &str)> for Tile {
         (a, b)
     }
 }
+
+impl TileFieldQuery<(&str, &str, &str, &str)> for Tile {
+    type Output = (Value, Value, Value, Value);
+
+    fn get_by(&self, index: (&str, &str, &str, &str)) -> Self::Output {
+        let a = self.get(index.0);
+        let b = self.get(index.1);
+        let c = self.get(index.2);
+        let d = self.get(index.3);
+        (a, b, c, d)
+    }
+}
