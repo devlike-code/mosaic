@@ -75,9 +75,11 @@ impl Tile {
                     );
                 }
             } else {
+                panic!("There is no entity with this id: {}", self.id);
                 Value::UNIT
             }
         } else {
+            panic!("There is no component with name: {}", self.component);
             Value::UNIT
         }
     }
@@ -122,6 +124,7 @@ impl std::fmt::Debug for Tile {
                     if f_name == tile.component.to_string() {
                         f_name = "self".to_string();
                     }
+
                     match f.datatype {
                         Datatype::UNIT => f.name.to_string(),
                         Datatype::I8 => {
@@ -269,30 +272,41 @@ impl Tile {
             }
         }
 
-        component_type
+        for (field_name, datatype) in component_type
             .get_fields()
             .iter()
             .map(|field| (field.name, field.datatype.to_owned()))
-            .for_each(|(field_name, datatype)| {
-                let name = if component_type.is_alias() {
-                    "self".into()
-                } else {
-                    field_name
-                };
+        {
+            let name = if component_type.is_alias() {
+                "self".into()
+            } else {
+                field_name
+            };
 
-                if let Some(default_field) = defaults.get(&name) {
-                    if datatype == default_field.get_datatype() {
-                        let value = defaults
-                            .get(&name)
-                            .cloned()
-                            .unwrap_or(datatype.get_default());
+            if let Some(default_field) = defaults.get(&name) {
+                if datatype == default_field.get_datatype() {
+                    let value = defaults
+                        .get(&name)
+                        .cloned()
+                        .unwrap_or(datatype.get_default());
 
-                        self.set_field(&name.to_string(), value);
-                    }
+                    self.set_field(&name.to_string(), value);
                 } else {
-                    println!("MISSING FIELD {:?}", name);
+                    return Err(anyhow!(
+                        "Expected type for field {} is {:?}, but found type {:?}",
+                        name,
+                        datatype,
+                        default_field.get_datatype()
+                    ));
                 }
-            });
+            } else {
+                return Err(anyhow!(
+                    "Missing field {} in type {}",
+                    name,
+                    component_type.name()
+                ));
+            }
+        }
 
         Ok(())
     }

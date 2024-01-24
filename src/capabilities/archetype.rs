@@ -15,8 +15,7 @@ pub trait Archetype {
     fn get_component(&self, target: &Tile, component: &str) -> Option<Tile>;
     fn get_components(&self, target: &Tile, component: &str) -> Vec<Tile>;
     fn add_component(&self, target: &Tile, component: &str, data: Vec<(S32, Value)>) -> Tile;
-    fn remove_component(&self, target: &Tile, component: &str) -> Option<Tile>;
-    fn remove_components(&self, target: &Tile, component: &str) -> Vec<Tile>;
+    fn remove_components(&self, target: &Tile, component: &str);
 
     fn match_archetype(&self, target: &Tile, components: &[&str]) -> bool {
         components
@@ -60,8 +59,7 @@ pub trait ArchetypeSubject {
     fn get_component(&self, component: &str) -> Option<Tile>;
     fn get_components(&self, component: &str) -> Vec<Tile>;
     fn add_component(&self, component: &str, data: Vec<(S32, Value)>) -> Tile;
-    fn remove_component(&self, component: &str) -> Option<Tile>;
-    fn remove_components(&self, component: &str) -> Vec<Tile>;
+    fn remove_components(&self, component: &str);
     fn match_archetype(&self, components: &[&str]) -> bool;
     fn get_full_archetype(&self) -> HashMap<String, Vec<Tile>>;
     fn get_archetype(&self, components: &[&str]) -> HashMap<String, Tile>;
@@ -103,30 +101,12 @@ impl Archetype for Arc<Mosaic> {
         self.new_descriptor(target, component, data)
     }
 
-    fn remove_component(&self, target: &Tile, component: &str) -> Option<Tile> {
-        let comps = target.iter().get_dependents().include_component(component);
-        let collected = comps.collect_vec().first().cloned();
-
-        collected
-            .iter()
-            .map(|t| {
-                t.iter().delete();
-                t
-            })
-            .collect_vec();
-
-        collected
-    }
-
-    fn remove_components(&self, target: &Tile, component: &str) -> Vec<Tile> {
-        let collected = target
+    fn remove_components(&self, target: &Tile, component: &str) {
+        target
             .iter()
             .get_dependents()
             .include_component(component)
-            .collect_vec();
-
-        collected.iter().map(|t| t.iter().delete()).collect_vec();
-        collected
+            .delete();
     }
 }
 
@@ -140,14 +120,11 @@ impl ArchetypeSubject for Tile {
     }
 
     fn add_component(&self, component: &str, data: Vec<(S32, Value)>) -> Tile {
+        println!("{:?}", data);
         self.mosaic.add_component(self, component, data)
     }
 
-    fn remove_component(&self, component: &str) -> Option<Tile> {
-        self.mosaic.remove_component(self, component)
-    }
-
-    fn remove_components(&self, component: &str) -> Vec<Tile> {
+    fn remove_components(&self, component: &str) {
         self.mosaic.remove_components(self, component)
     }
 

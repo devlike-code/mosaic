@@ -30,7 +30,7 @@ pub struct Mosaic {
     pub(crate) entity_counter: RelaxedCounter,
     pub component_registry: ComponentRegistry,
     pub(crate) tile_registry: Mutex<HashMap<EntityId, Tile>>,
-    pub(crate) data_storage: Mutex<DataStorage>,
+    pub data_storage: Mutex<DataStorage>,
     pub(crate) dependent_ids_map: Mutex<ListOrderedMultimap<EntityId, EntityId>>,
     object_ids: Mutex<SparseSet>,
     arrow_ids: Mutex<SparseSet>,
@@ -595,8 +595,7 @@ impl MosaicIO for Arc<Mosaic> {
             self.object_ids.lock().unwrap().add(id);
             e.insert(tile.clone());
 
-            tile.create_data_fields(par(id.to_string().as_str()))
-                .expect("Cannot create data fields, panicking!");
+            tile.create_data_fields(par(id.to_string().as_str()))?;
 
             Ok(tile)
         } else {
