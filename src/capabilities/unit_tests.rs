@@ -87,7 +87,7 @@ mod archetype_tests {
         let r = r.unwrap();
         assert_eq!(r, p);
 
-        a.remove_component("Position");
+        a.remove_components("Position");
         let q = a.get_component("Position");
         assert!(!mosaic.is_tile_valid(&p));
         assert!(q.is_none());

@@ -73,7 +73,6 @@ impl QueueCapability for Arc<Mosaic> {
             let queue_end = Some(self.get_sentinel_in_queue(&queue));
             let enqueued = self.get_next_in_queue(&queue);
 
-            println!("{:?} {:?}", queue_end, enqueued);
             queue_end == enqueued
         } else {
             false

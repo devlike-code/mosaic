@@ -193,7 +193,6 @@ impl std::fmt::Debug for Tile {
                 .component_registry
                 .get_component_type(self.component)
                 .unwrap();
-            debug!("{} => {:?}", comp_type.name(), comp_type.get_fields());
             stringify(self, comp_type.get_fields())
         } else {
             "err: !".to_string()

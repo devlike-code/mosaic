@@ -62,26 +62,37 @@ impl Mosaic {
         )];
 
         tiles.into_iter().for_each(|t| {
-            let dt = format!("{:?}", t.component);
+            let mut dt = format!("{:?}", t);
+            dt = dt.replace(
+                format!("{}|{}", t.component, t.component).as_str(),
+                format!("{}|", t.component).as_str(),
+            );
+            dt = dt.replace("->", if t.is_arrow() { "⟹" } else { "→" });
+            dt = dt.replace("<-", "←");
+            dt = dt.replace("|:", "|");
+            dt = dt.replace("| ", "|");
+            dt = dt.replace("| )", ")");
+            dt = dt.replace("|)", ")");
+
             if t.is_object() {
-                output.push(format!("\t{} [label={:?}]", t.id, dt));
+                output.push(format!("\t{} [label=\"{}\"]", t.id, dt));
             } else if t.is_arrow() {
                 output.push(format!(
-                    "\t{} -> {} [label={:?}]",
+                    "\t{} -> {} [label=\"{}\"]",
                     t.source_id(),
                     t.target_id(),
                     dt
                 ));
             } else if t.is_descriptor() {
                 output.push(format!(
-                    "\t{} -> {} [style=dashed, label={:?}]",
+                    "\t{} -> {} [style=dashed, label=\"{}\"]",
                     t.source_id(),
                     t.target_id(),
                     dt
                 ));
             } else if t.is_extension() {
                 output.push(format!(
-                    "\t{} -> {} [style=dotted, label={:?}]",
+                    "\t{} -> {} [style=dotted, label=\"{}\"]",
                     t.source_id(),
                     t.target_id(),
                     dt

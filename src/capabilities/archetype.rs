@@ -32,11 +32,12 @@ pub trait Archetype {
     }
 
     fn get_full_archetype(&self, target: &Tile) -> HashMap<String, Vec<Tile>> {
-        let mut types: Vec<String> = vec![target.component.into()];
+        let mut types: Vec<String> = vec![];
         for desc in target.iter().get_descriptors() {
             types.push(desc.component.into());
         }
         types = types.unique();
+        types.push(target.component.into());
 
         self.get_archetypes(target, types.as_slice())
     }
@@ -120,7 +121,6 @@ impl ArchetypeSubject for Tile {
     }
 
     fn add_component(&self, component: &str, data: Vec<(S32, Value)>) -> Tile {
-        println!("{:?}", data);
         self.mosaic.add_component(self, component, data)
     }
 
